@@ -1,0 +1,6 @@
+PLAN.md
+SCOPE.md
+CODING_GUIDELINES.md
+node_modules/
+coverage/
+*.tgz

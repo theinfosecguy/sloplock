@@ -1,0 +1,55 @@
+{
+  "name": "sloplock",
+  "version": "0.1.0",
+  "description": "Block nonexistent and too-new npm packages before they enter your repo.",
+  "type": "module",
+  "bin": {
+    "sloplock": "./dist/cli/index.js"
+  },
+  "exports": {
+    ".": "./dist/core/index.js"
+  },
+  "files": [
+    "dist",
+    "action.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "clean": "rm -rf dist coverage",
+    "build": "npm run clean && tsc -p tsconfig.json && npm run bundle:action",
+    "bundle:action": "esbuild src/action/index.ts --bundle --platform=node --target=node24 --format=cjs --sourcemap --outfile=dist/action/index.cjs --banner:js='// Bundled action entrypoint. Do not edit directly.'",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "pack:dry-run": "npm pack --dry-run"
+  },
+  "keywords": [
+    "supply-chain",
+    "github-action",
+    "npm",
+    "security",
+    "dependencies"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^3.0.1",
+    "@actions/github": "^9.1.1",
+    "@commander-js/extra-typings": "^15.0.0",
+    "commander": "^15.0.0",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.30.0",
+    "@types/node": "^24.0.3",
+    "esbuild": "^0.25.5",
+    "eslint": "^9.30.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.35.0",
+    "vitest": "^4.1.9"
+  }
+}
