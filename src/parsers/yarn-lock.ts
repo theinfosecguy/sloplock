@@ -1,4 +1,8 @@
-import { normalizeNpmPackageName } from "../core/npm.js";
+import {
+  hasNonRegistryProtocol,
+  isPublicNpmRegistryUrl,
+  normalizeNpmPackageName
+} from "../core/npm.js";
 import type { DependencyReference } from "../core/types.js";
 import {
   makeNpmReference,
@@ -65,6 +69,10 @@ function splitDescriptors(line: string): string[] {
 function packageNameFromYarnDescriptor(
   descriptor: string
 ): string | undefined {
+  if (isNonRegistryYarnDescriptor(descriptor)) {
+    return undefined;
+  }
+
   if (descriptor.includes("@npm:")) {
     const [rawBeforeNpm, rawAfterNpm] = descriptor.split("@npm:", 2);
     if (rawBeforeNpm === undefined || rawAfterNpm === undefined) {
@@ -86,6 +94,23 @@ function packageNameFromYarnDescriptor(
   }
 
   return normalizeNpmPackageName(descriptor.match(/^([^@]+)/u)?.[1] ?? "");
+}
+
+function isNonRegistryYarnDescriptor(descriptor: string): boolean {
+  const descriptorProtocol = descriptor.match(
+    /(?:^|@)(file|link|workspace|portal|patch|git|github|https?):/u
+  );
+  if (descriptorProtocol === null) {
+    return false;
+  }
+
+  const protocol = descriptorProtocol[1];
+  if (protocol === "http" || protocol === "https") {
+    const urlStart = descriptor.indexOf(`${protocol}:`);
+    return !isPublicNpmRegistryUrl(descriptor.slice(urlStart));
+  }
+
+  return hasNonRegistryProtocol(`${protocol}:`);
 }
 
 function packageNameFromPossibleAliasTarget(

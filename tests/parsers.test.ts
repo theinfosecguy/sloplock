@@ -73,6 +73,27 @@ describe("npm dependency parsers", () => {
     expect(parsed.references.map((reference) => reference.name)).toEqual(["react"]);
   });
 
+  it("skips local package-lock v1 dependency entries", () => {
+    const parsed = parsePackageLock({
+      sourceFile: "package-lock.json",
+      content: JSON.stringify({
+        lockfileVersion: 1,
+        dependencies: {
+          "local-pkg": {
+            version: "file:../local-pkg",
+            resolved: "file:../local-pkg"
+          },
+          react: {
+            version: "19.0.0",
+            resolved: "https://registry.npmjs.org/react/-/react-19.0.0.tgz"
+          }
+        }
+      })
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual(["react"]);
+  });
+
   it("extracts pnpm lock importers and package entries", () => {
     const parsed = parsePnpmLock({
       sourceFile: "pnpm-lock.yaml",
@@ -98,6 +119,31 @@ packages:
     ]);
   });
 
+  it("skips local pnpm lock dependencies", () => {
+    const parsed = parsePnpmLock({
+      sourceFile: "pnpm-lock.yaml",
+      content: `
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      local-pkg:
+        specifier: link:../local-pkg
+        version: link:../local-pkg
+      react:
+        specifier: ^19.0.0
+        version: 19.0.0
+packages:
+  local-pkg@link:../local-pkg:
+    resolution: {directory: ../local-pkg, type: directory}
+  react@19.0.0:
+    resolution: {integrity: sha512-test}
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual(["react"]);
+  });
+
   it("extracts yarn lock descriptors", () => {
     const parsed = parseYarnLock({
       sourceFile: "yarn.lock",
@@ -114,5 +160,23 @@ packages:
       "@scope/pkg",
       "react"
     ]);
+  });
+
+  it("skips local yarn lock descriptors", () => {
+    const parsed = parseYarnLock({
+      sourceFile: "yarn.lock",
+      content: `
+"local-pkg@file:../local-pkg":
+  version "0.0.0"
+
+"workspace-pkg@workspace:*":
+  version "0.0.0-use.local"
+
+"react@^19.0.0":
+  version "19.0.0"
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual(["react"]);
   });
 });

@@ -1,5 +1,5 @@
 import { parse as parseYaml } from "yaml";
-import { normalizeNpmPackageName, packageNameFromNpmAlias } from "../core/npm.js";
+import { hasNonRegistryProtocol, normalizeNpmPackageName, packageNameFromNpmAlias, isPublicNpmRegistryUrl } from "../core/npm.js";
 import { isRecord, makeNpmReference } from "./common.js";
 export function parsePnpmLock(options) {
     const parsed = parseYamlObject(options.content, options.sourceFile);
@@ -65,13 +65,23 @@ function packageNameFromPnpmDependency(rawName, metadata) {
     if (isRecord(metadata)) {
         const version = metadata.version;
         if (typeof version === "string") {
+            if (isNonRegistryPnpmSpecifier(version)) {
+                return undefined;
+            }
             const aliasPackage = packageNameFromNpmAlias(version);
             if (aliasPackage !== undefined) {
                 return aliasPackage;
             }
         }
+        const specifier = metadata.specifier;
+        if (typeof specifier === "string" && isNonRegistryPnpmSpecifier(specifier)) {
+            return undefined;
+        }
     }
     if (typeof metadata === "string") {
+        if (isNonRegistryPnpmSpecifier(metadata)) {
+            return undefined;
+        }
         const aliasPackage = packageNameFromNpmAlias(metadata);
         if (aliasPackage !== undefined) {
             return aliasPackage;
@@ -81,6 +91,9 @@ function packageNameFromPnpmDependency(rawName, metadata) {
 }
 function packageNameFromPnpmPackageKey(packageKey) {
     const key = packageKey.startsWith("/") ? packageKey.slice(1) : packageKey;
+    if (isNonRegistryPnpmPackageKey(key)) {
+        return undefined;
+    }
     if (key.startsWith("@")) {
         const slashParts = key.split("/");
         const scope = slashParts[0];
@@ -95,6 +108,21 @@ function packageNameFromPnpmPackageKey(packageKey) {
         return normalizeNpmPackageName(slashName);
     }
     return normalizeNpmPackageName(key.match(/^([^@]+)@/u)?.[1] ?? "");
+}
+function isNonRegistryPnpmSpecifier(specifier) {
+    if (hasNonRegistryProtocol(specifier)) {
+        return true;
+    }
+    if (specifier.startsWith("http:") || specifier.startsWith("https:")) {
+        return !isPublicNpmRegistryUrl(specifier);
+    }
+    return false;
+}
+function isNonRegistryPnpmPackageKey(packageKey) {
+    if (hasNonRegistryProtocol(packageKey)) {
+        return true;
+    }
+    return /(?:^|@)(?:file|link|workspace|portal|patch|git|github):/u.test(packageKey);
 }
 function parseYamlObject(content, sourceFile) {
     try {

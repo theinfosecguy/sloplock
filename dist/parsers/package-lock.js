@@ -43,6 +43,12 @@ function parseDependenciesObject(dependencies, sourceFile) {
     }
     const references = [];
     for (const [rawName, metadata] of Object.entries(dependencies)) {
+        if (!isPackageLockDependencyRegistryEntry(metadata)) {
+            if (isRecord(metadata)) {
+                references.push(...parseDependenciesObject(metadata.dependencies, sourceFile));
+            }
+            continue;
+        }
         const packageName = normalizeNpmPackageName(rawName);
         if (packageName !== undefined) {
             references.push(makeNpmReference({
@@ -57,6 +63,19 @@ function parseDependenciesObject(dependencies, sourceFile) {
         }
     }
     return references;
+}
+function isPackageLockDependencyRegistryEntry(metadata) {
+    if (!isRecord(metadata)) {
+        return true;
+    }
+    for (const field of ["version", "resolved"]) {
+        const specifier = metadata[field];
+        if (typeof specifier === "string" &&
+            !isRegistryLockfileSpecifier(specifier)) {
+            return false;
+        }
+    }
+    return true;
 }
 function packageNameFromNodeModulesPath(packagePath) {
     const parts = packagePath.split("node_modules/");

@@ -27544,6 +27544,16 @@ function isRegistryLockfileSpecifier(specifier) {
   if (trimmed.length === 0) {
     return false;
   }
+  if (hasNonRegistryProtocol(trimmed)) {
+    return false;
+  }
+  if (trimmed.startsWith("http:") || trimmed.startsWith("https:")) {
+    return isPublicNpmRegistryUrl(trimmed);
+  }
+  return true;
+}
+function hasNonRegistryProtocol(specifier) {
+  const trimmed = specifier.trim();
   const nonRegistryPrefixes = [
     "file:",
     "link:",
@@ -27554,10 +27564,15 @@ function isRegistryLockfileSpecifier(specifier) {
     "git+",
     "github:"
   ];
-  if (nonRegistryPrefixes.some((prefix) => trimmed.startsWith(prefix))) {
+  return nonRegistryPrefixes.some((prefix) => trimmed.startsWith(prefix));
+}
+function isPublicNpmRegistryUrl(specifier) {
+  try {
+    const url = new URL(specifier);
+    return url.hostname === "registry.npmjs.org";
+  } catch {
     return false;
   }
-  return true;
 }
 
 // src/config/load-config.ts
@@ -27938,6 +27953,12 @@ function parseDependenciesObject(dependencies, sourceFile) {
   }
   const references = [];
   for (const [rawName, metadata] of Object.entries(dependencies)) {
+    if (!isPackageLockDependencyRegistryEntry(metadata)) {
+      if (isRecord2(metadata)) {
+        references.push(...parseDependenciesObject(metadata.dependencies, sourceFile));
+      }
+      continue;
+    }
     const packageName = normalizeNpmPackageName(rawName);
     if (packageName !== void 0) {
       references.push(
@@ -27954,6 +27975,18 @@ function parseDependenciesObject(dependencies, sourceFile) {
     }
   }
   return references;
+}
+function isPackageLockDependencyRegistryEntry(metadata) {
+  if (!isRecord2(metadata)) {
+    return true;
+  }
+  for (const field of ["version", "resolved"]) {
+    const specifier = metadata[field];
+    if (typeof specifier === "string" && !isRegistryLockfileSpecifier(specifier)) {
+      return false;
+    }
+  }
+  return true;
 }
 function packageNameFromNodeModulesPath(packagePath) {
   const parts = packagePath.split("node_modules/");
@@ -28051,13 +28084,23 @@ function packageNameFromPnpmDependency(rawName, metadata) {
   if (isRecord2(metadata)) {
     const version = metadata.version;
     if (typeof version === "string") {
+      if (isNonRegistryPnpmSpecifier(version)) {
+        return void 0;
+      }
       const aliasPackage = packageNameFromNpmAlias(version);
       if (aliasPackage !== void 0) {
         return aliasPackage;
       }
     }
+    const specifier = metadata.specifier;
+    if (typeof specifier === "string" && isNonRegistryPnpmSpecifier(specifier)) {
+      return void 0;
+    }
   }
   if (typeof metadata === "string") {
+    if (isNonRegistryPnpmSpecifier(metadata)) {
+      return void 0;
+    }
     const aliasPackage = packageNameFromNpmAlias(metadata);
     if (aliasPackage !== void 0) {
       return aliasPackage;
@@ -28067,6 +28110,9 @@ function packageNameFromPnpmDependency(rawName, metadata) {
 }
 function packageNameFromPnpmPackageKey(packageKey) {
   const key = packageKey.startsWith("/") ? packageKey.slice(1) : packageKey;
+  if (isNonRegistryPnpmPackageKey(key)) {
+    return void 0;
+  }
   if (key.startsWith("@")) {
     const slashParts = key.split("/");
     const scope = slashParts[0];
@@ -28081,6 +28127,23 @@ function packageNameFromPnpmPackageKey(packageKey) {
     return normalizeNpmPackageName(slashName);
   }
   return normalizeNpmPackageName(key.match(/^([^@]+)@/u)?.[1] ?? "");
+}
+function isNonRegistryPnpmSpecifier(specifier) {
+  if (hasNonRegistryProtocol(specifier)) {
+    return true;
+  }
+  if (specifier.startsWith("http:") || specifier.startsWith("https:")) {
+    return !isPublicNpmRegistryUrl(specifier);
+  }
+  return false;
+}
+function isNonRegistryPnpmPackageKey(packageKey) {
+  if (hasNonRegistryProtocol(packageKey)) {
+    return true;
+  }
+  return /(?:^|@)(?:file|link|workspace|portal|patch|git|github):/u.test(
+    packageKey
+  );
 }
 function parseYamlObject(content, sourceFile) {
   try {
@@ -28138,6 +28201,9 @@ function splitDescriptors(line) {
   return trimmed.split(/,\s*/u).map((descriptor) => descriptor.replace(/^"|"$/gu, "").trim()).filter(Boolean);
 }
 function packageNameFromYarnDescriptor(descriptor) {
+  if (isNonRegistryYarnDescriptor(descriptor)) {
+    return void 0;
+  }
   if (descriptor.includes("@npm:")) {
     const [rawBeforeNpm, rawAfterNpm] = descriptor.split("@npm:", 2);
     if (rawBeforeNpm === void 0 || rawAfterNpm === void 0) {
@@ -28155,6 +28221,20 @@ function packageNameFromYarnDescriptor(descriptor) {
     );
   }
   return normalizeNpmPackageName(descriptor.match(/^([^@]+)/u)?.[1] ?? "");
+}
+function isNonRegistryYarnDescriptor(descriptor) {
+  const descriptorProtocol = descriptor.match(
+    /(?:^|@)(file|link|workspace|portal|patch|git|github|https?):/u
+  );
+  if (descriptorProtocol === null) {
+    return false;
+  }
+  const protocol = descriptorProtocol[1];
+  if (protocol === "http" || protocol === "https") {
+    const urlStart = descriptor.indexOf(`${protocol}:`);
+    return !isPublicNpmRegistryUrl(descriptor.slice(urlStart));
+  }
+  return hasNonRegistryProtocol(`${protocol}:`);
 }
 function packageNameFromPossibleAliasTarget(value) {
   if (value.startsWith("@")) {

@@ -65,6 +65,19 @@ export function isRegistryLockfileSpecifier(specifier: string): boolean {
     return false;
   }
 
+  if (hasNonRegistryProtocol(trimmed)) {
+    return false;
+  }
+
+  if (trimmed.startsWith("http:") || trimmed.startsWith("https:")) {
+    return isPublicNpmRegistryUrl(trimmed);
+  }
+
+  return true;
+}
+
+export function hasNonRegistryProtocol(specifier: string): boolean {
+  const trimmed = specifier.trim();
   const nonRegistryPrefixes = [
     "file:",
     "link:",
@@ -76,9 +89,14 @@ export function isRegistryLockfileSpecifier(specifier: string): boolean {
     "github:"
   ];
 
-  if (nonRegistryPrefixes.some((prefix) => trimmed.startsWith(prefix))) {
+  return nonRegistryPrefixes.some((prefix) => trimmed.startsWith(prefix));
+}
+
+export function isPublicNpmRegistryUrl(specifier: string): boolean {
+  try {
+    const url = new URL(specifier);
+    return url.hostname === "registry.npmjs.org";
+  } catch {
     return false;
   }
-
-  return true;
 }

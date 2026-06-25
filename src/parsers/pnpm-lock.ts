@@ -1,7 +1,9 @@
 import { parse as parseYaml } from "yaml";
 import {
+  hasNonRegistryProtocol,
   normalizeNpmPackageName,
-  packageNameFromNpmAlias
+  packageNameFromNpmAlias,
+  isPublicNpmRegistryUrl
 } from "../core/npm.js";
 import type { DependencyReference } from "../core/types.js";
 import {
@@ -104,14 +106,27 @@ function packageNameFromPnpmDependency(
   if (isRecord(metadata)) {
     const version = metadata.version;
     if (typeof version === "string") {
+      if (isNonRegistryPnpmSpecifier(version)) {
+        return undefined;
+      }
+
       const aliasPackage = packageNameFromNpmAlias(version);
       if (aliasPackage !== undefined) {
         return aliasPackage;
       }
     }
+
+    const specifier = metadata.specifier;
+    if (typeof specifier === "string" && isNonRegistryPnpmSpecifier(specifier)) {
+      return undefined;
+    }
   }
 
   if (typeof metadata === "string") {
+    if (isNonRegistryPnpmSpecifier(metadata)) {
+      return undefined;
+    }
+
     const aliasPackage = packageNameFromNpmAlias(metadata);
     if (aliasPackage !== undefined) {
       return aliasPackage;
@@ -123,6 +138,10 @@ function packageNameFromPnpmDependency(
 
 function packageNameFromPnpmPackageKey(packageKey: string): string | undefined {
   const key = packageKey.startsWith("/") ? packageKey.slice(1) : packageKey;
+
+  if (isNonRegistryPnpmPackageKey(key)) {
+    return undefined;
+  }
 
   if (key.startsWith("@")) {
     const slashParts = key.split("/");
@@ -141,6 +160,28 @@ function packageNameFromPnpmPackageKey(packageKey: string): string | undefined {
   }
 
   return normalizeNpmPackageName(key.match(/^([^@]+)@/u)?.[1] ?? "");
+}
+
+function isNonRegistryPnpmSpecifier(specifier: string): boolean {
+  if (hasNonRegistryProtocol(specifier)) {
+    return true;
+  }
+
+  if (specifier.startsWith("http:") || specifier.startsWith("https:")) {
+    return !isPublicNpmRegistryUrl(specifier);
+  }
+
+  return false;
+}
+
+function isNonRegistryPnpmPackageKey(packageKey: string): boolean {
+  if (hasNonRegistryProtocol(packageKey)) {
+    return true;
+  }
+
+  return /(?:^|@)(?:file|link|workspace|portal|patch|git|github):/u.test(
+    packageKey
+  );
 }
 
 function parseYamlObject(content: string, sourceFile: string): Record<string, unknown> {
