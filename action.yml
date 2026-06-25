@@ -1,0 +1,47 @@
+name: SlopLock
+description: Block nonexistent and too-new npm packages before they enter your repo.
+author: SlopLock
+inputs:
+  path:
+    description: Directory to scan.
+    required: false
+    default: .
+  fail-on:
+    description: Minimum severity that fails the job. One of medium or high.
+    required: false
+    default: high
+  changed-only:
+    description: Scan only dependencies introduced by the pull request.
+    required: false
+    default: "true"
+  base:
+    description: Base git ref for changed-only scans.
+    required: false
+    default: ""
+  config:
+    description: Path to sloplock.yml.
+    required: false
+    default: ""
+  comment:
+    description: Post or update a sticky pull request comment when possible.
+    required: false
+    default: "true"
+  github-token:
+    description: GitHub token used for optional pull request comments.
+    required: false
+    default: ${{ github.token }}
+  fail-closed:
+    description: Fail with exit code 3 when registry checks cannot complete.
+    required: false
+    default: "false"
+outputs:
+  findings:
+    description: Number of findings.
+  highest-severity:
+    description: Highest finding severity.
+runs:
+  using: node24
+  main: dist/action/index.cjs
+branding:
+  icon: shield
+  color: red

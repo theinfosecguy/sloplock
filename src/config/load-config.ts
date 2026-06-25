@@ -1,0 +1,342 @@
+import { access, readFile } from "node:fs/promises";
+import path from "node:path";
+import { parse as parseYaml } from "yaml";
+import { UsageError } from "../core/errors.js";
+import { normalizeNpmPackageName } from "../core/npm.js";
+import type {
+  AllowRule,
+  ConfigWarning,
+  IgnoreRule,
+  RuleId,
+  SlopLockConfig
+} from "../core/types.js";
+
+const defaultConfig: SlopLockConfig = {
+  failOn: "high",
+  ecosystems: ["npm"],
+  cooldown: {
+    highDays: 7,
+    mediumDays: 30
+  },
+  allow: [],
+  ignore: []
+};
+
+type LoadConfigOptions = {
+  rootDir: string;
+  configPath?: string;
+  failOn?: "medium" | "high";
+  now: Date;
+  isCi?: boolean;
+};
+
+type LoadedConfig = {
+  config: SlopLockConfig;
+  warnings: ConfigWarning[];
+};
+
+export async function loadConfig(
+  options: LoadConfigOptions
+): Promise<LoadedConfig> {
+  const warnings: ConfigWarning[] = [];
+  const configFile = options.configPath ?? "sloplock.yml";
+  const configFilePath = path.isAbsolute(configFile)
+    ? configFile
+    : path.join(options.rootDir, configFile);
+
+  const exists = await fileExists(configFilePath);
+  const configInput = exists
+    ? parseConfigFile(await readFile(configFilePath, "utf8"), configFile)
+    : {};
+
+  if (!exists && options.configPath !== undefined) {
+    throw new UsageError(`Config file not found: ${options.configPath}`);
+  }
+
+  const config = mergeConfig(configInput, options.failOn);
+  const filteredAllow = filterExpiredAllowRules(
+    config.allow,
+    warnings,
+    configFile,
+    options.now
+  );
+  const filteredIgnore = filterExpiredIgnoreRules(
+    config.ignore,
+    warnings,
+    configFile,
+    options.now
+  );
+
+  if (options.isCi === true) {
+    for (const rule of [...filteredAllow, ...filteredIgnore]) {
+      if (rule.expires === undefined) {
+        warnings.push({
+          file: configFile,
+          message: `Allow or ignore entry for ${rule.package} should include an expires date in CI.`
+        });
+      }
+    }
+  }
+
+  return {
+    config: {
+      ...config,
+      allow: filteredAllow,
+      ignore: filteredIgnore
+    },
+    warnings
+  };
+}
+
+function parseConfigFile(content: string, sourceFile: string): unknown {
+  try {
+    return parseYaml(content) ?? {};
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new UsageError(`Invalid YAML in ${sourceFile}: ${message}`);
+  }
+}
+
+function mergeConfig(input: unknown, failOnOverride: "medium" | "high" | undefined): SlopLockConfig {
+  if (!isRecord(input)) {
+    throw new UsageError("Config file must contain a mapping.");
+  }
+
+  const failOn = parseFailOn(input.failOn, failOnOverride);
+  const cooldown = parseCooldown(input.cooldown);
+  const ecosystems = parseEcosystems(input.ecosystems);
+
+  return {
+    failOn,
+    ecosystems,
+    cooldown,
+    allow: parseAllowRules(input.allow),
+    ignore: parseIgnoreRules(input.ignore)
+  };
+}
+
+function parseFailOn(
+  input: unknown,
+  override: "medium" | "high" | undefined
+): "medium" | "high" {
+  if (override !== undefined) {
+    return override;
+  }
+
+  if (input === undefined) {
+    return defaultConfig.failOn;
+  }
+
+  if (input === "medium" || input === "high") {
+    return input;
+  }
+
+  throw new UsageError("Config failOn must be either medium or high.");
+}
+
+function parseCooldown(input: unknown): SlopLockConfig["cooldown"] {
+  if (input === undefined) {
+    return defaultConfig.cooldown;
+  }
+
+  if (!isRecord(input)) {
+    throw new UsageError("Config cooldown must contain highDays and mediumDays.");
+  }
+
+  const highDays = parsePositiveInteger(input.highDays, "cooldown.highDays");
+  const mediumDays = parsePositiveInteger(input.mediumDays, "cooldown.mediumDays");
+
+  if (highDays > mediumDays) {
+    throw new UsageError("Config cooldown.highDays must be <= cooldown.mediumDays.");
+  }
+
+  return { highDays, mediumDays };
+}
+
+function parseEcosystems(input: unknown): readonly ["npm"] {
+  if (input === undefined) {
+    return ["npm"];
+  }
+
+  if (!Array.isArray(input) || input.length === 0) {
+    throw new UsageError("Config ecosystems must be a non-empty array.");
+  }
+
+  for (const ecosystem of input) {
+    if (ecosystem !== "npm") {
+      throw new UsageError("V1 only supports the npm ecosystem.");
+    }
+  }
+
+  return ["npm"];
+}
+
+function parseAllowRules(input: unknown): AllowRule[] {
+  if (input === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(input)) {
+    throw new UsageError("Config allow must be an array.");
+  }
+
+  return input.map((entry, index) => {
+    if (!isRecord(entry)) {
+      throw new UsageError(`Config allow[${index}] must be a mapping.`);
+    }
+
+    const ecosystem = parseEcosystem(entry.ecosystem, `allow[${index}].ecosystem`);
+    const packageName = parsePackage(entry.package, `allow[${index}].package`);
+    const reason = parseReason(entry.reason, `allow[${index}].reason`);
+    const expires = parseOptionalDate(entry.expires, `allow[${index}].expires`);
+
+    return expires === undefined
+      ? { ecosystem, package: packageName, reason }
+      : { ecosystem, package: packageName, reason, expires };
+  });
+}
+
+function parseIgnoreRules(input: unknown): IgnoreRule[] {
+  if (input === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(input)) {
+    throw new UsageError("Config ignore must be an array.");
+  }
+
+  return input.map((entry, index) => {
+    if (!isRecord(entry)) {
+      throw new UsageError(`Config ignore[${index}] must be a mapping.`);
+    }
+
+    const rule = parseRule(entry.rule, `ignore[${index}].rule`);
+    const ecosystem = parseEcosystem(entry.ecosystem, `ignore[${index}].ecosystem`);
+    const packageName = parsePackage(entry.package, `ignore[${index}].package`);
+    const reason = parseReason(entry.reason, `ignore[${index}].reason`);
+    const expires = parseOptionalDate(entry.expires, `ignore[${index}].expires`);
+
+    return expires === undefined
+      ? { rule, ecosystem, package: packageName, reason }
+      : { rule, ecosystem, package: packageName, reason, expires };
+  });
+}
+
+function filterExpiredAllowRules(
+  rules: readonly AllowRule[],
+  warnings: ConfigWarning[],
+  sourceFile: string,
+  now: Date
+): AllowRule[] {
+  return rules.filter((rule) => {
+    if (rule.expires === undefined || rule.expires.getTime() >= startOfDay(now)) {
+      return true;
+    }
+
+    warnings.push({
+      file: sourceFile,
+      message: `Expired allow entry ignored for ${rule.package}.`
+    });
+    return false;
+  });
+}
+
+function filterExpiredIgnoreRules(
+  rules: readonly IgnoreRule[],
+  warnings: ConfigWarning[],
+  sourceFile: string,
+  now: Date
+): IgnoreRule[] {
+  return rules.filter((rule) => {
+    if (rule.expires === undefined || rule.expires.getTime() >= startOfDay(now)) {
+      return true;
+    }
+
+    warnings.push({
+      file: sourceFile,
+      message: `Expired ignore entry ignored for ${rule.package}.`
+    });
+    return false;
+  });
+}
+
+function parseEcosystem(input: unknown, field: string): "npm" {
+  if (input === "npm") {
+    return input;
+  }
+
+  throw new UsageError(`Config ${field} must be npm.`);
+}
+
+function parseRule(input: unknown, field: string): RuleId {
+  if (input === "package_not_found" || input === "package_too_new") {
+    return input;
+  }
+
+  throw new UsageError(
+    `Config ${field} must be package_not_found or package_too_new.`
+  );
+}
+
+function parsePackage(input: unknown, field: string): string {
+  if (typeof input !== "string") {
+    throw new UsageError(`Config ${field} must be a package name.`);
+  }
+
+  const packageName = normalizeNpmPackageName(input);
+  if (packageName === undefined) {
+    throw new UsageError(`Config ${field} is not a valid npm package name.`);
+  }
+
+  return packageName;
+}
+
+function parseReason(input: unknown, field: string): string {
+  if (typeof input !== "string" || input.trim().length === 0) {
+    throw new UsageError(`Config ${field} must be a non-empty reason.`);
+  }
+
+  return input.trim();
+}
+
+function parseOptionalDate(input: unknown, field: string): Date | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+
+  if (typeof input !== "string") {
+    throw new UsageError(`Config ${field} must be an ISO date string.`);
+  }
+
+  const date = new Date(`${input}T00:00:00.000Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(input) || Number.isNaN(date.getTime())) {
+    throw new UsageError(`Config ${field} must use YYYY-MM-DD.`);
+  }
+
+  return date;
+}
+
+function parsePositiveInteger(input: unknown, field: string): number {
+  if (!Number.isInteger(input) || typeof input !== "number" || input < 0) {
+    throw new UsageError(`Config ${field} must be a non-negative integer.`);
+  }
+
+  return input;
+}
+
+function isRecord(input: unknown): input is Record<string, unknown> {
+  return typeof input === "object" && input !== null && !Array.isArray(input);
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function startOfDay(date: Date): number {
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
