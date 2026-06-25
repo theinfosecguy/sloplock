@@ -1,0 +1,94 @@
+import { Command, CommanderError, InvalidArgumentError } from "@commander-js/extra-typings";
+import { UsageError } from "../core/errors.js";
+export function parseCliArgs(argv) {
+    if (hasFlag(argv, "--help", "-h")) {
+        return defaultArgs({ help: true });
+    }
+    if (hasFlag(argv, "--version", "-v")) {
+        return defaultArgs({ version: true });
+    }
+    const program = buildProgram();
+    let errorOutput = "";
+    program.exitOverride();
+    program.configureOutput({
+        writeErr: (message) => {
+            errorOutput += message;
+        }
+    });
+    try {
+        program.parse([...argv], { from: "user" });
+    }
+    catch (error) {
+        if (error instanceof CommanderError) {
+            const message = errorOutput.trim() || error.message;
+            throw new UsageError(message);
+        }
+        throw error;
+    }
+    const options = program.opts();
+    const pathArg = program.args[0] ?? ".";
+    return {
+        path: pathArg,
+        format: options.format,
+        ...(options.failOn === undefined ? {} : { failOn: options.failOn }),
+        changedOnly: options.changedOnly,
+        ...(options.base === undefined ? {} : { base: options.base }),
+        ...(options.config === undefined ? {} : { config: options.config }),
+        failClosed: options.failClosed,
+        help: false,
+        version: false
+    };
+}
+export function helpText() {
+    return buildProgram().helpInformation();
+}
+function buildProgram() {
+    return new Command()
+        .name("sloplock")
+        .description("Block nonexistent and too-new npm packages before they enter your repo.")
+        .argument("[path]", "directory to scan", ".")
+        .allowExcessArguments(false)
+        .showHelpAfterError(false)
+        .helpOption("-h, --help", "display help")
+        .version("0.1.0", "-v, --version", "print version")
+        .option("--format <format>", "output format: text, json, or markdown", parseFormat, "text")
+        .option("--fail-on <severity>", "minimum severity that fails: medium or high", parseFailOn)
+        .option("--ecosystem <ecosystem>", "ecosystem to scan. V1 supports npm only", parseEcosystem, "npm")
+        .option("--changed-only", "scan only dependencies added since --base", false)
+        .option("--base <ref>", "base git ref for --changed-only")
+        .option("--config <path>", "config file. Default: sloplock.yml")
+        .option("--fail-closed", "exit 3 on registry/network failures", false);
+}
+function parseFormat(value) {
+    if (value === "text" || value === "json" || value === "markdown") {
+        return value;
+    }
+    throw new InvalidArgumentError("must be text, json, or markdown.");
+}
+function parseFailOn(value) {
+    if (value === "medium" || value === "high") {
+        return value;
+    }
+    throw new InvalidArgumentError("must be medium or high.");
+}
+function parseEcosystem(value) {
+    if (value === "npm") {
+        return value;
+    }
+    throw new InvalidArgumentError("V1 only supports npm.");
+}
+function hasFlag(argv, longFlag, shortFlag) {
+    return argv.some((arg) => arg === longFlag || arg === shortFlag);
+}
+function defaultArgs(overrides) {
+    return {
+        path: ".",
+        format: "text",
+        changedOnly: false,
+        failClosed: false,
+        help: false,
+        version: false,
+        ...overrides
+    };
+}
+//# sourceMappingURL=args.js.map
