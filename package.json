@@ -22,11 +22,13 @@
     "clean": "rm -rf dist coverage",
     "build": "npm run clean && tsc -p tsconfig.json && npm run bundle:action",
     "bundle:action": "esbuild src/action/index.ts --bundle --platform=node --target=node24 --format=cjs --sourcemap --outfile=dist/action/index.cjs --banner:js='// Bundled action entrypoint. Do not edit directly.'",
+    "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "pack:dry-run": "npm pack --dry-run"
+    "pack:dry-run": "npm pack --dry-run",
+    "smoke:package": "node scripts/smoke-package.mjs"
   },
   "keywords": [
     "supply-chain",
