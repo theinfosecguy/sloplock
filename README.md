@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: sloplock/sloplock-action@v1
+      - uses: theinfosecguy/sloplock@v1
         with:
           fail-on: high
           changed-only: true
