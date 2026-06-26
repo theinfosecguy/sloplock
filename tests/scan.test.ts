@@ -180,6 +180,31 @@ old-python-package~=1.0
     expect(result.findings[0]?.source.file).toBe("dev.txt");
   });
 
+  it("discovers PyPI packages from poetry.lock", async () => {
+    const rootDir = await tempProject({
+      "poetry.lock": `
+[[package]]
+name = "missing-python-package"
+version = "1.0.0"
+`
+    });
+    const result = await scan({
+      rootDir,
+      registryClient: fakeRegistry({
+        "pypi:missing-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "missing-python-package"
+        }
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("pypi");
+    expect(result.findings[0]?.package).toBe("missing-python-package");
+    expect(result.findings[0]?.source.file).toBe("poetry.lock");
+  });
+
   it("filters scans to a selected ecosystem", async () => {
     const rootDir = await tempProject({
       "package.json": JSON.stringify({
@@ -401,6 +426,54 @@ old-python-package~=1.0
     expect(result.scannedDependencies).toBe(1);
     expect(result.findings[0]?.ecosystem).toBe("pypi");
     expect(result.findings[0]?.package).toBe("new-python-package");
+  });
+
+  it("changed-only scans packages introduced in poetry.lock", async () => {
+    const rootDir = await tempProject({
+      "poetry.lock": `
+[[package]]
+name = "old-python-package"
+version = "1.0.0"
+`
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "poetry.lock"),
+      `
+[[package]]
+name = "old-python-package"
+version = "1.0.0"
+
+[[package]]
+name = "new-python-package"
+version = "1.0.0"
+`
+    );
+    await commitAll(rootDir, "update poetry lock");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "pypi:new-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "new-python-package"
+        },
+        "pypi:old-python-package": found(
+          "old-python-package",
+          "2020-01-01T00:00:00.000Z",
+          "pypi"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("pypi");
+    expect(result.findings[0]?.package).toBe("new-python-package");
+    expect(result.findings[0]?.source.file).toBe("poetry.lock");
   });
 
   it("deduplicates package references before registry lookup", async () => {
