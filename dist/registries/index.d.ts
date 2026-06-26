@@ -2,6 +2,7 @@ import type { Ecosystem, RegistryClient, RegistryPackageFailure, RegistryResult 
 export declare class DefaultRegistryClient implements RegistryClient {
     private readonly crates;
     private readonly go;
+    private readonly maven;
     private readonly npm;
     private readonly nuget;
     private readonly packagist;
@@ -10,6 +11,7 @@ export declare class DefaultRegistryClient implements RegistryClient {
     constructor(input?: {
         crates?: RegistryClient;
         go?: RegistryClient;
+        maven?: RegistryClient;
         npm?: RegistryClient;
         nuget?: RegistryClient;
         packagist?: RegistryClient;

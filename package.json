@@ -47,6 +47,8 @@
     "github-action",
     "crates",
     "go",
+    "maven",
+    "jvm",
     "nuget",
     "npm",
     "composer",
@@ -67,6 +69,7 @@
     "@actions/github": "^9.1.1",
     "@commander-js/extra-typings": "^15.0.0",
     "commander": "^15.0.0",
+    "saxes": "^6.0.0",
     "smol-toml": "^1.7.0",
     "yaml": "^2.8.1"
   },

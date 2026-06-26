@@ -1,5 +1,6 @@
 import { CratesRegistryClient } from "./crates.js";
 import { GoProxyRegistryClient } from "./go.js";
+import { MavenCentralRegistryClient } from "./maven.js";
 import { NugetRegistryClient } from "./nuget.js";
 import { NpmRegistryClient } from "./npm.js";
 import { PackagistRegistryClient } from "./packagist.js";
@@ -8,6 +9,7 @@ import { RubyGemsRegistryClient } from "./rubygems.js";
 export class DefaultRegistryClient {
     crates;
     go;
+    maven;
     npm;
     nuget;
     packagist;
@@ -16,6 +18,7 @@ export class DefaultRegistryClient {
     constructor(input = {}) {
         this.crates = input.crates ?? new CratesRegistryClient();
         this.go = input.go ?? new GoProxyRegistryClient();
+        this.maven = input.maven ?? new MavenCentralRegistryClient();
         this.npm = input.npm ?? new NpmRegistryClient();
         this.nuget = input.nuget ?? new NugetRegistryClient();
         this.packagist = input.packagist ?? new PackagistRegistryClient();
@@ -28,6 +31,8 @@ export class DefaultRegistryClient {
                 return this.crates.getPackage(reference);
             case "go":
                 return this.go.getPackage(reference);
+            case "maven":
+                return this.maven.getPackage(reference);
             case "npm":
                 return this.npm.getPackage(reference);
             case "nuget":

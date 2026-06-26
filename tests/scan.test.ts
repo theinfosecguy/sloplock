@@ -207,6 +207,110 @@ old-python-package~=1.0
     ]);
   });
 
+  it("reports missing and too-new Maven packages from pom.xml", async () => {
+    const rootDir = await tempProject({
+      "pom.xml": `
+<project>
+  <dependencies>
+    <dependency>
+      <groupId>com.acme</groupId>
+      <artifactId>missing-lib</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.acme</groupId>
+      <artifactId>fresh-lib</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.acme</groupId>
+      <artifactId>old-lib</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.acme</groupId>
+      <artifactId>snapshot-lib</artifactId>
+      <version>1.0.0-SNAPSHOT</version>
+    </dependency>
+  </dependencies>
+</project>
+`
+    });
+    const result = await scan({
+      rootDir,
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "maven:com.acme:missing-lib": {
+          status: "not_found",
+          ecosystem: "maven",
+          name: "com.acme:missing-lib"
+        },
+        "maven:com.acme:fresh-lib": found(
+          "com.acme:fresh-lib",
+          "2026-06-22T00:00:00.000Z",
+          "maven"
+        ),
+        "maven:com.acme:old-lib": found(
+          "com.acme:old-lib",
+          "2020-01-01T00:00:00.000Z",
+          "maven"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(3);
+    expect(result.findings.map((finding) => finding.ecosystem)).toEqual([
+      "maven",
+      "maven"
+    ]);
+    expect(result.findings.map((finding) => finding.package).sort()).toEqual([
+      "com.acme:fresh-lib",
+      "com.acme:missing-lib"
+    ]);
+    expect(result.findings.map((finding) => finding.rule).sort()).toEqual([
+      "package_not_found",
+      "package_too_new"
+    ]);
+  });
+
+  it("skips Maven Central misses when pom.xml declares custom repositories", async () => {
+    const rootDir = await tempProject({
+      "pom.xml": `
+<project>
+  <repositories>
+    <repository>
+      <id>internal</id>
+      <url>https://repo.example.invalid/maven2</url>
+    </repository>
+  </repositories>
+  <dependencies>
+    <dependency>
+      <groupId>com.acme</groupId>
+      <artifactId>internal-lib</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+  </dependencies>
+</project>
+`
+    });
+    const result = await scan({
+      rootDir,
+      registryClient: fakeRegistry({
+        "maven:com.acme:internal-lib": {
+          status: "not_found",
+          ecosystem: "maven",
+          name: "com.acme:internal-lib"
+        }
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings).toEqual([]);
+    expect(result.warnings.map((warning) => warning.message)).toContain(
+      "Skipped Maven coordinate com.acme:internal-lib because pom.xml declares custom repositories and Maven Central did not prove the coordinate is public."
+    );
+  });
+
   it("skips NuGet packages not mapped to NuGet.org", async () => {
     const rootDir = await tempProject({
       "NuGet.config": `
@@ -1205,6 +1309,67 @@ version = "0.1.0"
     expect(result.findings[0]?.ecosystem).toBe("packagist");
     expect(result.findings[0]?.package).toBe("example/new-package");
     expect(result.findings[0]?.source.file).toBe("composer.json");
+  });
+
+  it("changed-only scans packages introduced in pom.xml", async () => {
+    const rootDir = await tempProject({
+      "pom.xml": `
+<project>
+  <dependencies>
+    <dependency>
+      <groupId>com.acme</groupId>
+      <artifactId>old-lib</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+  </dependencies>
+</project>
+`
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "pom.xml"),
+      `
+<project>
+  <dependencies>
+    <dependency>
+      <groupId>com.acme</groupId>
+      <artifactId>old-lib</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.acme</groupId>
+      <artifactId>new-lib</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+  </dependencies>
+</project>
+`
+    );
+    await commitAll(rootDir, "update pom");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "maven:com.acme:new-lib": {
+          status: "not_found",
+          ecosystem: "maven",
+          name: "com.acme:new-lib"
+        },
+        "maven:com.acme:old-lib": found(
+          "com.acme:old-lib",
+          "2020-01-01T00:00:00.000Z",
+          "maven"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("maven");
+    expect(result.findings[0]?.package).toBe("com.acme:new-lib");
+    expect(result.findings[0]?.source.file).toBe("pom.xml");
   });
 
   it("changed-only scans packages introduced in composer.lock", async () => {

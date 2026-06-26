@@ -57,6 +57,22 @@ export function makeGoReference(input) {
         isDirect: input.isDirect
     };
 }
+export function makeMavenReference(input) {
+    return {
+        ecosystem: "maven",
+        name: input.name,
+        ...(input.versionRange === undefined
+            ? {}
+            : { versionRange: input.versionRange }),
+        sourceFile: input.sourceFile,
+        ...(input.sourceLine === undefined ? {} : { sourceLine: input.sourceLine }),
+        sourceKind: input.sourceKind,
+        isDirect: input.isDirect,
+        ...(input.registrySource === undefined
+            ? {}
+            : { registrySource: input.registrySource })
+    };
+}
 export function makeCratesReference(input) {
     return {
         ecosystem: "crates",

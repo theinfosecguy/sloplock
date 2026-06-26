@@ -1,6 +1,7 @@
 export type Ecosystem =
   | "crates"
   | "go"
+  | "maven"
   | "npm"
   | "nuget"
   | "packagist"
@@ -23,6 +24,7 @@ export type DependencyReference = {
   sourceLine?: number;
   sourceKind: SourceKind;
   isDirect: boolean;
+  registrySource?: "known-public" | "ambiguous-custom-repository";
 };
 
 export type RegistryPackageFound = {

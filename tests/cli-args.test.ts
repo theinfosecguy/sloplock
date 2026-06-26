@@ -35,11 +35,15 @@ describe("parseCliArgs", () => {
   });
 
   it("rejects unsupported ecosystems", () => {
-    expect(() => parseCliArgs(["--ecosystem", "maven"])).toThrow(UsageError);
+    expect(() => parseCliArgs(["--ecosystem", "gradle"])).toThrow(UsageError);
   });
 
   it("accepts Go ecosystem scans", () => {
     expect(parseCliArgs(["--ecosystem", "go"]).ecosystem).toBe("go");
+  });
+
+  it("accepts Maven ecosystem scans", () => {
+    expect(parseCliArgs(["--ecosystem", "maven"]).ecosystem).toBe("maven");
   });
 
   it("accepts Packagist ecosystem scans", () => {

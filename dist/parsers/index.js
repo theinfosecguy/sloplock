@@ -6,6 +6,7 @@ import { parseCargoToml } from "./cargo-toml.js";
 import { parseGemfile } from "./gemfile.js";
 import { parseGemfileLock } from "./gemfile-lock.js";
 import { parseGoMod } from "./go-mod.js";
+import { parsePomXml } from "./maven.js";
 import { parseDirectoryPackagesProps, parseMsBuildProject, parsePackagesConfig, parsePackagesLockJson } from "./nuget.js";
 import { parsePackageJson } from "./package-json.js";
 import { parsePackageLock } from "./package-lock.js";
@@ -30,6 +31,7 @@ const supportedFileNames = new Set([
     "packages.config",
     "packages.lock.json",
     "pdm.lock",
+    "pom.xml",
     "poetry.lock",
     "pnpm-lock.yaml",
     "pyproject.toml",
@@ -78,6 +80,8 @@ function parseByFileName(fileName, sourceFile, content) {
             return parseGemfileLock({ sourceFile, content });
         case "go.mod":
             return parseGoMod({ sourceFile, content });
+        case "pom.xml":
+            return parsePomXml({ sourceFile, content });
         case "Directory.Packages.props":
             return parseDirectoryPackagesProps({ sourceFile, content });
         case "package.json":

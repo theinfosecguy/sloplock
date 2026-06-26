@@ -6,6 +6,7 @@ import { parseComposerLock } from "../src/parsers/composer-lock.js";
 import { parseGemfile } from "../src/parsers/gemfile.js";
 import { parseGemfileLock } from "../src/parsers/gemfile-lock.js";
 import { parseGoMod } from "../src/parsers/go-mod.js";
+import { parsePomXml } from "../src/parsers/maven.js";
 import {
   parseDirectoryPackagesProps,
   parseMsBuildProject,
@@ -197,6 +198,165 @@ packages:
     });
 
     expect(parsed.references.map((reference) => reference.name)).toEqual(["react"]);
+  });
+});
+
+describe("Maven dependency parsers", () => {
+  it("extracts direct dependencies and import BOMs from pom.xml conservatively", () => {
+    const parsed = parsePomXml({
+      sourceFile: "pom.xml",
+      content: `
+<m:project xmlns:m="http://maven.apache.org/POM/4.0.0">
+  <m:dependencies>
+    <m:dependency>
+      <m:groupId>org.slf4j</m:groupId>
+      <m:artifactId>slf4j-api</m:artifactId>
+      <m:version>2.0.17</m:version>
+    </m:dependency>
+    <m:dependency>
+      <m:groupId>com.acme</m:groupId>
+      <m:artifactId>system-only</m:artifactId>
+      <m:version>1.0.0</m:version>
+      <m:scope>system</m:scope>
+    </m:dependency>
+    <m:dependency>
+      <m:groupId>com.acme</m:groupId>
+      <m:artifactId>snapshot-only</m:artifactId>
+      <m:version>1.0.0-SNAPSHOT</m:version>
+    </m:dependency>
+    <m:dependency>
+      <m:groupId>\${private.group}</m:groupId>
+      <m:artifactId>unresolved</m:artifactId>
+      <m:version>1.0.0</m:version>
+    </m:dependency>
+    <m:dependency>
+      <m:groupId>com.acme</m:groupId>
+      <m:artifactId>unresolved-version</m:artifactId>
+      <m:version>\${revision}</m:version>
+    </m:dependency>
+  </m:dependencies>
+  <m:dependencyManagement>
+    <m:dependencies>
+      <m:dependency>
+        <m:groupId>org.springframework.boot</m:groupId>
+        <m:artifactId>spring-boot-dependencies</m:artifactId>
+        <m:version>3.5.0</m:version>
+        <m:type>pom</m:type>
+        <m:scope>import</m:scope>
+      </m:dependency>
+      <m:dependency>
+        <m:groupId>com.acme</m:groupId>
+        <m:artifactId>managed-only</m:artifactId>
+        <m:version>1.0.0</m:version>
+      </m:dependency>
+    </m:dependencies>
+  </m:dependencyManagement>
+  <m:build>
+    <m:plugins>
+      <m:plugin>
+        <m:dependencies>
+          <m:dependency>
+            <m:groupId>com.acme</m:groupId>
+            <m:artifactId>plugin-only</m:artifactId>
+            <m:version>1.0.0</m:version>
+          </m:dependency>
+        </m:dependencies>
+      </m:plugin>
+    </m:plugins>
+  </m:build>
+  <m:profiles>
+    <m:profile>
+      <m:dependencies>
+        <m:dependency>
+          <m:groupId>com.acme</m:groupId>
+          <m:artifactId>profile-only</m:artifactId>
+          <m:version>1.0.0</m:version>
+        </m:dependency>
+      </m:dependencies>
+    </m:profile>
+  </m:profiles>
+</m:project>
+`
+    });
+
+    expect(
+      parsed.references.map((reference) => ({
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        versionRange: reference.versionRange,
+        sourceKind: reference.sourceKind,
+        isDirect: reference.isDirect,
+        registrySource: reference.registrySource
+      }))
+    ).toEqual([
+      {
+        ecosystem: "maven",
+        name: "org.slf4j:slf4j-api",
+        versionRange: "2.0.17",
+        sourceKind: "manifest",
+        isDirect: true,
+        registrySource: "known-public"
+      },
+      {
+        ecosystem: "maven",
+        name: "org.springframework.boot:spring-boot-dependencies",
+        versionRange: "3.5.0",
+        sourceKind: "manifest",
+        isDirect: true,
+        registrySource: "known-public"
+      }
+    ]);
+  });
+
+  it("marks pom.xml dependencies ambiguous when custom repositories are declared", () => {
+    const parsed = parsePomXml({
+      sourceFile: "pom.xml",
+      content: `
+<project>
+  <repositories>
+    <repository>
+      <id>internal</id>
+      <url>https://repo.example.invalid/maven2</url>
+    </repository>
+  </repositories>
+  <dependencies>
+    <dependency>
+      <groupId>com.acme</groupId>
+      <artifactId>internal-lib</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+  </dependencies>
+</project>
+`
+    });
+
+    expect(parsed.references).toHaveLength(1);
+    expect(parsed.references[0]).toMatchObject({
+      ecosystem: "maven",
+      name: "com.acme:internal-lib",
+      registrySource: "ambiguous-custom-repository"
+    });
+  });
+
+  it("parses Maven files through dependency file discovery", () => {
+    expect(isSupportedDependencyFile("pom.xml")).toBe(true);
+
+    const parsed = parseDependencyFile({
+      sourceFile: "pom.xml",
+      content: `
+<project>
+  <dependencies>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
+  </dependencies>
+</project>
+`
+    });
+
+    expect(parsed.references[0]?.ecosystem).toBe("maven");
+    expect(parsed.references[0]?.name).toBe("org.slf4j:slf4j-api");
   });
 });
 

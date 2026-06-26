@@ -134,6 +134,21 @@ async function evaluateReference(input: {
       };
     }
     case "not_found":
+      if (
+        input.reference.ecosystem === "maven" &&
+        input.reference.registrySource === "ambiguous-custom-repository"
+      ) {
+        return {
+          findings: [],
+          warnings: [
+            {
+              message: `Skipped Maven coordinate ${input.reference.name} because pom.xml declares custom repositories and Maven Central did not prove the coordinate is public.`
+            }
+          ],
+          registryFailures: []
+        };
+      }
+
       return {
         findings: [buildPackageNotFoundFinding(input.reference)],
         warnings: [],
@@ -216,8 +231,13 @@ function referenceScore(reference: DependencyReference): number {
     shell: 3,
     docs: 4
   } satisfies Record<DependencyReference["sourceKind"], number>;
+  const registrySourceScore =
+    reference.ecosystem === "maven" &&
+    reference.registrySource === "ambiguous-custom-repository"
+      ? 1
+      : 0;
 
-  return sourceKindScore[reference.sourceKind];
+  return sourceKindScore[reference.sourceKind] * 10 + registrySourceScore;
 }
 
 async function mapWithConcurrency<Input, Output>(
