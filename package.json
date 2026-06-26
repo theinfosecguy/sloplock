@@ -11,6 +11,9 @@
     "url": "https://github.com/theinfosecguy/sloplock/issues"
   },
   "homepage": "https://github.com/theinfosecguy/sloplock#readme",
+  "publishConfig": {
+    "provenance": true
+  },
   "bin": {
     "sloplock": "dist/cli/index.js"
   },
