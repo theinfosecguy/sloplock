@@ -10,6 +10,39 @@ permissions:
   contents: read
 
 jobs:
+  generated-artifact-policy:
+    name: Generated artifact policy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Verify dist changes are isolated
+        id: dist-policy
+        run: node scripts/check-dist-pr-policy.mjs --base origin/${{ github.base_ref }}
+
+      - name: Install dependencies
+        if: steps.dist-policy.outputs.dist_changed == 'true'
+        run: npm ci
+
+      - name: Build generated artifacts
+        if: steps.dist-policy.outputs.dist_changed == 'true'
+        run: npm run build
+
+      - name: Verify generated artifacts are current
+        if: steps.dist-policy.outputs.dist_changed == 'true'
+        run: npm run check:dist-current
+
   quality:
     name: Quality / Node ${{ matrix.node-version }}
     runs-on: ubuntu-latest
@@ -48,9 +81,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Verify generated artifacts are current
-        run: git diff --exit-code -- dist
-
       - name: Check package contents
         run: npm run pack:dry-run
 
@@ -58,6 +88,4 @@ jobs:
         run: npm run smoke:package
 
       - name: Verify smoke left no artifacts
-        run: |
-          git diff --exit-code -- dist
-          test -z "$(find . -maxdepth 1 -name '*.tgz' -print)"
+        run: test -z "$(find . -maxdepth 1 -name '*.tgz' -print)"
