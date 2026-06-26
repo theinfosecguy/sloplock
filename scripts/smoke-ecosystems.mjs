@@ -30,17 +30,18 @@ try {
   const passReport = runCliJson(passFixture, []);
   assertSummary("CLI pass fixture", passReport, {
     findings: 0,
-    scannedDependencies: 4
+    scannedDependencies: 5
   });
   smokeResults.push(["CLI pass", passReport.summary]);
 
   const missingResult = runCliJson(missingFixture, [], 1);
   assertSummary("CLI missing fixture", missingResult.report, {
-    findings: 4,
-    scannedDependencies: 4,
+    findings: 5,
+    scannedDependencies: 5,
     highestSeverity: "high"
   });
   assertFindingRules("CLI missing fixture", missingResult.report, [
+    "package_not_found",
     "package_not_found",
     "package_not_found",
     "package_not_found",
@@ -61,11 +62,12 @@ try {
     1
   );
   assertSummary("CLI changed-only fixture", changedResult.report, {
-    findings: 4,
-    scannedDependencies: 4,
+    findings: 5,
+    scannedDependencies: 5,
     highestSeverity: "high"
   });
   assertFindingRules("CLI changed-only fixture", changedResult.report, [
+    "package_not_found",
     "package_not_found",
     "package_not_found",
     "package_not_found",
@@ -82,7 +84,7 @@ try {
 
   const actionMissing = runAction(missingFixture, 1);
   assertActionOutputs("Action missing fixture", actionMissing.outputs, {
-    findings: "4",
+    findings: "5",
     highestSeverity: "high"
   });
   smokeResults.push(["Action missing", actionMissing.outputs]);
@@ -128,6 +130,11 @@ version = "0.1.0"
 serde = "1"
 `
   );
+  writeJson(path.join(rootDir, "composer.json"), {
+    require: {
+      "monolog/monolog": "^3.0"
+    }
+  });
 
   return rootDir;
 }
@@ -160,6 +167,11 @@ version = "0.1.0"
 ${packages.crates} = "1"
 `
   );
+  writeJson(path.join(rootDir, "composer.json"), {
+    require: {
+      [packages.packagist]: "1.0.0"
+    }
+  });
 
   return rootDir;
 }
@@ -208,6 +220,16 @@ private-crate = { version = "1", registry = "private" }
 workspace-crate = { workspace = true }
 `
   );
+  writeJson(path.join(rootDir, "composer.json"), {
+    require: {
+      "private/package": "1.0.0"
+    },
+    repositories: [
+      {
+        "packagist.org": false
+      }
+    ]
+  });
 
   return rootDir;
 }
@@ -239,6 +261,11 @@ version = "0.1.0"
 serde = "1"
 `
   );
+  writeJson(path.join(rootDir, "composer.json"), {
+    require: {
+      "monolog/monolog": "^3.0"
+    }
+  });
 
   run("git", ["init", "-q", "-b", "main"], { cwd: rootDir });
   run("git", ["add", "."], { cwd: rootDir });
@@ -294,6 +321,12 @@ serde = "1"
 ${packages.crates} = "1"
 `
   );
+  writeJson(path.join(rootDir, "composer.json"), {
+    require: {
+      "monolog/monolog": "^3.0",
+      [packages.packagist]: "1.0.0"
+    }
+  });
   run("git", ["add", "."], { cwd: rootDir });
   run(
     "git",
@@ -448,6 +481,7 @@ function missingPackages(label = "missing") {
     npm: `sloplock-smoke-npm-${suffix}`,
     pypi: `sloplock-smoke-pypi-${suffix}`,
     go: `github.com/sloplock-smoke/missing-go-${suffix}`,
+    packagist: `sloplock-smoke/missing-${suffix}`,
     crates: `sloplock_smoke_crate_${suffix.replaceAll("-", "_")}`.slice(0, 64)
   };
 }

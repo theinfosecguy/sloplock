@@ -117,6 +117,48 @@ old-python-package~=1.0
     ]);
   });
 
+  it("reports missing and too-new Packagist packages", async () => {
+    const rootDir = await tempProject({
+      "composer.json": JSON.stringify({
+        require: {
+          "example/missing-package": "^1.0.0",
+          "example/fresh-package": "^1.0.0",
+          "example/old-package": "^1.0.0"
+        }
+      })
+    });
+    const result = await scan({
+      rootDir,
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "packagist:example/missing-package": {
+          status: "not_found",
+          ecosystem: "packagist",
+          name: "example/missing-package"
+        },
+        "packagist:example/fresh-package": found(
+          "example/fresh-package",
+          "2026-06-22T00:00:00.000Z",
+          "packagist"
+        ),
+        "packagist:example/old-package": found(
+          "example/old-package",
+          "2020-01-01T00:00:00.000Z",
+          "packagist"
+        )
+      })
+    });
+
+    expect(result.findings.map((finding) => finding.ecosystem)).toEqual([
+      "packagist",
+      "packagist"
+    ]);
+    expect(result.findings.map((finding) => finding.rule).sort()).toEqual([
+      "package_not_found",
+      "package_too_new"
+    ]);
+  });
+
   it("reports missing and too-new Rust crates", async () => {
     const rootDir = await tempProject({
       "Cargo.toml": `
@@ -507,6 +549,66 @@ reference = "private"
     expect(calls).toEqual([]);
   });
 
+  it("scans Packagist packages from composer.lock", async () => {
+    const rootDir = await tempProject({
+      "composer.lock": JSON.stringify({
+        packages: [
+          {
+            name: "example/missing-package",
+            version: "1.0.0",
+            "notification-url": "https://packagist.org/downloads/"
+          },
+          {
+            name: "example/fresh-package",
+            version: "1.0.0",
+            "notification-url": "https://packagist.org/downloads/"
+          },
+          {
+            name: "example/old-package",
+            version: "1.0.0",
+            "notification-url": "https://packagist.org/downloads/"
+          },
+          {
+            name: "example/private-package",
+            version: "1.0.0",
+            "notification-url": "https://packages.example.invalid/downloads/"
+          }
+        ]
+      })
+    });
+    const result = await scan({
+      rootDir,
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "packagist:example/missing-package": {
+          status: "not_found",
+          ecosystem: "packagist",
+          name: "example/missing-package"
+        },
+        "packagist:example/fresh-package": found(
+          "example/fresh-package",
+          "2026-06-22T00:00:00.000Z",
+          "packagist"
+        ),
+        "packagist:example/old-package": found(
+          "example/old-package",
+          "2020-01-01T00:00:00.000Z",
+          "packagist"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(3);
+    expect(result.findings.map((finding) => finding.package).sort()).toEqual([
+      "example/fresh-package",
+      "example/missing-package"
+    ]);
+    expect(result.findings.map((finding) => finding.source.file)).toEqual([
+      "composer.lock",
+      "composer.lock"
+    ]);
+  });
+
   it("filters scans to a selected ecosystem", async () => {
     const rootDir = await tempProject({
       "Cargo.toml": `
@@ -790,6 +892,113 @@ version = "0.1.0"
     expect(result.scannedDependencies).toBe(1);
     expect(result.findings[0]?.ecosystem).toBe("pypi");
     expect(result.findings[0]?.package).toBe("new-python-package");
+  });
+
+  it("changed-only scans packages introduced in composer.json", async () => {
+    const rootDir = await tempProject({
+      "composer.json": JSON.stringify({
+        require: {
+          "example/old-package": "^1.0.0"
+        }
+      })
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "composer.json"),
+      JSON.stringify({
+        require: {
+          "example/old-package": "^1.0.0",
+          "example/new-package": "^1.0.0"
+        }
+      })
+    );
+    await commitAll(rootDir, "update composer manifest");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "packagist:example/new-package": {
+          status: "not_found",
+          ecosystem: "packagist",
+          name: "example/new-package"
+        },
+        "packagist:example/old-package": found(
+          "example/old-package",
+          "2020-01-01T00:00:00.000Z",
+          "packagist"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("packagist");
+    expect(result.findings[0]?.package).toBe("example/new-package");
+    expect(result.findings[0]?.source.file).toBe("composer.json");
+  });
+
+  it("changed-only scans packages introduced in composer.lock", async () => {
+    const rootDir = await tempProject({
+      "composer.lock": JSON.stringify({
+        packages: [
+          {
+            name: "example/old-package",
+            version: "1.0.0",
+            "notification-url": "https://packagist.org/downloads/"
+          }
+        ]
+      })
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "composer.lock"),
+      JSON.stringify({
+        packages: [
+          {
+            name: "example/old-package",
+            version: "1.0.0",
+            "notification-url": "https://packagist.org/downloads/"
+          },
+          {
+            name: "example/new-package",
+            version: "1.0.0",
+            "notification-url": "https://packagist.org/downloads/"
+          },
+          {
+            name: "example/private-package",
+            version: "1.0.0",
+            "notification-url": "https://packages.example.invalid/downloads/"
+          }
+        ]
+      })
+    );
+    await commitAll(rootDir, "update composer lock");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "packagist:example/new-package": {
+          status: "not_found",
+          ecosystem: "packagist",
+          name: "example/new-package"
+        },
+        "packagist:example/old-package": found(
+          "example/old-package",
+          "2020-01-01T00:00:00.000Z",
+          "packagist"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("packagist");
+    expect(result.findings[0]?.package).toBe("example/new-package");
+    expect(result.findings[0]?.source.file).toBe("composer.lock");
   });
 
   it("changed-only scans crates introduced in Cargo.toml", async () => {

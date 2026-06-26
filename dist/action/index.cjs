@@ -4291,7 +4291,7 @@ var require_util2 = __commonJS({
       if (crypto2 === void 0) {
         return true;
       }
-      const parsedMetadata = parseMetadata4(metadataList);
+      const parsedMetadata = parseMetadata5(metadataList);
       if (parsedMetadata === "no metadata") {
         return true;
       }
@@ -4318,7 +4318,7 @@ var require_util2 = __commonJS({
       return false;
     }
     var parseHashWithOptions = /(?<algo>sha256|sha384|sha512)-((?<hash>[A-Za-z0-9+/]+|[A-Za-z0-9_-]+)={0,2}(?:\s|$)( +[!-~]*)?)?/i;
-    function parseMetadata4(metadata) {
+    function parseMetadata5(metadata) {
       const result = [];
       let empty = true;
       for (const token of metadata.split(" ")) {
@@ -4856,7 +4856,7 @@ var require_util2 = __commonJS({
       readAllBytes,
       simpleRangeHeaderValue,
       buildContentRange,
-      parseMetadata: parseMetadata4,
+      parseMetadata: parseMetadata5,
       createInflate,
       extractMimeType,
       getDecodeSplit,
@@ -31409,6 +31409,43 @@ function isPublicNpmRegistryUrl(specifier) {
   }
 }
 
+// src/core/packagist.ts
+var packagistPackageNamePattern = /^[a-z0-9](?:[a-z0-9_.-]*[a-z0-9])?\/[a-z0-9](?:[a-z0-9_.-]*[a-z0-9])?$/iu;
+var platformPackageNames = /* @__PURE__ */ new Set([
+  "composer",
+  "composer-plugin-api",
+  "composer-runtime-api",
+  "hhvm",
+  "php"
+]);
+function normalizePackagistPackageName(name) {
+  const normalized = name.trim().toLowerCase();
+  if (normalized.length === 0 || normalized.length > 214 || !packagistPackageNamePattern.test(normalized)) {
+    return void 0;
+  }
+  return normalized;
+}
+function isComposerPlatformPackageName(name) {
+  const normalized = name.trim().toLowerCase();
+  return platformPackageNames.has(normalized) || normalized.startsWith("ext-") || normalized.startsWith("lib-") || normalized.startsWith("php-");
+}
+function isPublicPackagistRepositoryUrl(specifier) {
+  try {
+    const url = new URL(specifier);
+    return url.hostname === "repo.packagist.org" || url.hostname === "packagist.org" && (url.pathname === "" || url.pathname === "/" || url.pathname === "/packages.json");
+  } catch {
+    return false;
+  }
+}
+function isPublicPackagistNotificationUrl(specifier) {
+  try {
+    const url = new URL(specifier);
+    return url.hostname === "packagist.org" && url.pathname.startsWith("/downloads");
+  } catch {
+    return false;
+  }
+}
+
 // src/core/pypi.ts
 var pypiPackageNamePattern = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/iu;
 function normalizePypiPackageName(name) {
@@ -31436,6 +31473,8 @@ function normalizePackageName(ecosystem, packageName) {
       return normalizeGoModulePath(packageName);
     case "npm":
       return normalizeNpmPackageName(packageName);
+    case "packagist":
+      return normalizePackagistPackageName(packageName);
     case "pypi":
       return normalizePypiPackageName(packageName);
   }
@@ -31448,6 +31487,8 @@ function registryDisplayName(ecosystem) {
       return "Go module proxy";
     case "npm":
       return "npm";
+    case "packagist":
+      return "Packagist";
     case "pypi":
       return "PyPI";
   }
@@ -31456,7 +31497,7 @@ function registryDisplayName(ecosystem) {
 // src/config/load-config.ts
 var defaultConfig = {
   failOn: "high",
-  ecosystems: ["crates", "go", "npm", "pypi"],
+  ecosystems: ["crates", "go", "npm", "packagist", "pypi"],
   cooldown: {
     highDays: 7,
     mediumDays: 30
@@ -31642,10 +31683,12 @@ function filterExpiredIgnoreRules(rules, warnings, sourceFile, now) {
   });
 }
 function parseEcosystem(input, field) {
-  if (input === "crates" || input === "go" || input === "npm" || input === "pypi") {
+  if (input === "crates" || input === "go" || input === "npm" || input === "packagist" || input === "pypi") {
     return input;
   }
-  throw new UsageError(`Config ${field} must be crates, go, npm, or pypi.`);
+  throw new UsageError(
+    `Config ${field} must be crates, go, npm, packagist, or pypi.`
+  );
 }
 function parseRule(input, field) {
   if (input === "package_not_found" || input === "package_too_new") {
@@ -31742,6 +31785,307 @@ var import_node_path3 = __toESM(require("node:path"), 1);
 
 // src/parsers/index.ts
 var import_node_path2 = __toESM(require("node:path"), 1);
+
+// src/parsers/common.ts
+function lineNumberForPattern(content, pattern) {
+  const match = pattern.exec(content);
+  if (match?.index === void 0) {
+    return void 0;
+  }
+  return content.slice(0, match.index).split("\n").length;
+}
+function makeNpmReference(input) {
+  return {
+    ecosystem: "npm",
+    name: input.name,
+    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
+    sourceFile: input.sourceFile,
+    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
+    sourceKind: input.sourceKind,
+    isDirect: input.isDirect
+  };
+}
+function makePypiReference(input) {
+  return {
+    ecosystem: "pypi",
+    name: input.name,
+    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
+    sourceFile: input.sourceFile,
+    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
+    sourceKind: input.sourceKind,
+    isDirect: input.isDirect
+  };
+}
+function makePackagistReference(input) {
+  return {
+    ecosystem: "packagist",
+    name: input.name,
+    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
+    sourceFile: input.sourceFile,
+    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
+    sourceKind: input.sourceKind,
+    isDirect: input.isDirect
+  };
+}
+function makeGoReference(input) {
+  return {
+    ecosystem: "go",
+    name: input.name,
+    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
+    sourceFile: input.sourceFile,
+    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
+    sourceKind: input.sourceKind,
+    isDirect: input.isDirect
+  };
+}
+function makeCratesReference(input) {
+  return {
+    ecosystem: "crates",
+    name: input.name,
+    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
+    sourceFile: input.sourceFile,
+    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
+    sourceKind: input.sourceKind,
+    isDirect: input.isDirect
+  };
+}
+function isRecord2(input) {
+  return typeof input === "object" && input !== null && !Array.isArray(input);
+}
+function toPosixPath2(filePath) {
+  return filePath.split("\\").join("/");
+}
+
+// src/parsers/composer-json.ts
+var dependencySections = ["require", "require-dev"];
+function parseComposerJson(options) {
+  const warnings = [];
+  const parsed = parseJsonObject(options.content, options.sourceFile);
+  const policy = repositoryPolicy(parsed.repositories);
+  if (policy.skipAll) {
+    return { references: [], warnings };
+  }
+  const references = [];
+  for (const section of dependencySections) {
+    const dependencies = parsed[section];
+    if (!isRecord2(dependencies)) {
+      continue;
+    }
+    for (const [rawName, rawVersion] of Object.entries(dependencies)) {
+      if (isComposerPlatformPackageName(rawName) || typeof rawVersion !== "string") {
+        continue;
+      }
+      const packageName = normalizePackagistPackageName(rawName);
+      if (packageName === void 0) {
+        warnings.push(`Skipped invalid Packagist package name ${rawName}.`);
+        continue;
+      }
+      if (isSkippedByRepositoryPolicy(packageName, policy)) {
+        continue;
+      }
+      references.push(
+        makePackagistReference({
+          name: packageName,
+          versionRange: rawVersion,
+          sourceFile: options.sourceFile,
+          sourceKind: "manifest",
+          isDirect: true,
+          ...lineNumberInput(options.content, rawName)
+        })
+      );
+    }
+  }
+  return { references, warnings };
+}
+function repositoryPolicy(input) {
+  const skippedPackages = /* @__PURE__ */ new Set();
+  const skippedPatterns = [];
+  let skipAll = false;
+  for (const repository of repositoryEntries(input)) {
+    if (isPackagistDisabledRepository(repository)) {
+      skipAll = true;
+      continue;
+    }
+    if (isPublicPackagistRepository(repository)) {
+      continue;
+    }
+    const exactPackages = packageNamesFromRepository(repository);
+    for (const packageName of exactPackages) {
+      skippedPackages.add(packageName);
+    }
+    const onlyPatterns = stringArray(repository.only);
+    if (onlyPatterns.length > 0) {
+      skippedPatterns.push(...onlyPatterns.map((pattern) => pattern.toLowerCase()));
+      continue;
+    }
+    if (exactPackages.length === 0) {
+      skipAll = true;
+    }
+  }
+  return { skipAll, skippedPackages, skippedPatterns };
+}
+function repositoryEntries(input) {
+  if (input === void 0) {
+    return [];
+  }
+  if (Array.isArray(input)) {
+    return input.filter(isRecord2);
+  }
+  if (!isRecord2(input)) {
+    return [];
+  }
+  const entries = [];
+  if (input["packagist.org"] === false) {
+    entries.push({ "packagist.org": false });
+  }
+  for (const [key, value] of Object.entries(input)) {
+    if (key !== "packagist.org" && isRecord2(value)) {
+      entries.push(value);
+    }
+  }
+  return entries;
+}
+function isPackagistDisabledRepository(repository) {
+  return repository["packagist.org"] === false;
+}
+function isPublicPackagistRepository(repository) {
+  const type = readString(repository, "type")?.toLowerCase();
+  const url = readString(repository, "url");
+  return type === "composer" && url !== void 0 && isPublicPackagistRepositoryUrl(url);
+}
+function packageNamesFromRepository(repository) {
+  const packageMetadata = repository.package;
+  const entries = Array.isArray(packageMetadata) ? packageMetadata : [packageMetadata];
+  return entries.flatMap((entry) => {
+    if (!isRecord2(entry) || typeof entry.name !== "string") {
+      return [];
+    }
+    const packageName = normalizePackagistPackageName(entry.name);
+    return packageName === void 0 ? [] : [packageName];
+  });
+}
+function isSkippedByRepositoryPolicy(packageName, policy) {
+  return policy.skippedPackages.has(packageName) || policy.skippedPatterns.some(
+    (pattern) => matchesComposerRepositoryPattern(packageName, pattern)
+  );
+}
+function matchesComposerRepositoryPattern(packageName, pattern) {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/gu, "\\$&").replace(/\*/gu, ".*");
+  return new RegExp(`^${escaped}$`, "u").test(packageName);
+}
+function stringArray(input) {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+  return input.filter((entry) => typeof entry === "string");
+}
+function readString(input, key) {
+  const value = input[key];
+  return typeof value === "string" ? value : void 0;
+}
+function parseJsonObject(content, sourceFile) {
+  try {
+    const parsed = JSON.parse(content);
+    if (!isRecord2(parsed)) {
+      throw new Error("expected a JSON object");
+    }
+    return parsed;
+  } catch (error2) {
+    const message = error2 instanceof Error ? error2.message : String(error2);
+    throw new Error(`Invalid JSON in ${sourceFile}: ${message}`);
+  }
+}
+function lineNumberForPackage(content, packageName) {
+  const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  return lineNumberForPattern(content, new RegExp(`"${escaped}"\\s*:`, "u"));
+}
+function lineNumberInput(content, packageName) {
+  const sourceLine = lineNumberForPackage(content, packageName);
+  return sourceLine === void 0 ? {} : { sourceLine };
+}
+
+// src/parsers/composer-lock.ts
+function parseComposerLock(options) {
+  const parsed = parseJsonObject2(options.content, options.sourceFile);
+  const references = [
+    ...parsePackageEntries(parsed.packages, options),
+    ...parsePackageEntries(parsed["packages-dev"], options)
+  ];
+  return {
+    references: dedupeReferences(references),
+    warnings: []
+  };
+}
+function parsePackageEntries(packages, options) {
+  if (!Array.isArray(packages)) {
+    return [];
+  }
+  return packages.flatMap((entry) => referenceFromPackageEntry(entry, options));
+}
+function referenceFromPackageEntry(entry, options) {
+  if (!isRecord2(entry) || !isPackagistLockEntry(entry)) {
+    return [];
+  }
+  const rawName = entry.name;
+  if (typeof rawName !== "string" || isComposerPlatformPackageName(rawName)) {
+    return [];
+  }
+  const packageName = normalizePackagistPackageName(rawName);
+  if (packageName === void 0) {
+    return [];
+  }
+  return [
+    makePackagistReference({
+      name: packageName,
+      ...versionRangeInput(entry.version),
+      sourceFile: options.sourceFile,
+      sourceKind: "lockfile",
+      isDirect: false,
+      ...lineNumberInput2(options.content, rawName)
+    })
+  ];
+}
+function isPackagistLockEntry(entry) {
+  const notificationUrl = readString2(entry, "notification-url");
+  if (notificationUrl !== void 0) {
+    return isPublicPackagistNotificationUrl(notificationUrl);
+  }
+  const repositoryUrl = readString2(entry, "repository");
+  if (repositoryUrl !== void 0) {
+    return isPublicPackagistRepositoryUrl(repositoryUrl);
+  }
+  return false;
+}
+function versionRangeInput(version) {
+  return typeof version === "string" && version.trim().length > 0 ? { versionRange: version.trim() } : {};
+}
+function readString2(input, key) {
+  const value = input[key];
+  return typeof value === "string" ? value : void 0;
+}
+function parseJsonObject2(content, sourceFile) {
+  try {
+    const parsed = JSON.parse(content);
+    if (!isRecord2(parsed)) {
+      throw new Error("expected a JSON object");
+    }
+    return parsed;
+  } catch (error2) {
+    const message = error2 instanceof Error ? error2.message : String(error2);
+    throw new Error(`Invalid JSON in ${sourceFile}: ${message}`);
+  }
+}
+function lineNumberInput2(content, packageName) {
+  const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const sourceLine = lineNumberForPattern(
+    content,
+    new RegExp(`"name"\\s*:\\s*"${escaped}"`, "u")
+  );
+  return sourceLine === void 0 ? {} : { sourceLine };
+}
+function dedupeReferences(references) {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
 
 // node_modules/smol-toml/dist/date.js
 var DATE_TIME_RE = /^(\d{4}-\d{2}-\d{2})?[T ]?(?:(\d{2}):\d{2}(?::\d{2}(?:\.\d+)?)?)?(Z|[-+]\d{2}:\d{2})?$/i;
@@ -32423,70 +32767,11 @@ function parse3(toml, { maxDepth = 1e3, integersAsBigInt } = {}) {
   return res;
 }
 
-// src/parsers/common.ts
-function lineNumberForPattern(content, pattern) {
-  const match = pattern.exec(content);
-  if (match?.index === void 0) {
-    return void 0;
-  }
-  return content.slice(0, match.index).split("\n").length;
-}
-function makeNpmReference(input) {
-  return {
-    ecosystem: "npm",
-    name: input.name,
-    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
-    sourceFile: input.sourceFile,
-    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
-    sourceKind: input.sourceKind,
-    isDirect: input.isDirect
-  };
-}
-function makePypiReference(input) {
-  return {
-    ecosystem: "pypi",
-    name: input.name,
-    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
-    sourceFile: input.sourceFile,
-    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
-    sourceKind: input.sourceKind,
-    isDirect: input.isDirect
-  };
-}
-function makeGoReference(input) {
-  return {
-    ecosystem: "go",
-    name: input.name,
-    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
-    sourceFile: input.sourceFile,
-    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
-    sourceKind: input.sourceKind,
-    isDirect: input.isDirect
-  };
-}
-function makeCratesReference(input) {
-  return {
-    ecosystem: "crates",
-    name: input.name,
-    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
-    sourceFile: input.sourceFile,
-    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
-    sourceKind: input.sourceKind,
-    isDirect: input.isDirect
-  };
-}
-function isRecord2(input) {
-  return typeof input === "object" && input !== null && !Array.isArray(input);
-}
-function toPosixPath2(filePath) {
-  return filePath.split("\\").join("/");
-}
-
 // src/parsers/cargo-lock.ts
 function parseCargoLock(options) {
   const parsed = parseTomlObject(options.content, options.sourceFile);
   return {
-    references: dedupeReferences(parsePackages(parsed.package, options)),
+    references: dedupeReferences2(parsePackages(parsed.package, options)),
     warnings: []
   };
 }
@@ -32509,7 +32794,7 @@ function parsePackages(packages, options) {
         sourceFile: options.sourceFile,
         sourceKind: "lockfile",
         isDirect: false,
-        ...lineNumberInput(options.content, metadata.name)
+        ...lineNumberInput3(options.content, metadata.name)
       })
     ];
   });
@@ -32532,7 +32817,7 @@ function parseTomlObject(content, sourceFile) {
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
 }
-function lineNumberInput(content, packageName) {
+function lineNumberInput3(content, packageName) {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(
     content,
@@ -32540,7 +32825,7 @@ function lineNumberInput(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences(references) {
+function dedupeReferences2(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -32558,7 +32843,7 @@ function parseCargoToml(options) {
     ...parseTargetDependencies(readRecord(parsed, "target"), options)
   ];
   return {
-    references: dedupeReferences2(references),
+    references: dedupeReferences3(references),
     warnings: []
   };
 }
@@ -32600,11 +32885,11 @@ function referenceFromDependency(rawName, specifier, options) {
   return [
     makeCratesReference({
       name: packageName,
-      ...versionRangeInput(specifier),
+      ...versionRangeInput2(specifier),
       sourceFile: options.sourceFile,
       sourceKind: "manifest",
       isDirect: true,
-      ...lineNumberInput2(options.content, rawName)
+      ...lineNumberInput4(options.content, rawName)
     })
   ];
 }
@@ -32629,7 +32914,7 @@ function packageNameFromDependency(rawName, specifier) {
   }
   return normalizeCratesPackageName(rawName);
 }
-function versionRangeInput(specifier) {
+function versionRangeInput2(specifier) {
   if (typeof specifier === "string") {
     return { versionRange: specifier.trim() };
   }
@@ -32654,7 +32939,7 @@ function readRecord(input, key) {
   const value = key === void 0 ? input : input?.[key];
   return isRecord2(value) ? value : void 0;
 }
-function lineNumberInput2(content, packageName) {
+function lineNumberInput4(content, packageName) {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(
     content,
@@ -32662,7 +32947,7 @@ function lineNumberInput2(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences2(references) {
+function dedupeReferences3(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -32897,7 +33182,7 @@ function isGoVersion(input) {
 }
 
 // src/parsers/package-json.ts
-var dependencySections = [
+var dependencySections2 = [
   "dependencies",
   "devDependencies",
   "peerDependencies",
@@ -32905,9 +33190,9 @@ var dependencySections = [
 ];
 function parsePackageJson(options) {
   const warnings = [];
-  const parsed = parseJsonObject(options.content, options.sourceFile);
+  const parsed = parseJsonObject3(options.content, options.sourceFile);
   const references = [];
-  for (const section of dependencySections) {
+  for (const section of dependencySections2) {
     const dependencies = parsed[section];
     if (!isRecord2(dependencies)) {
       continue;
@@ -32928,14 +33213,14 @@ function parsePackageJson(options) {
           sourceFile: options.sourceFile,
           sourceKind: "manifest",
           isDirect: true,
-          ...lineNumberInput3(options.content, rawName)
+          ...lineNumberInput5(options.content, rawName)
         })
       );
     }
   }
   return { references, warnings };
 }
-function parseJsonObject(content, sourceFile) {
+function parseJsonObject3(content, sourceFile) {
   try {
     const parsed = JSON.parse(content);
     if (!isRecord2(parsed)) {
@@ -32947,24 +33232,24 @@ function parseJsonObject(content, sourceFile) {
     throw new Error(`Invalid JSON in ${sourceFile}: ${message}`);
   }
 }
-function lineNumberForPackage(content, packageName) {
+function lineNumberForPackage2(content, packageName) {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   return lineNumberForPattern(content, new RegExp(`"${escaped}"\\s*:`, "u"));
 }
-function lineNumberInput3(content, packageName) {
-  const sourceLine = lineNumberForPackage(content, packageName);
+function lineNumberInput5(content, packageName) {
+  const sourceLine = lineNumberForPackage2(content, packageName);
   return sourceLine === void 0 ? {} : { sourceLine };
 }
 
 // src/parsers/package-lock.ts
 function parsePackageLock(options) {
-  const parsed = parseJsonObject2(options.content, options.sourceFile);
+  const parsed = parseJsonObject4(options.content, options.sourceFile);
   const references = [
     ...parsePackagesObject(parsed.packages, options.sourceFile),
     ...parseDependenciesObject(parsed.dependencies, options.sourceFile)
   ];
   return {
-    references: dedupeReferences3(references),
+    references: dedupeReferences4(references),
     warnings: []
   };
 }
@@ -33046,7 +33331,7 @@ function packageNameFromNodeModulesPath(packagePath) {
   const name = first?.startsWith("@") === true && second !== void 0 ? `${first}/${second}` : first;
   return name === void 0 ? void 0 : normalizeNpmPackageName(name);
 }
-function parseJsonObject2(content, sourceFile) {
+function parseJsonObject4(content, sourceFile) {
   try {
     const parsed = JSON.parse(content);
     if (!isRecord2(parsed)) {
@@ -33058,7 +33343,7 @@ function parseJsonObject2(content, sourceFile) {
     throw new Error(`Invalid JSON in ${sourceFile}: ${message}`);
   }
 }
-function dedupeReferences3(references) {
+function dedupeReferences4(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33086,7 +33371,7 @@ var nonRegistrySourceFields = [
 function parsePdmLock(options) {
   const parsed = parseTomlObject3(options.content, options.sourceFile);
   return {
-    references: dedupeReferences4(parsePackages2(parsed.package, options)),
+    references: dedupeReferences5(parsePackages2(parsed.package, options)),
     warnings: []
   };
 }
@@ -33109,7 +33394,7 @@ function parsePackages2(packages, options) {
         sourceFile: options.sourceFile,
         sourceKind: "lockfile",
         isDirect: false,
-        ...lineNumberInput4(options.content, metadata.name)
+        ...lineNumberInput6(options.content, metadata.name)
       })
     ];
   });
@@ -33159,7 +33444,7 @@ function parseTomlObject3(content, sourceFile) {
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
 }
-function lineNumberInput4(content, packageName) {
+function lineNumberInput6(content, packageName) {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(
     content,
@@ -33167,7 +33452,7 @@ function lineNumberInput4(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences4(references) {
+function dedupeReferences5(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33178,12 +33463,12 @@ function parsePoetryLock(options) {
   if (!Array.isArray(packages)) {
     return { references: [], warnings: [] };
   }
-  const references = dedupeReferences5(
-    packages.flatMap((entry) => referenceFromPackageEntry(entry, options))
+  const references = dedupeReferences6(
+    packages.flatMap((entry) => referenceFromPackageEntry2(entry, options))
   );
   return { references, warnings: [] };
 }
-function referenceFromPackageEntry(entry, options) {
+function referenceFromPackageEntry2(entry, options) {
   if (!isRecord2(entry) || !isPublicPypiSource(readRecord2(entry, "source"))) {
     return [];
   }
@@ -33198,11 +33483,11 @@ function referenceFromPackageEntry(entry, options) {
   return [
     makePypiReference({
       name: packageName,
-      ...versionRangeInput2(entry.version),
+      ...versionRangeInput3(entry.version),
       sourceFile: options.sourceFile,
       sourceKind: "lockfile",
       isDirect: false,
-      ...lineNumberInput5(options.content, rawName)
+      ...lineNumberInput7(options.content, rawName)
     })
   ];
 }
@@ -33210,20 +33495,20 @@ function isPublicPypiSource(source) {
   if (source === void 0) {
     return true;
   }
-  const sourceUrl = readString(source, "url");
+  const sourceUrl = readString3(source, "url");
   if (sourceUrl !== void 0) {
     return isPublicPypiRegistryUrl(sourceUrl);
   }
-  return readString(source, "type")?.toLowerCase() === "pypi";
+  return readString3(source, "type")?.toLowerCase() === "pypi";
 }
-function versionRangeInput2(version) {
+function versionRangeInput3(version) {
   return typeof version === "string" && version.trim().length > 0 ? { versionRange: version.trim() } : {};
 }
 function readRecord2(input, key) {
   const value = input[key];
   return isRecord2(value) ? value : void 0;
 }
-function readString(input, key) {
+function readString3(input, key) {
   const value = input[key];
   return typeof value === "string" ? value : void 0;
 }
@@ -33239,7 +33524,7 @@ function parseTomlObject4(content, sourceFile) {
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
 }
-function lineNumberInput5(content, packageName) {
+function lineNumberInput7(content, packageName) {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(
     content,
@@ -33247,7 +33532,7 @@ function lineNumberInput5(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences5(references) {
+function dedupeReferences6(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33260,7 +33545,7 @@ function parsePnpmLock(options) {
     ...parsePackages3(parsed.packages, options.sourceFile)
   ];
   return {
-    references: dedupeReferences6(references),
+    references: dedupeReferences7(references),
     warnings: []
   };
 }
@@ -33394,7 +33679,7 @@ function parseYamlObject(content, sourceFile) {
     throw new Error(`Invalid YAML in ${sourceFile}: ${message}`);
   }
 }
-function dedupeReferences6(references) {
+function dedupeReferences7(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33551,7 +33836,7 @@ function parseRequirementArray(input, options) {
     return parsePythonRequirementString({
       requirement,
       sourceFile: options.sourceFile,
-      ...lineNumberInput6(options.content, requirement)
+      ...lineNumberInput8(options.content, requirement)
     }).references;
   });
 }
@@ -33570,16 +33855,16 @@ function parsePoetryDependencyTable(table, options) {
     return [
       makePypiReference({
         name: packageName,
-        ...versionRangeInput3(specifier),
+        ...versionRangeInput4(specifier),
         sourceFile: options.sourceFile,
         sourceKind: "manifest",
         isDirect: true,
-        ...lineNumberInput6(options.content, name)
+        ...lineNumberInput8(options.content, name)
       })
     ];
   });
 }
-function versionRangeInput3(specifier) {
+function versionRangeInput4(specifier) {
   if (typeof specifier === "string" && specifier.trim().length > 0) {
     return { versionRange: specifier.trim() };
   }
@@ -33610,7 +33895,7 @@ function parseTomlObject5(content, sourceFile) {
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
 }
-function lineNumberInput6(content, pattern) {
+function lineNumberInput8(content, pattern) {
   const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(content, new RegExp(escaped, "u"));
   return sourceLine === void 0 ? {} : { sourceLine };
@@ -33620,7 +33905,7 @@ function lineNumberInput6(content, pattern) {
 function parseUvLock(options) {
   const parsed = parseTomlObject6(options.content, options.sourceFile);
   return {
-    references: dedupeReferences7(parsePackages4(parsed.package, options)),
+    references: dedupeReferences8(parsePackages4(parsed.package, options)),
     warnings: []
   };
 }
@@ -33643,7 +33928,7 @@ function parsePackages4(packages, options) {
         sourceFile: options.sourceFile,
         sourceKind: "lockfile",
         isDirect: false,
-        ...lineNumberInput7(options.content, metadata.name)
+        ...lineNumberInput9(options.content, metadata.name)
       })
     ];
   });
@@ -33667,7 +33952,7 @@ function parseTomlObject6(content, sourceFile) {
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
 }
-function lineNumberInput7(content, packageName) {
+function lineNumberInput9(content, packageName) {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(
     content,
@@ -33675,7 +33960,7 @@ function lineNumberInput7(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences7(references) {
+function dedupeReferences8(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33704,7 +33989,7 @@ function parseYarnLock(options) {
     }
   }
   return {
-    references: dedupeReferences8(references),
+    references: dedupeReferences9(references),
     warnings: []
   };
 }
@@ -33762,7 +34047,7 @@ function packageNameFromPossibleAliasTarget(value) {
   const match = value.match(/^([a-z0-9][a-z0-9._-]*)@/iu);
   return match?.[1] === void 0 ? void 0 : normalizeNpmPackageName(match[1]);
 }
-function dedupeReferences8(references) {
+function dedupeReferences9(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33770,6 +34055,8 @@ function dedupeReferences8(references) {
 var supportedFileNames = /* @__PURE__ */ new Set([
   "Cargo.lock",
   "Cargo.toml",
+  "composer.json",
+  "composer.lock",
   "go.mod",
   "package.json",
   "package-lock.json",
@@ -33812,6 +34099,10 @@ function parseByFileName(fileName, sourceFile, content) {
       return parseCargoLock({ sourceFile, content });
     case "Cargo.toml":
       return parseCargoToml({ sourceFile, content });
+    case "composer.json":
+      return parseComposerJson({ sourceFile, content });
+    case "composer.lock":
+      return parseComposerLock({ sourceFile, content });
     case "go.mod":
       return parseGoMod({ sourceFile, content });
     case "package.json":
@@ -34716,11 +35007,11 @@ function sleep3(milliseconds) {
   });
 }
 
-// src/registries/pypi.ts
-var pypiRegistryUrl = "https://pypi.org/pypi";
+// src/registries/packagist.ts
+var packagistApiUrl = "https://packagist.org/packages";
 var defaultTimeoutMs4 = 8e3;
 var defaultRetries4 = 2;
-var PypiRegistryClient = class {
+var PackagistRegistryClient = class {
   timeoutMs;
   retries;
   userAgent;
@@ -34729,6 +35020,205 @@ var PypiRegistryClient = class {
   constructor(options = {}) {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs4;
     this.retries = options.retries ?? defaultRetries4;
+    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+  async getPackage(reference) {
+    if (reference.ecosystem !== "packagist") {
+      return {
+        status: "unsupported",
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        message: "Packagist registry client only supports Packagist packages.",
+        retryable: false
+      };
+    }
+    const cached = this.cache.get(reference.name);
+    if (cached !== void 0) {
+      return cached;
+    }
+    const request2 = this.getPackageUncached(reference.name);
+    this.cache.set(reference.name, request2);
+    return request2;
+  }
+  async getPackageUncached(name) {
+    let lastFailure;
+    for (let attempt = 0; attempt <= this.retries; attempt += 1) {
+      const result = await this.fetchPackage(name);
+      if (result.status === "found" || result.status === "not_found") {
+        return result;
+      }
+      lastFailure = result;
+      if (!result.retryable || attempt === this.retries) {
+        return result;
+      }
+      await sleep4(100 * (attempt + 1));
+    }
+    return lastFailure ?? {
+      status: "network_error",
+      ecosystem: "packagist",
+      name,
+      message: "Packagist registry request failed without a response.",
+      retryable: true
+    };
+  }
+  async fetchPackage(name) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, this.timeoutMs);
+    try {
+      const response = await this.fetchImpl(registryPackageUrl3(name), {
+        headers: {
+          accept: "application/json",
+          "user-agent": this.userAgent
+        },
+        signal: controller.signal
+      });
+      if (response.status === 404) {
+        return { status: "not_found", ecosystem: "packagist", name };
+      }
+      if (response.status === 429) {
+        return failure4(
+          name,
+          "rate_limited",
+          "Packagist registry rate limit exceeded.",
+          true
+        );
+      }
+      if (response.status >= 500) {
+        return failure4(
+          name,
+          "server_error",
+          `Packagist registry returned HTTP ${response.status}.`,
+          true
+        );
+      }
+      if (!response.ok) {
+        return failure4(
+          name,
+          "network_error",
+          `Packagist registry returned HTTP ${response.status}.`,
+          false
+        );
+      }
+      let metadata;
+      try {
+        metadata = await response.json();
+      } catch (error2) {
+        const message = error2 instanceof Error ? error2.message : String(error2);
+        return failure4(
+          name,
+          "invalid_response",
+          `Packagist registry returned invalid JSON: ${message}`,
+          false
+        );
+      }
+      return parseMetadata3(name, metadata);
+    } catch (error2) {
+      const message = error2 instanceof Error && error2.name === "AbortError" ? "Packagist registry request timed out." : error2 instanceof Error ? error2.message : String(error2);
+      return failure4(name, "network_error", message, true);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+};
+function parseMetadata3(name, metadata) {
+  if (!isPackagistMetadata(metadata)) {
+    return failure4(
+      name,
+      "invalid_response",
+      "Packagist registry returned invalid package metadata.",
+      false
+    );
+  }
+  const firstPublishedAt = firstPublishedDate3(metadata);
+  const found = {
+    status: "found",
+    ecosystem: "packagist",
+    name,
+    registryUrl: registryPackageUrl3(name)
+  };
+  return firstPublishedAt === void 0 ? found : { ...found, firstPublishedAt };
+}
+function firstPublishedDate3(metadata) {
+  const created = dateFromString4(metadata.package.time);
+  if (created !== void 0) {
+    return created;
+  }
+  const publishTimes = Object.values(metadata.package.versions ?? {}).map((version) => dateFromString4(version.time)).filter((date) => date !== void 0).sort((left, right) => left.getTime() - right.getTime());
+  return publishTimes[0];
+}
+function dateFromString4(input) {
+  if (input === void 0) {
+    return void 0;
+  }
+  const date = new Date(input);
+  return Number.isNaN(date.getTime()) ? void 0 : date;
+}
+function isPackagistMetadata(input) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+  const metadata = input;
+  if (typeof metadata.package !== "object" || metadata.package === null || Array.isArray(metadata.package)) {
+    return false;
+  }
+  const packageMetadata = metadata.package;
+  return (packageMetadata.name === void 0 || typeof packageMetadata.name === "string") && (packageMetadata.time === void 0 || typeof packageMetadata.time === "string") && isOptionalVersionMap(packageMetadata.versions);
+}
+function isOptionalVersionMap(input) {
+  if (input === void 0) {
+    return true;
+  }
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+  return Object.values(input).every(isPackagistVersion);
+}
+function isPackagistVersion(input) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+  const version = input;
+  return version.time === void 0 || typeof version.time === "string";
+}
+function registryPackageUrl3(name) {
+  const [vendor, packageName] = name.split("/", 2);
+  return `${packagistApiUrl}/${encodeURIComponent(
+    vendor ?? name
+  )}/${encodeURIComponent(packageName ?? "")}.json`;
+}
+function failure4(name, status, message, retryable) {
+  return {
+    status,
+    ecosystem: "packagist",
+    name,
+    message,
+    retryable
+  };
+}
+function sleep4(milliseconds) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, milliseconds);
+  });
+}
+
+// src/registries/pypi.ts
+var pypiRegistryUrl = "https://pypi.org/pypi";
+var defaultTimeoutMs5 = 8e3;
+var defaultRetries5 = 2;
+var PypiRegistryClient = class {
+  timeoutMs;
+  retries;
+  userAgent;
+  fetchImpl;
+  cache = /* @__PURE__ */ new Map();
+  constructor(options = {}) {
+    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs5;
+    this.retries = options.retries ?? defaultRetries5;
     this.userAgent = options.userAgent ?? "sloplock/0.1.0";
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -34761,7 +35251,7 @@ var PypiRegistryClient = class {
       if (!result.retryable || attempt === this.retries) {
         return result;
       }
-      await sleep4(100 * (attempt + 1));
+      await sleep5(100 * (attempt + 1));
     }
     return lastFailure ?? {
       status: "network_error",
@@ -34777,7 +35267,7 @@ var PypiRegistryClient = class {
       controller.abort();
     }, this.timeoutMs);
     try {
-      const response = await this.fetchImpl(registryPackageUrl3(name), {
+      const response = await this.fetchImpl(registryPackageUrl4(name), {
         headers: {
           accept: "application/json",
           "user-agent": this.userAgent
@@ -34788,10 +35278,10 @@ var PypiRegistryClient = class {
         return { status: "not_found", ecosystem: "pypi", name };
       }
       if (response.status === 429) {
-        return failure4(name, "rate_limited", "PyPI registry rate limit exceeded.", true);
+        return failure5(name, "rate_limited", "PyPI registry rate limit exceeded.", true);
       }
       if (response.status >= 500) {
-        return failure4(
+        return failure5(
           name,
           "server_error",
           `PyPI registry returned HTTP ${response.status}.`,
@@ -34799,7 +35289,7 @@ var PypiRegistryClient = class {
         );
       }
       if (!response.ok) {
-        return failure4(
+        return failure5(
           name,
           "network_error",
           `PyPI registry returned HTTP ${response.status}.`,
@@ -34807,34 +35297,34 @@ var PypiRegistryClient = class {
         );
       }
       const metadata = await response.json();
-      return parseMetadata3(name, metadata);
+      return parseMetadata4(name, metadata);
     } catch (error2) {
       const message = error2 instanceof Error && error2.name === "AbortError" ? "PyPI registry request timed out." : error2 instanceof Error ? error2.message : String(error2);
-      return failure4(name, "network_error", message, true);
+      return failure5(name, "network_error", message, true);
     } finally {
       clearTimeout(timeout);
     }
   }
 };
-function parseMetadata3(name, metadata) {
+function parseMetadata4(name, metadata) {
   if (!isPypiMetadata(metadata)) {
-    return failure4(
+    return failure5(
       name,
       "invalid_response",
       "PyPI registry returned invalid package metadata.",
       false
     );
   }
-  const firstPublishedAt = firstPublishedDate3(metadata);
+  const firstPublishedAt = firstPublishedDate4(metadata);
   const found = {
     status: "found",
     ecosystem: "pypi",
     name,
-    registryUrl: registryPackageUrl3(name)
+    registryUrl: registryPackageUrl4(name)
   };
   return firstPublishedAt === void 0 ? found : { ...found, firstPublishedAt };
 }
-function firstPublishedDate3(metadata) {
+function firstPublishedDate4(metadata) {
   const uploadDates = [
     ...uploadDatesFromReleases(metadata.releases),
     ...uploadDatesFromFiles(metadata.urls)
@@ -34851,9 +35341,9 @@ function uploadDatesFromFiles(files) {
   if (files === void 0) {
     return [];
   }
-  return files.map((file) => dateFromString4(file.upload_time_iso_8601 ?? file.upload_time)).filter((date) => date !== void 0);
+  return files.map((file) => dateFromString5(file.upload_time_iso_8601 ?? file.upload_time)).filter((date) => date !== void 0);
 }
-function dateFromString4(input) {
+function dateFromString5(input) {
   if (input === void 0) {
     return void 0;
   }
@@ -34892,10 +35382,10 @@ function isOptionalFileArray(input) {
     return (uploadTime === void 0 || typeof uploadTime === "string") && (uploadTimeIso === void 0 || typeof uploadTimeIso === "string");
   });
 }
-function registryPackageUrl3(name) {
+function registryPackageUrl4(name) {
   return `${pypiRegistryUrl}/${encodeURIComponent(name)}/json`;
 }
-function failure4(name, status, message, retryable) {
+function failure5(name, status, message, retryable) {
   return {
     status,
     ecosystem: "pypi",
@@ -34904,7 +35394,7 @@ function failure4(name, status, message, retryable) {
     retryable
   };
 }
-function sleep4(milliseconds) {
+function sleep5(milliseconds) {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
@@ -34917,11 +35407,13 @@ var DefaultRegistryClient = class {
   crates;
   go;
   npm;
+  packagist;
   pypi;
   constructor(input = {}) {
     this.crates = input.crates ?? new CratesRegistryClient();
     this.go = input.go ?? new GoProxyRegistryClient();
     this.npm = input.npm ?? new NpmRegistryClient();
+    this.packagist = input.packagist ?? new PackagistRegistryClient();
     this.pypi = input.pypi ?? new PypiRegistryClient();
   }
   getPackage(reference) {
@@ -34932,6 +35424,8 @@ var DefaultRegistryClient = class {
         return this.go.getPackage(reference);
       case "npm":
         return this.npm.getPackage(reference);
+      case "packagist":
+        return this.packagist.getPackage(reference);
       case "pypi":
         return this.pypi.getPackage(reference);
     }
@@ -35331,11 +35825,11 @@ function ecosystemsInput(input) {
   if (trimmed.length === 0 || trimmed === "all") {
     return {};
   }
-  if (trimmed === "crates" || trimmed === "go" || trimmed === "npm" || trimmed === "pypi") {
+  if (trimmed === "crates" || trimmed === "go" || trimmed === "npm" || trimmed === "packagist" || trimmed === "pypi") {
     return { ecosystems: [trimmed] };
   }
   throw new Error(
-    "Action input ecosystem must be all, crates, go, npm, or pypi."
+    "Action input ecosystem must be all, crates, go, npm, packagist, or pypi."
   );
 }
 function readFailOn(input) {

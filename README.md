@@ -17,6 +17,7 @@ npx --yes sloplock@latest . --ecosystem npm
 npx --yes sloplock@latest . --ecosystem pypi
 npx --yes sloplock@latest . --ecosystem go
 npx --yes sloplock@latest . --ecosystem crates
+npx --yes sloplock@latest . --ecosystem packagist
 ```
 
 Scan only dependencies introduced since a base ref:
@@ -63,12 +64,13 @@ jobs:
 | PyPI | PyPI JSON API | `requirements*.txt`, `*-requirements.txt`, `constraints*.txt`, `*-constraints.txt`, `pyproject.toml`, `pdm.lock`, `poetry.lock`, `uv.lock` |
 | Go | Go module proxy | `go.mod` |
 | Rust | crates.io | `Cargo.toml`, `Cargo.lock` |
+| PHP | Packagist | `composer.json`, `composer.lock` |
 
 SlopLock skips local, workspace, path, git, editable, alternate-registry, and private-source dependencies where the supported file format exposes that information. Go private modules can also be skipped with `GOPRIVATE`, `GONOPROXY`, or `go.privateModules` in config.
 
 ## What It Checks
 
-- `package_not_found`: the dependency name does not exist in npm, PyPI, the Go module proxy, or crates.io.
+- `package_not_found`: the dependency name does not exist in npm, PyPI, the Go module proxy, crates.io, or Packagist.
 - `package_too_new`: the dependency exists, but its first observed publish time is inside the configured cooldown window.
 
 SlopLock is not an SCA scanner, vulnerability scanner, typosquat detector, install-script analyzer, or package reputation score.
@@ -81,7 +83,7 @@ Usage: sloplock [options] [path]
 Options:
   --format <format>        text, json, or markdown
   --fail-on <severity>     medium or high
-  --ecosystem <ecosystem>  crates, go, npm, or pypi
+  --ecosystem <ecosystem>  crates, go, npm, packagist, or pypi
   --changed-only           scan only dependencies added since --base
   --base <ref>             base git ref for --changed-only
   --config <path>          config file. Default: sloplock.yml
@@ -107,6 +109,7 @@ ecosystems:
   - pypi
   - go
   - crates
+  - packagist
 
 cooldown:
   highDays: 7
@@ -156,4 +159,4 @@ npm run pack:dry-run
 npm run smoke:package
 ```
 
-`npm run smoke:ecosystems` exercises the built CLI and bundled GitHub Action across npm, PyPI, Go, and crates.io fixtures. `npm run smoke:package` packs the package, installs the tarball into a temporary project, and verifies the published CLI entry point.
+`npm run smoke:ecosystems` exercises the built CLI and bundled GitHub Action across npm, PyPI, Go, crates.io, and Packagist fixtures. `npm run smoke:package` packs the package, installs the tarball into a temporary project, and verifies the published CLI entry point.

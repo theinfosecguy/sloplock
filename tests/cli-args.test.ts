@@ -42,6 +42,12 @@ describe("parseCliArgs", () => {
     expect(parseCliArgs(["--ecosystem", "go"]).ecosystem).toBe("go");
   });
 
+  it("accepts Packagist ecosystem scans", () => {
+    expect(parseCliArgs(["--ecosystem", "packagist"]).ecosystem).toBe(
+      "packagist"
+    );
+  });
+
   it("rejects extra positional arguments", () => {
     expect(() => parseCliArgs(["one", "two"])).toThrow(UsageError);
   });
