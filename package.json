@@ -44,6 +44,7 @@
     "github-action",
     "crates",
     "go",
+    "nuget",
     "npm",
     "composer",
     "packagist",

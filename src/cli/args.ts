@@ -106,7 +106,7 @@ function buildProgram(): Command<[string], ProgramOptions> {
     )
     .option(
       "--ecosystem <ecosystem>",
-      "ecosystem to scan: crates, go, npm, packagist, pypi, or rubygems",
+      "ecosystem to scan: crates, go, npm, nuget, packagist, pypi, or rubygems",
       parseEcosystem
     )
     .option(
@@ -140,6 +140,7 @@ function parseEcosystem(value: string): Ecosystem {
     value === "crates" ||
     value === "go" ||
     value === "npm" ||
+    value === "nuget" ||
     value === "packagist" ||
     value === "pypi" ||
     value === "rubygems"
@@ -148,7 +149,7 @@ function parseEcosystem(value: string): Ecosystem {
   }
 
   throw new InvalidArgumentError(
-    "must be crates, go, npm, packagist, pypi, or rubygems."
+    "must be crates, go, npm, nuget, packagist, pypi, or rubygems."
   );
 }
 

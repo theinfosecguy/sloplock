@@ -5,7 +5,7 @@ import { UsageError } from "../core/errors.js";
 import { normalizePackageName } from "../core/packages.js";
 const defaultConfig = {
     failOn: "high",
-    ecosystems: ["crates", "go", "npm", "packagist", "pypi", "rubygems"],
+    ecosystems: ["crates", "go", "npm", "nuget", "packagist", "pypi", "rubygems"],
     cooldown: {
         highDays: 7,
         mediumDays: 30
@@ -185,12 +185,13 @@ function parseEcosystem(input, field) {
     if (input === "crates" ||
         input === "go" ||
         input === "npm" ||
+        input === "nuget" ||
         input === "packagist" ||
         input === "pypi" ||
         input === "rubygems") {
         return input;
     }
-    throw new UsageError(`Config ${field} must be crates, go, npm, packagist, pypi, or rubygems.`);
+    throw new UsageError(`Config ${field} must be crates, go, npm, nuget, packagist, pypi, or rubygems.`);
 }
 function parseRule(input, field) {
     if (input === "package_not_found" || input === "package_too_new") {

@@ -1069,14 +1069,14 @@ var require_util = __commonJS({
         }
         const port = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
         let origin = url.origin != null ? url.origin : `${url.protocol || ""}//${url.hostname || ""}:${port}`;
-        let path6 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
+        let path7 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
         if (origin[origin.length - 1] === "/") {
           origin = origin.slice(0, origin.length - 1);
         }
-        if (path6 && path6[0] !== "/") {
-          path6 = `/${path6}`;
+        if (path7 && path7[0] !== "/") {
+          path7 = `/${path7}`;
         }
-        return new URL(`${origin}${path6}`);
+        return new URL(`${origin}${path7}`);
       }
       if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
         throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
@@ -1527,39 +1527,39 @@ var require_diagnostics = __commonJS({
       });
       diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
         const {
-          request: { method, path: path6, origin }
+          request: { method, path: path7, origin }
         } = evt;
-        debuglog("sending request to %s %s/%s", method, origin, path6);
+        debuglog("sending request to %s %s/%s", method, origin, path7);
       });
       diagnosticsChannel.channel("undici:request:headers").subscribe((evt) => {
         const {
-          request: { method, path: path6, origin },
+          request: { method, path: path7, origin },
           response: { statusCode }
         } = evt;
         debuglog(
           "received response to %s %s/%s - HTTP %d",
           method,
           origin,
-          path6,
+          path7,
           statusCode
         );
       });
       diagnosticsChannel.channel("undici:request:trailers").subscribe((evt) => {
         const {
-          request: { method, path: path6, origin }
+          request: { method, path: path7, origin }
         } = evt;
-        debuglog("trailers received from %s %s/%s", method, origin, path6);
+        debuglog("trailers received from %s %s/%s", method, origin, path7);
       });
       diagnosticsChannel.channel("undici:request:error").subscribe((evt) => {
         const {
-          request: { method, path: path6, origin },
+          request: { method, path: path7, origin },
           error: error2
         } = evt;
         debuglog(
           "request to %s %s/%s errored - %s",
           method,
           origin,
-          path6,
+          path7,
           error2.message
         );
       });
@@ -1608,9 +1608,9 @@ var require_diagnostics = __commonJS({
         });
         diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
           const {
-            request: { method, path: path6, origin }
+            request: { method, path: path7, origin }
           } = evt;
-          debuglog("sending request to %s %s/%s", method, origin, path6);
+          debuglog("sending request to %s %s/%s", method, origin, path7);
         });
       }
       diagnosticsChannel.channel("undici:websocket:open").subscribe((evt) => {
@@ -1673,7 +1673,7 @@ var require_request = __commonJS({
     var kHandler = /* @__PURE__ */ Symbol("handler");
     var Request = class {
       constructor(origin, {
-        path: path6,
+        path: path7,
         method,
         body,
         headers,
@@ -1688,11 +1688,11 @@ var require_request = __commonJS({
         expectContinue,
         servername
       }, handler2) {
-        if (typeof path6 !== "string") {
+        if (typeof path7 !== "string") {
           throw new InvalidArgumentError("path must be a string");
-        } else if (path6[0] !== "/" && !(path6.startsWith("http://") || path6.startsWith("https://")) && method !== "CONNECT") {
+        } else if (path7[0] !== "/" && !(path7.startsWith("http://") || path7.startsWith("https://")) && method !== "CONNECT") {
           throw new InvalidArgumentError("path must be an absolute URL or start with a slash");
-        } else if (invalidPathRegex.test(path6)) {
+        } else if (invalidPathRegex.test(path7)) {
           throw new InvalidArgumentError("invalid request path");
         }
         if (typeof method !== "string") {
@@ -1758,7 +1758,7 @@ var require_request = __commonJS({
         this.completed = false;
         this.aborted = false;
         this.upgrade = upgrade || null;
-        this.path = query ? buildURL(path6, query) : path6;
+        this.path = query ? buildURL(path7, query) : path7;
         this.origin = origin;
         this.idempotent = idempotent == null ? method === "HEAD" || method === "GET" : idempotent;
         this.blocking = blocking == null ? false : blocking;
@@ -6380,7 +6380,7 @@ var require_client_h1 = __commonJS({
       return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE" && method !== "CONNECT";
     }
     function writeH1(client, request2) {
-      const { method, path: path6, host, upgrade, blocking, reset } = request2;
+      const { method, path: path7, host, upgrade, blocking, reset } = request2;
       let { body, headers, contentLength } = request2;
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH" || method === "QUERY" || method === "PROPFIND" || method === "PROPPATCH";
       if (util.isFormDataLike(body)) {
@@ -6447,7 +6447,7 @@ var require_client_h1 = __commonJS({
       if (blocking) {
         socket[kBlocking] = true;
       }
-      let header = `${method} ${path6} HTTP/1.1\r
+      let header = `${method} ${path7} HTTP/1.1\r
 `;
       if (typeof host === "string") {
         header += `host: ${host}\r
@@ -6973,7 +6973,7 @@ var require_client_h2 = __commonJS({
     }
     function writeH2(client, request2) {
       const session = client[kHTTP2Session];
-      const { method, path: path6, host, upgrade, expectContinue, signal, headers: reqHeaders } = request2;
+      const { method, path: path7, host, upgrade, expectContinue, signal, headers: reqHeaders } = request2;
       let { body } = request2;
       if (upgrade) {
         util.errorRequest(client, request2, new Error("Upgrade not supported for H2"));
@@ -7040,7 +7040,7 @@ var require_client_h2 = __commonJS({
         });
         return true;
       }
-      headers[HTTP2_HEADER_PATH] = path6;
+      headers[HTTP2_HEADER_PATH] = path7;
       headers[HTTP2_HEADER_SCHEME] = "https";
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH";
       if (body && typeof body.read === "function") {
@@ -7393,9 +7393,9 @@ var require_redirect_handler = __commonJS({
           return this.handler.onHeaders(statusCode, headers, resume, statusText);
         }
         const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
-        const path6 = search ? `${pathname}${search}` : pathname;
+        const path7 = search ? `${pathname}${search}` : pathname;
         this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin);
-        this.opts.path = path6;
+        this.opts.path = path7;
         this.opts.origin = origin;
         this.opts.maxRedirections = 0;
         this.opts.query = null;
@@ -8630,10 +8630,10 @@ var require_proxy_agent = __commonJS({
         };
         const {
           origin,
-          path: path6 = "/",
+          path: path7 = "/",
           headers = {}
         } = opts;
-        opts.path = origin + path6;
+        opts.path = origin + path7;
         if (!("host" in headers) && !("Host" in headers)) {
           const { host } = new URL2(origin);
           headers.host = host;
@@ -10554,20 +10554,20 @@ var require_mock_utils = __commonJS({
       }
       return true;
     }
-    function safeUrl(path6) {
-      if (typeof path6 !== "string") {
-        return path6;
+    function safeUrl(path7) {
+      if (typeof path7 !== "string") {
+        return path7;
       }
-      const pathSegments = path6.split("?");
+      const pathSegments = path7.split("?");
       if (pathSegments.length !== 2) {
-        return path6;
+        return path7;
       }
       const qp = new URLSearchParams(pathSegments.pop());
       qp.sort();
       return [...pathSegments, qp.toString()].join("?");
     }
-    function matchKey(mockDispatch2, { path: path6, method, body, headers }) {
-      const pathMatch = matchValue(mockDispatch2.path, path6);
+    function matchKey(mockDispatch2, { path: path7, method, body, headers }) {
+      const pathMatch = matchValue(mockDispatch2.path, path7);
       const methodMatch = matchValue(mockDispatch2.method, method);
       const bodyMatch = typeof mockDispatch2.body !== "undefined" ? matchValue(mockDispatch2.body, body) : true;
       const headersMatch = matchHeaders(mockDispatch2, headers);
@@ -10589,7 +10589,7 @@ var require_mock_utils = __commonJS({
     function getMockDispatch(mockDispatches, key) {
       const basePath = key.query ? buildURL(key.path, key.query) : key.path;
       const resolvedPath = typeof basePath === "string" ? safeUrl(basePath) : basePath;
-      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path6 }) => matchValue(safeUrl(path6), resolvedPath));
+      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path7 }) => matchValue(safeUrl(path7), resolvedPath));
       if (matchedMockDispatches.length === 0) {
         throw new MockNotMatchedError(`Mock dispatch not matched for path '${resolvedPath}'`);
       }
@@ -10627,9 +10627,9 @@ var require_mock_utils = __commonJS({
       }
     }
     function buildKey(opts) {
-      const { path: path6, method, body, headers, query } = opts;
+      const { path: path7, method, body, headers, query } = opts;
       return {
-        path: path6,
+        path: path7,
         method,
         body,
         headers,
@@ -11092,10 +11092,10 @@ var require_pending_interceptors_formatter = __commonJS({
       }
       format(pendingInterceptors) {
         const withPrettyHeaders = pendingInterceptors.map(
-          ({ method, path: path6, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
+          ({ method, path: path7, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
             Method: method,
             Origin: origin,
-            Path: path6,
+            Path: path7,
             "Status code": statusCode,
             Persistent: persist ? PERSISTENT : NOT_PERSISTENT,
             Invocations: timesInvoked,
@@ -15976,9 +15976,9 @@ var require_util6 = __commonJS({
         }
       }
     }
-    function validateCookiePath(path6) {
-      for (let i = 0; i < path6.length; ++i) {
-        const code = path6.charCodeAt(i);
+    function validateCookiePath(path7) {
+      for (let i = 0; i < path7.length; ++i) {
+        const code = path7.charCodeAt(i);
         if (code < 32 || // exclude CTLs (0-31)
         code === 127 || // DEL
         code === 59) {
@@ -18671,11 +18671,11 @@ var require_undici = __commonJS({
           if (typeof opts.path !== "string") {
             throw new InvalidArgumentError("invalid opts.path");
           }
-          let path6 = opts.path;
+          let path7 = opts.path;
           if (!opts.path.startsWith("/")) {
-            path6 = `/${path6}`;
+            path7 = `/${path7}`;
           }
-          url = new URL(util.parseOrigin(url).origin + path6);
+          url = new URL(util.parseOrigin(url).origin + path7);
         } else {
           if (!opts) {
             opts = typeof url === "object" ? url : {};
@@ -19726,17 +19726,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path6) {
-      const ctrl = callVisitor(key, node, visitor, path6);
+    function visit_(key, node, visitor, path7) {
+      const ctrl = callVisitor(key, node, visitor, path7);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path6, ctrl);
-        return visit_(key, ctrl, visitor, path6);
+        replaceNode(key, path7, ctrl);
+        return visit_(key, ctrl, visitor, path7);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path6 = Object.freeze(path6.concat(node));
+          path7 = Object.freeze(path7.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path6);
+            const ci = visit_(i, node.items[i], visitor, path7);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -19747,13 +19747,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path6 = Object.freeze(path6.concat(node));
-          const ck = visit_("key", node.key, visitor, path6);
+          path7 = Object.freeze(path7.concat(node));
+          const ck = visit_("key", node.key, visitor, path7);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path6);
+          const cv = visit_("value", node.value, visitor, path7);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -19774,17 +19774,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path6) {
-      const ctrl = await callVisitor(key, node, visitor, path6);
+    async function visitAsync_(key, node, visitor, path7) {
+      const ctrl = await callVisitor(key, node, visitor, path7);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path6, ctrl);
-        return visitAsync_(key, ctrl, visitor, path6);
+        replaceNode(key, path7, ctrl);
+        return visitAsync_(key, ctrl, visitor, path7);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path6 = Object.freeze(path6.concat(node));
+          path7 = Object.freeze(path7.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path6);
+            const ci = await visitAsync_(i, node.items[i], visitor, path7);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -19795,13 +19795,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path6 = Object.freeze(path6.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path6);
+          path7 = Object.freeze(path7.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path7);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path6);
+          const cv = await visitAsync_("value", node.value, visitor, path7);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -19828,23 +19828,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path6) {
+    function callVisitor(key, node, visitor, path7) {
       if (typeof visitor === "function")
-        return visitor(key, node, path6);
+        return visitor(key, node, path7);
       if (identity.isMap(node))
-        return visitor.Map?.(key, node, path6);
+        return visitor.Map?.(key, node, path7);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key, node, path6);
+        return visitor.Seq?.(key, node, path7);
       if (identity.isPair(node))
-        return visitor.Pair?.(key, node, path6);
+        return visitor.Pair?.(key, node, path7);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key, node, path6);
+        return visitor.Scalar?.(key, node, path7);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key, node, path6);
+        return visitor.Alias?.(key, node, path7);
       return void 0;
     }
-    function replaceNode(key, path6, node) {
-      const parent = path6[path6.length - 1];
+    function replaceNode(key, path7, node) {
+      const parent = path7[path7.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -20454,10 +20454,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path6, value) {
+    function collectionFromPath(schema, path7, value) {
       let v = value;
-      for (let i = path6.length - 1; i >= 0; --i) {
-        const k = path6[i];
+      for (let i = path7.length - 1; i >= 0; --i) {
+        const k = path7[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -20476,7 +20476,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path6) => path6 == null || typeof path6 === "object" && !!path6[Symbol.iterator]().next().done;
+    var isEmptyPath = (path7) => path7 == null || typeof path7 === "object" && !!path7[Symbol.iterator]().next().done;
     var Collection2 = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -20506,11 +20506,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path6, value) {
-        if (isEmptyPath(path6))
+      addIn(path7, value) {
+        if (isEmptyPath(path7))
           this.add(value);
         else {
-          const [key, ...rest] = path6;
+          const [key, ...rest] = path7;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -20524,8 +20524,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path6) {
-        const [key, ...rest] = path6;
+      deleteIn(path7) {
+        const [key, ...rest] = path7;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -20539,8 +20539,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path6, keepScalar) {
-        const [key, ...rest] = path6;
+      getIn(path7, keepScalar) {
+        const [key, ...rest] = path7;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -20558,8 +20558,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path6) {
-        const [key, ...rest] = path6;
+      hasIn(path7) {
+        const [key, ...rest] = path7;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -20569,8 +20569,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path6, value) {
-        const [key, ...rest] = path6;
+      setIn(path7, value) {
+        const [key, ...rest] = path7;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -23085,9 +23085,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path6, value) {
+      addIn(path7, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path6, value);
+          this.contents.addIn(path7, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -23162,14 +23162,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path6) {
-        if (Collection2.isEmptyPath(path6)) {
+      deleteIn(path7) {
+        if (Collection2.isEmptyPath(path7)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path6) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path7) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -23184,10 +23184,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path6, keepScalar) {
-        if (Collection2.isEmptyPath(path6))
+      getIn(path7, keepScalar) {
+        if (Collection2.isEmptyPath(path7))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path6, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path7, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -23198,10 +23198,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path6) {
-        if (Collection2.isEmptyPath(path6))
+      hasIn(path7) {
+        if (Collection2.isEmptyPath(path7))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path6) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path7) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -23218,13 +23218,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path6, value) {
-        if (Collection2.isEmptyPath(path6)) {
+      setIn(path7, value) {
+        if (Collection2.isEmptyPath(path7)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection2.collectionFromPath(this.schema, Array.from(path6), value);
+          this.contents = Collection2.collectionFromPath(this.schema, Array.from(path7), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path6, value);
+          this.contents.setIn(path7, value);
         }
       }
       /**
@@ -25184,9 +25184,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path6) => {
+    visit.itemAtPath = (cst, path7) => {
       let item = cst;
-      for (const [field, index] of path6) {
+      for (const [field, index] of path7) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -25195,23 +25195,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path6) => {
-      const parent = visit.itemAtPath(cst, path6.slice(0, -1));
-      const field = path6[path6.length - 1][0];
+    visit.parentCollection = (cst, path7) => {
+      const parent = visit.itemAtPath(cst, path7.slice(0, -1));
+      const field = path7[path7.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path6, item, visitor) {
-      let ctrl = visitor(item, path6);
+    function _visit(path7, item, visitor) {
+      let ctrl = visitor(item, path7);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path6.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path7.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -25222,10 +25222,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path6);
+            ctrl = ctrl(item, path7);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path6) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path7) : ctrl;
     }
     exports2.visit = visit;
   }
@@ -27494,8 +27494,8 @@ var Context = class {
       if ((0, import_fs2.existsSync)(process.env.GITHUB_EVENT_PATH)) {
         this.payload = JSON.parse((0, import_fs2.readFileSync)(process.env.GITHUB_EVENT_PATH, { encoding: "utf8" }));
       } else {
-        const path6 = process.env.GITHUB_EVENT_PATH;
-        process.stdout.write(`GITHUB_EVENT_PATH ${path6} does not exist${import_os3.EOL}`);
+        const path7 = process.env.GITHUB_EVENT_PATH;
+        process.stdout.write(`GITHUB_EVENT_PATH ${path7} does not exist${import_os3.EOL}`);
       }
     }
     this.eventName = process.env.GITHUB_EVENT_NAME;
@@ -31226,7 +31226,7 @@ function getOctokit(token, options, ...additionalPlugins) {
 }
 
 // src/core/scan.ts
-var import_node_path5 = __toESM(require("node:path"), 1);
+var import_node_path6 = __toESM(require("node:path"), 1);
 
 // src/config/load-config.ts
 var import_promises = require("node:fs/promises");
@@ -31332,6 +31332,27 @@ function globPatternToRegExp(pattern) {
 }
 function escapeRegExp(input) {
   return input.replace(/[\\^$.*+?()[\]{}|]/gu, "\\$&");
+}
+
+// src/core/nuget.ts
+var nugetPackageNamePattern = /^[A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)*$/u;
+var nugetOrgPackageIdLimit = 100;
+function normalizeNugetPackageName(packageName) {
+  const trimmed = packageName.trim();
+  if (trimmed.length === 0 || trimmed.length > nugetOrgPackageIdLimit || trimmed.includes("$(") || !nugetPackageNamePattern.test(trimmed)) {
+    return void 0;
+  }
+  return trimmed.toLowerCase();
+}
+function isNugetOrgSourceUrl(input) {
+  try {
+    const url = new URL(input.trim());
+    const hostname = url.hostname.toLowerCase();
+    const pathname = url.pathname.replace(/\/+$/u, "").toLowerCase();
+    return hostname === "api.nuget.org" && pathname === "/v3/index.json" || (hostname === "www.nuget.org" || hostname === "nuget.org") && pathname === "/api/v2";
+  } catch {
+    return false;
+  }
 }
 
 // src/core/npm.ts
@@ -31492,6 +31513,8 @@ function normalizePackageName(ecosystem, packageName) {
       return normalizeGoModulePath(packageName);
     case "npm":
       return normalizeNpmPackageName(packageName);
+    case "nuget":
+      return normalizeNugetPackageName(packageName);
     case "packagist":
       return normalizePackagistPackageName(packageName);
     case "pypi":
@@ -31508,6 +31531,8 @@ function registryDisplayName(ecosystem) {
       return "Go module proxy";
     case "npm":
       return "npm";
+    case "nuget":
+      return "NuGet.org";
     case "packagist":
       return "Packagist";
     case "pypi":
@@ -31520,7 +31545,7 @@ function registryDisplayName(ecosystem) {
 // src/config/load-config.ts
 var defaultConfig = {
   failOn: "high",
-  ecosystems: ["crates", "go", "npm", "packagist", "pypi", "rubygems"],
+  ecosystems: ["crates", "go", "npm", "nuget", "packagist", "pypi", "rubygems"],
   cooldown: {
     highDays: 7,
     mediumDays: 30
@@ -31706,11 +31731,11 @@ function filterExpiredIgnoreRules(rules, warnings, sourceFile, now) {
   });
 }
 function parseEcosystem(input, field) {
-  if (input === "crates" || input === "go" || input === "npm" || input === "packagist" || input === "pypi" || input === "rubygems") {
+  if (input === "crates" || input === "go" || input === "npm" || input === "nuget" || input === "packagist" || input === "pypi" || input === "rubygems") {
     return input;
   }
   throw new UsageError(
-    `Config ${field} must be crates, go, npm, packagist, pypi, or rubygems.`
+    `Config ${field} must be crates, go, npm, nuget, packagist, pypi, or rubygems.`
   );
 }
 function parseRule(input, field) {
@@ -31875,6 +31900,17 @@ function makeCratesReference(input) {
 function makeRubygemsReference(input) {
   return {
     ecosystem: "rubygems",
+    name: input.name,
+    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
+    sourceFile: input.sourceFile,
+    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
+    sourceKind: input.sourceKind,
+    isDirect: input.isDirect
+  };
+}
+function makeNugetReference(input) {
+  return {
+    ecosystem: "nuget",
     name: input.name,
     ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
     sourceFile: input.sourceFile,
@@ -33391,6 +33427,321 @@ function isGoVersion(input) {
   return /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(input);
 }
 
+// src/parsers/xml.ts
+function parseXmlElements(content) {
+  const tags = parseRawTags(content);
+  return tags.map((tag) => ({
+    name: localXmlName(tag.name),
+    attributes: tag.attributes,
+    innerContent: tag.selfClosing ? "" : content.slice(tag.contentStart, closingTagStart(content, tag)),
+    sourceLine: tag.startLine
+  }));
+}
+function xmlAttribute(element, name) {
+  return element.attributes.get(name.toLowerCase());
+}
+function xmlChildText(element, childName) {
+  const escaped = childName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const pattern = new RegExp(
+    `<(?:[A-Za-z_][\\w.-]*:)?${escaped}\\b[^>]*>([^<]*)</(?:[A-Za-z_][\\w.-]*:)?${escaped}>`,
+    "iu"
+  );
+  const match = pattern.exec(element.innerContent);
+  const value = match?.[1]?.trim();
+  return value === void 0 || value.length === 0 ? void 0 : decodeXmlEntities(value);
+}
+function localXmlName(name) {
+  return name.includes(":") ? name.slice(name.lastIndexOf(":") + 1) : name;
+}
+function parseRawTags(content) {
+  const tags = [];
+  let cursor = 0;
+  let line = 1;
+  while (cursor < content.length) {
+    const open2 = content.indexOf("<", cursor);
+    if (open2 === -1) {
+      break;
+    }
+    line += countLineBreaks(content.slice(cursor, open2));
+    if (content.startsWith("<!--", open2)) {
+      const end2 = content.indexOf("-->", open2 + 4);
+      const next = end2 === -1 ? content.length : end2 + 3;
+      line += countLineBreaks(content.slice(open2, next));
+      cursor = next;
+      continue;
+    }
+    if (content.startsWith("<![CDATA[", open2)) {
+      const end2 = content.indexOf("]]>", open2 + 9);
+      const next = end2 === -1 ? content.length : end2 + 3;
+      line += countLineBreaks(content.slice(open2, next));
+      cursor = next;
+      continue;
+    }
+    const nextCharacter = content[open2 + 1];
+    if (nextCharacter === "/" || nextCharacter === "!" || nextCharacter === "?") {
+      const end2 = findTagEnd(content, open2 + 1);
+      const next = end2 === -1 ? content.length : end2 + 1;
+      line += countLineBreaks(content.slice(open2, next));
+      cursor = next;
+      continue;
+    }
+    const end = findTagEnd(content, open2 + 1);
+    if (end === -1) {
+      break;
+    }
+    const tagSource = content.slice(open2 + 1, end);
+    const parsed = parseStartTag(tagSource);
+    const tagLine = line;
+    line += countLineBreaks(content.slice(open2, end + 1));
+    cursor = end + 1;
+    if (parsed !== void 0) {
+      tags.push({
+        name: parsed.name,
+        attributes: parsed.attributes,
+        startLine: tagLine,
+        contentStart: end + 1,
+        contentEnd: content.length,
+        selfClosing: parsed.selfClosing
+      });
+    }
+  }
+  return tags;
+}
+function parseStartTag(source) {
+  const trimmed = source.trim();
+  const selfClosing = trimmed.endsWith("/");
+  const body = selfClosing ? trimmed.slice(0, -1).trimEnd() : trimmed;
+  const nameMatch = /^([A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?)(?:\s|$)/u.exec(
+    body
+  );
+  const name = nameMatch?.[1];
+  if (name === void 0) {
+    return void 0;
+  }
+  return {
+    name,
+    attributes: parseAttributes(body.slice(name.length)),
+    selfClosing
+  };
+}
+function parseAttributes(source) {
+  const attributes = /* @__PURE__ */ new Map();
+  const pattern = /([A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?)\s*=\s*(?:"([^"]*)"|'([^']*)')/gu;
+  for (const match of source.matchAll(pattern)) {
+    const rawName = match[1];
+    const rawValue = match[2] ?? match[3];
+    if (rawName !== void 0 && rawValue !== void 0) {
+      attributes.set(localXmlName(rawName).toLowerCase(), decodeXmlEntities(rawValue));
+    }
+  }
+  return attributes;
+}
+function closingTagStart(content, tag) {
+  const escapedName = tag.name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const pattern = new RegExp(`</${escapedName}\\s*>`, "iu");
+  const match = pattern.exec(content.slice(tag.contentStart));
+  if (match?.index === void 0) {
+    return tag.contentEnd;
+  }
+  return tag.contentStart + match.index;
+}
+function findTagEnd(content, cursor) {
+  let quote;
+  for (let index = cursor; index < content.length; index += 1) {
+    const character = content[index];
+    if (character === '"' || character === "'") {
+      quote = quote === character ? void 0 : quote ?? character;
+      continue;
+    }
+    if (character === ">" && quote === void 0) {
+      return index;
+    }
+  }
+  return -1;
+}
+function decodeXmlEntities(input) {
+  return input.replace(
+    /&(#x[0-9a-f]+|#\d+|quot|apos|amp|lt|gt);/giu,
+    (entity, value) => {
+      switch (value.toLowerCase()) {
+        case "quot":
+          return '"';
+        case "apos":
+          return "'";
+        case "amp":
+          return "&";
+        case "lt":
+          return "<";
+        case "gt":
+          return ">";
+        default:
+          return numericEntityValue(value) ?? entity;
+      }
+    }
+  );
+}
+function numericEntityValue(value) {
+  const codePoint = value.toLowerCase().startsWith("#x") ? Number.parseInt(value.slice(2), 16) : value.startsWith("#") ? Number.parseInt(value.slice(1), 10) : Number.NaN;
+  if (!Number.isInteger(codePoint) || codePoint < 0) {
+    return void 0;
+  }
+  try {
+    return String.fromCodePoint(codePoint);
+  } catch {
+    return void 0;
+  }
+}
+function countLineBreaks(input) {
+  return input.match(/\n/gu)?.length ?? 0;
+}
+
+// src/parsers/nuget.ts
+function parseMsBuildProject(options) {
+  return {
+    references: dedupeReferences6(
+      packageReferenceElements(options).flatMap(
+        (element) => referenceFromMsBuildElement(element, options)
+      )
+    ),
+    warnings: []
+  };
+}
+function parseDirectoryPackagesProps(options) {
+  return {
+    references: dedupeReferences6(
+      packageVersionElements(options).flatMap(
+        (element) => referenceFromMsBuildElement(element, options)
+      )
+    ),
+    warnings: []
+  };
+}
+function parsePackagesConfig(options) {
+  const references = parseXmlElements(options.content).filter((element) => element.name.toLowerCase() === "package").flatMap((element) => {
+    const rawName = xmlAttribute(element, "id");
+    const packageName = rawName === void 0 ? void 0 : normalizeNugetPackageName(rawName);
+    if (packageName === void 0) {
+      return [];
+    }
+    return [
+      makeNugetReference({
+        name: packageName,
+        ...versionRangeInput4(xmlAttribute(element, "version")),
+        sourceFile: options.sourceFile,
+        sourceLine: element.sourceLine,
+        sourceKind: "manifest",
+        isDirect: true
+      })
+    ];
+  });
+  return { references: dedupeReferences6(references), warnings: [] };
+}
+function parsePackagesLockJson(options) {
+  const parsed = parseJsonObject3(options.content, options.sourceFile);
+  const dependencies = parsed.dependencies;
+  if (!isRecord2(dependencies)) {
+    return { references: [], warnings: [] };
+  }
+  const references = [];
+  for (const frameworkDependencies of Object.values(dependencies)) {
+    if (!isRecord2(frameworkDependencies)) {
+      continue;
+    }
+    for (const [rawName, metadata] of Object.entries(frameworkDependencies)) {
+      const reference = lockReferenceFromEntry(rawName, metadata, options);
+      if (reference !== void 0) {
+        references.push(reference);
+      }
+    }
+  }
+  return { references: dedupeReferences6(references), warnings: [] };
+}
+function packageReferenceElements(options) {
+  return parseXmlElements(options.content).filter((element) => {
+    const name = element.name.toLowerCase();
+    return name === "packagereference" || name === "globalpackagereference";
+  });
+}
+function packageVersionElements(options) {
+  return parseXmlElements(options.content).filter((element) => {
+    const name = element.name.toLowerCase();
+    return name === "packageversion" || name === "globalpackagereference";
+  });
+}
+function referenceFromMsBuildElement(element, options) {
+  const rawName = xmlAttribute(element, "include") ?? xmlAttribute(element, "update");
+  const packageName = rawName === void 0 ? void 0 : normalizeNugetPackageName(rawName);
+  if (packageName === void 0) {
+    return [];
+  }
+  return [
+    makeNugetReference({
+      name: packageName,
+      ...versionRangeInput4(
+        xmlAttribute(element, "version") ?? xmlAttribute(element, "versionoverride") ?? xmlChildText(element, "Version")
+      ),
+      sourceFile: options.sourceFile,
+      sourceLine: element.sourceLine,
+      sourceKind: "manifest",
+      isDirect: true
+    })
+  ];
+}
+function lockReferenceFromEntry(rawName, metadata, options) {
+  if (!isRecord2(metadata)) {
+    return void 0;
+  }
+  const packageName = normalizeNugetPackageName(rawName);
+  if (packageName === void 0 || packageLockEntryIsProject(metadata)) {
+    return void 0;
+  }
+  const rawType = readString3(metadata.type);
+  const isDirect = rawType === void 0 || rawType.toLowerCase() === "direct" || rawType.toLowerCase() === "centraltransitive";
+  const versionRange = readString3(metadata.requested) ?? readString3(metadata.resolved);
+  return makeNugetReference({
+    name: packageName,
+    ...versionRangeInput4(versionRange),
+    sourceFile: options.sourceFile,
+    ...lineNumberInput5(options.content, rawName),
+    sourceKind: "lockfile",
+    isDirect
+  });
+}
+function packageLockEntryIsProject(metadata) {
+  const type = readString3(metadata.type)?.toLowerCase();
+  return type === "project" || type === "externalproject";
+}
+function versionRangeInput4(versionRange) {
+  const trimmed = versionRange?.trim();
+  return trimmed === void 0 || trimmed.length === 0 ? {} : { versionRange: trimmed };
+}
+function parseJsonObject3(content, sourceFile) {
+  try {
+    const parsed = JSON.parse(content);
+    if (!isRecord2(parsed)) {
+      throw new Error("expected a JSON object");
+    }
+    return parsed;
+  } catch (error2) {
+    const message = error2 instanceof Error ? error2.message : String(error2);
+    throw new Error(`Invalid JSON in ${sourceFile}: ${message}`);
+  }
+}
+function readString3(input) {
+  return typeof input === "string" && input.trim().length > 0 ? input.trim() : void 0;
+}
+function lineNumberInput5(content, packageName) {
+  const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const sourceLine = lineNumberForPattern(
+    content,
+    new RegExp(`^\\s*"${escaped}"\\s*:`, "imu")
+  );
+  return sourceLine === void 0 ? {} : { sourceLine };
+}
+function dedupeReferences6(references) {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
+
 // src/parsers/package-json.ts
 var dependencySections2 = [
   "dependencies",
@@ -33400,7 +33751,7 @@ var dependencySections2 = [
 ];
 function parsePackageJson(options) {
   const warnings = [];
-  const parsed = parseJsonObject3(options.content, options.sourceFile);
+  const parsed = parseJsonObject4(options.content, options.sourceFile);
   const references = [];
   for (const section of dependencySections2) {
     const dependencies = parsed[section];
@@ -33423,14 +33774,14 @@ function parsePackageJson(options) {
           sourceFile: options.sourceFile,
           sourceKind: "manifest",
           isDirect: true,
-          ...lineNumberInput5(options.content, rawName)
+          ...lineNumberInput6(options.content, rawName)
         })
       );
     }
   }
   return { references, warnings };
 }
-function parseJsonObject3(content, sourceFile) {
+function parseJsonObject4(content, sourceFile) {
   try {
     const parsed = JSON.parse(content);
     if (!isRecord2(parsed)) {
@@ -33446,20 +33797,20 @@ function lineNumberForPackage2(content, packageName) {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   return lineNumberForPattern(content, new RegExp(`"${escaped}"\\s*:`, "u"));
 }
-function lineNumberInput5(content, packageName) {
+function lineNumberInput6(content, packageName) {
   const sourceLine = lineNumberForPackage2(content, packageName);
   return sourceLine === void 0 ? {} : { sourceLine };
 }
 
 // src/parsers/package-lock.ts
 function parsePackageLock(options) {
-  const parsed = parseJsonObject4(options.content, options.sourceFile);
+  const parsed = parseJsonObject5(options.content, options.sourceFile);
   const references = [
     ...parsePackagesObject(parsed.packages, options.sourceFile),
     ...parseDependenciesObject(parsed.dependencies, options.sourceFile)
   ];
   return {
-    references: dedupeReferences6(references),
+    references: dedupeReferences7(references),
     warnings: []
   };
 }
@@ -33541,7 +33892,7 @@ function packageNameFromNodeModulesPath(packagePath) {
   const name = first?.startsWith("@") === true && second !== void 0 ? `${first}/${second}` : first;
   return name === void 0 ? void 0 : normalizeNpmPackageName(name);
 }
-function parseJsonObject4(content, sourceFile) {
+function parseJsonObject5(content, sourceFile) {
   try {
     const parsed = JSON.parse(content);
     if (!isRecord2(parsed)) {
@@ -33553,7 +33904,7 @@ function parseJsonObject4(content, sourceFile) {
     throw new Error(`Invalid JSON in ${sourceFile}: ${message}`);
   }
 }
-function dedupeReferences6(references) {
+function dedupeReferences7(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33581,7 +33932,7 @@ var nonRegistrySourceFields = [
 function parsePdmLock(options) {
   const parsed = parseTomlObject3(options.content, options.sourceFile);
   return {
-    references: dedupeReferences7(parsePackages2(parsed.package, options)),
+    references: dedupeReferences8(parsePackages2(parsed.package, options)),
     warnings: []
   };
 }
@@ -33604,7 +33955,7 @@ function parsePackages2(packages, options) {
         sourceFile: options.sourceFile,
         sourceKind: "lockfile",
         isDirect: false,
-        ...lineNumberInput6(options.content, metadata.name)
+        ...lineNumberInput7(options.content, metadata.name)
       })
     ];
   });
@@ -33654,7 +34005,7 @@ function parseTomlObject3(content, sourceFile) {
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
 }
-function lineNumberInput6(content, packageName) {
+function lineNumberInput7(content, packageName) {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(
     content,
@@ -33662,7 +34013,7 @@ function lineNumberInput6(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences7(references) {
+function dedupeReferences8(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33673,7 +34024,7 @@ function parsePoetryLock(options) {
   if (!Array.isArray(packages)) {
     return { references: [], warnings: [] };
   }
-  const references = dedupeReferences8(
+  const references = dedupeReferences9(
     packages.flatMap((entry) => referenceFromPackageEntry2(entry, options))
   );
   return { references, warnings: [] };
@@ -33693,11 +34044,11 @@ function referenceFromPackageEntry2(entry, options) {
   return [
     makePypiReference({
       name: packageName,
-      ...versionRangeInput4(entry.version),
+      ...versionRangeInput5(entry.version),
       sourceFile: options.sourceFile,
       sourceKind: "lockfile",
       isDirect: false,
-      ...lineNumberInput7(options.content, rawName)
+      ...lineNumberInput8(options.content, rawName)
     })
   ];
 }
@@ -33705,20 +34056,20 @@ function isPublicPypiSource(source) {
   if (source === void 0) {
     return true;
   }
-  const sourceUrl = readString3(source, "url");
+  const sourceUrl = readString4(source, "url");
   if (sourceUrl !== void 0) {
     return isPublicPypiRegistryUrl(sourceUrl);
   }
-  return readString3(source, "type")?.toLowerCase() === "pypi";
+  return readString4(source, "type")?.toLowerCase() === "pypi";
 }
-function versionRangeInput4(version) {
+function versionRangeInput5(version) {
   return typeof version === "string" && version.trim().length > 0 ? { versionRange: version.trim() } : {};
 }
 function readRecord2(input, key) {
   const value = input[key];
   return isRecord2(value) ? value : void 0;
 }
-function readString3(input, key) {
+function readString4(input, key) {
   const value = input[key];
   return typeof value === "string" ? value : void 0;
 }
@@ -33734,7 +34085,7 @@ function parseTomlObject4(content, sourceFile) {
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
 }
-function lineNumberInput7(content, packageName) {
+function lineNumberInput8(content, packageName) {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(
     content,
@@ -33742,7 +34093,7 @@ function lineNumberInput7(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences8(references) {
+function dedupeReferences9(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33755,7 +34106,7 @@ function parsePnpmLock(options) {
     ...parsePackages3(parsed.packages, options.sourceFile)
   ];
   return {
-    references: dedupeReferences9(references),
+    references: dedupeReferences10(references),
     warnings: []
   };
 }
@@ -33889,7 +34240,7 @@ function parseYamlObject(content, sourceFile) {
     throw new Error(`Invalid YAML in ${sourceFile}: ${message}`);
   }
 }
-function dedupeReferences9(references) {
+function dedupeReferences10(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -34046,7 +34397,7 @@ function parseRequirementArray(input, options) {
     return parsePythonRequirementString({
       requirement,
       sourceFile: options.sourceFile,
-      ...lineNumberInput8(options.content, requirement)
+      ...lineNumberInput9(options.content, requirement)
     }).references;
   });
 }
@@ -34065,16 +34416,16 @@ function parsePoetryDependencyTable(table, options) {
     return [
       makePypiReference({
         name: packageName,
-        ...versionRangeInput5(specifier),
+        ...versionRangeInput6(specifier),
         sourceFile: options.sourceFile,
         sourceKind: "manifest",
         isDirect: true,
-        ...lineNumberInput8(options.content, name)
+        ...lineNumberInput9(options.content, name)
       })
     ];
   });
 }
-function versionRangeInput5(specifier) {
+function versionRangeInput6(specifier) {
   if (typeof specifier === "string" && specifier.trim().length > 0) {
     return { versionRange: specifier.trim() };
   }
@@ -34105,7 +34456,7 @@ function parseTomlObject5(content, sourceFile) {
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
 }
-function lineNumberInput8(content, pattern) {
+function lineNumberInput9(content, pattern) {
   const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(content, new RegExp(escaped, "u"));
   return sourceLine === void 0 ? {} : { sourceLine };
@@ -34115,7 +34466,7 @@ function lineNumberInput8(content, pattern) {
 function parseUvLock(options) {
   const parsed = parseTomlObject6(options.content, options.sourceFile);
   return {
-    references: dedupeReferences10(parsePackages4(parsed.package, options)),
+    references: dedupeReferences11(parsePackages4(parsed.package, options)),
     warnings: []
   };
 }
@@ -34138,7 +34489,7 @@ function parsePackages4(packages, options) {
         sourceFile: options.sourceFile,
         sourceKind: "lockfile",
         isDirect: false,
-        ...lineNumberInput9(options.content, metadata.name)
+        ...lineNumberInput10(options.content, metadata.name)
       })
     ];
   });
@@ -34162,7 +34513,7 @@ function parseTomlObject6(content, sourceFile) {
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
 }
-function lineNumberInput9(content, packageName) {
+function lineNumberInput10(content, packageName) {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(
     content,
@@ -34170,7 +34521,7 @@ function lineNumberInput9(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences10(references) {
+function dedupeReferences11(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -34199,7 +34550,7 @@ function parseYarnLock(options) {
     }
   }
   return {
-    references: dedupeReferences11(references),
+    references: dedupeReferences12(references),
     warnings: []
   };
 }
@@ -34257,7 +34608,7 @@ function packageNameFromPossibleAliasTarget(value) {
   const match = value.match(/^([a-z0-9][a-z0-9._-]*)@/iu);
   return match?.[1] === void 0 ? void 0 : normalizeNpmPackageName(match[1]);
 }
-function dedupeReferences11(references) {
+function dedupeReferences12(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -34270,8 +34621,11 @@ var supportedFileNames = /* @__PURE__ */ new Set([
   "Gemfile",
   "Gemfile.lock",
   "go.mod",
+  "Directory.Packages.props",
   "package.json",
   "package-lock.json",
+  "packages.config",
+  "packages.lock.json",
   "pdm.lock",
   "poetry.lock",
   "pnpm-lock.yaml",
@@ -34282,7 +34636,7 @@ var supportedFileNames = /* @__PURE__ */ new Set([
 ]);
 function isSupportedDependencyFile(filePath) {
   const fileName = import_node_path2.default.basename(filePath);
-  return supportedFileNames.has(fileName) || isPythonRequirementsFile(fileName);
+  return supportedFileNames.has(fileName) || isPythonRequirementsFile(fileName) || isMsBuildProjectFile(fileName);
 }
 function parseDependencyFile(input) {
   const parsed = input.format === "python-requirements" ? parsePythonRequirements({
@@ -34321,10 +34675,16 @@ function parseByFileName(fileName, sourceFile, content) {
       return parseGemfileLock({ sourceFile, content });
     case "go.mod":
       return parseGoMod({ sourceFile, content });
+    case "Directory.Packages.props":
+      return parseDirectoryPackagesProps({ sourceFile, content });
     case "package.json":
       return parsePackageJson({ sourceFile, content });
     case "package-lock.json":
       return parsePackageLock({ sourceFile, content });
+    case "packages.config":
+      return parsePackagesConfig({ sourceFile, content });
+    case "packages.lock.json":
+      return parsePackagesLockJson({ sourceFile, content });
     case "pdm.lock":
       return parsePdmLock({ sourceFile, content });
     case "poetry.lock":
@@ -34338,11 +34698,17 @@ function parseByFileName(fileName, sourceFile, content) {
     case "yarn.lock":
       return parseYarnLock({ sourceFile, content });
     default:
+      if (isMsBuildProjectFile(fileName)) {
+        return parseMsBuildProject({ sourceFile, content });
+      }
       return { references: [], warnings: [] };
   }
 }
 function isPythonRequirementsFile(fileName) {
   return /^requirements(?:[-_.][A-Za-z0-9_.-]+)?\.txt$/u.test(fileName) || /^[A-Za-z0-9_.-]+[-_.]requirements\.txt$/u.test(fileName) || /^constraints(?:[-_.][A-Za-z0-9_.-]+)?\.txt$/u.test(fileName) || /^[A-Za-z0-9_.-]+[-_.]constraints\.txt$/u.test(fileName);
+}
+function isMsBuildProjectFile(fileName) {
+  return /\.csproj$/iu.test(fileName);
 }
 
 // src/discovery/find-files.ts
@@ -34582,6 +34948,199 @@ async function execGit(rootDir, args) {
     maxBuffer: 10 * 1024 * 1024
   });
   return stdout;
+}
+
+// src/discovery/nuget-config.ts
+var import_promises3 = require("node:fs/promises");
+var import_node_path5 = __toESM(require("node:path"), 1);
+var ignoredDirectories2 = /* @__PURE__ */ new Set([
+  ".git",
+  "node_modules",
+  "dist",
+  "coverage",
+  ".next",
+  ".turbo"
+]);
+async function filterNugetReferencesBySourcePolicy(input) {
+  const nugetReferences = input.references.filter(
+    (reference) => reference.ecosystem === "nuget"
+  );
+  if (nugetReferences.length === 0) {
+    return { references: [...input.references], warnings: [] };
+  }
+  const policy = await loadNugetConfigPolicy(input.rootDir);
+  if (policy.mode === "default") {
+    return { references: [...input.references], warnings: [] };
+  }
+  const nonNugetReferences = input.references.filter(
+    (reference) => reference.ecosystem !== "nuget"
+  );
+  if (policy.mode === "skip-all") {
+    return {
+      references: nonNugetReferences,
+      warnings: [
+        {
+          ...policy.file === void 0 ? {} : { file: policy.file },
+          message: policy.reason
+        }
+      ]
+    };
+  }
+  const filteredNugetReferences = nugetReferences.filter(
+    (reference) => policy.patterns.some((pattern) => nugetPatternMatches(pattern, reference.name))
+  );
+  const skippedCount = nugetReferences.length - filteredNugetReferences.length;
+  const warnings = skippedCount === 0 ? [] : [
+    {
+      ...policy.file === void 0 ? {} : { file: policy.file },
+      message: `Skipped ${skippedCount} NuGet package reference${skippedCount === 1 ? "" : "s"} not mapped to NuGet.org.`
+    }
+  ];
+  return {
+    references: [...nonNugetReferences, ...filteredNugetReferences],
+    warnings
+  };
+}
+async function loadNugetConfigPolicy(rootDir) {
+  const files = await discoverNugetConfigFiles(rootDir);
+  if (files.length === 0) {
+    return { mode: "default" };
+  }
+  const configs = await Promise.all(
+    files.map(async (file) => ({
+      file,
+      content: await (0, import_promises3.readFile)(import_node_path5.default.join(rootDir, file), "utf8")
+    }))
+  );
+  const parsedConfigs = configs.map((config) => ({
+    file: config.file,
+    parsed: parseNugetConfig(config.content)
+  }));
+  const mappedConfig = parsedConfigs.find(
+    (config) => config.parsed.packageSourceMappings.length > 0
+  );
+  if (mappedConfig !== void 0) {
+    const nugetSourceKeys = new Set(
+      mappedConfig.parsed.packageSources.filter((source) => isNugetOrgSourceUrl(source.value)).map((source) => source.key)
+    );
+    const patterns = mappedConfig.parsed.packageSourceMappings.filter((mapping) => nugetSourceKeys.has(mapping.sourceKey)).flatMap((mapping) => mapping.patterns).sort();
+    return patterns.length === 0 ? {
+      mode: "skip-all",
+      file: mappedConfig.file,
+      reason: "Skipped NuGet package references because NuGet.config packageSourceMapping does not map any package to NuGet.org."
+    } : { mode: "mapped", file: mappedConfig.file, patterns };
+  }
+  const clearingConfig = parsedConfigs.find((config) => {
+    if (!config.parsed.clearsPackageSources) {
+      return false;
+    }
+    const hasNugetOrg = config.parsed.packageSources.some(
+      (source) => isNugetOrgSourceUrl(source.value)
+    );
+    const hasPrivateSource = config.parsed.packageSources.some(
+      (source) => !isNugetOrgSourceUrl(source.value)
+    );
+    return !hasNugetOrg || hasPrivateSource;
+  });
+  if (clearingConfig !== void 0) {
+    return {
+      mode: "skip-all",
+      file: clearingConfig.file,
+      reason: "Skipped NuGet package references because NuGet.config uses non-NuGet.org package sources without packageSourceMapping."
+    };
+  }
+  return { mode: "default" };
+}
+async function discoverNugetConfigFiles(rootDir) {
+  const files = [];
+  await walk2(rootDir, rootDir, files);
+  return files.sort();
+}
+async function walk2(rootDir, currentDir, files) {
+  const entries = await (0, import_promises3.readdir)(currentDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      if (!ignoredDirectories2.has(entry.name)) {
+        await walk2(rootDir, import_node_path5.default.join(currentDir, entry.name), files);
+      }
+      continue;
+    }
+    if (!entry.isFile() || !/^nuget\.config$/iu.test(entry.name)) {
+      continue;
+    }
+    files.push(toPosixPath2(import_node_path5.default.relative(rootDir, import_node_path5.default.join(currentDir, entry.name))));
+  }
+}
+function parseNugetConfig(content) {
+  const elements = parseXmlElements(content);
+  const packageSources = elements.filter((element) => element.name.toLowerCase() === "add").filter((element) => isInsideSection(content, element, "packageSources")).flatMap((element) => {
+    const key = xmlAttribute(element, "key");
+    const value = xmlAttribute(element, "value");
+    return key === void 0 || value === void 0 ? [] : [{ key, value }];
+  });
+  const packageSourceMappings = elements.filter((element) => element.name.toLowerCase() === "packagesource").map((element) => ({
+    sourceKey: xmlAttribute(element, "key") ?? "",
+    patterns: packagePatternsForSource(element)
+  })).filter((mapping) => mapping.sourceKey.length > 0);
+  return {
+    packageSources,
+    packageSourceMappings,
+    clearsPackageSources: elements.some(
+      (element) => element.name.toLowerCase() === "clear" && isInsideSection(content, element, "packageSources")
+    )
+  };
+}
+function packagePatternsForSource(sourceElement) {
+  return parseXmlElements(sourceElement.innerContent).filter((element) => element.name.toLowerCase() === "package").flatMap((element) => {
+    const pattern = xmlAttribute(element, "pattern");
+    return pattern === void 0 ? [] : [pattern.trim().toLowerCase()];
+  });
+}
+function isInsideSection(content, element, sectionName) {
+  const elementOffset = lineOffset(content, element.sourceLine);
+  const sectionOpen = new RegExp(`<${sectionName}\\b[^>]*>`, "igu");
+  for (const match of content.matchAll(sectionOpen)) {
+    const start = match.index;
+    if (start > elementOffset) {
+      continue;
+    }
+    const end = closingElementOffset(content, start, sectionName);
+    if (elementOffset < end) {
+      return true;
+    }
+  }
+  return false;
+}
+function closingElementOffset(content, start, elementName) {
+  const pattern = new RegExp(`</${elementName}\\s*>`, "iu");
+  const match = pattern.exec(content.slice(start));
+  return match?.index === void 0 ? content.length : start + match.index;
+}
+function lineOffset(content, lineNumber) {
+  if (lineNumber <= 1) {
+    return 0;
+  }
+  let line = 1;
+  for (let index = 0; index < content.length; index += 1) {
+    if (content[index] === "\n") {
+      line += 1;
+      if (line === lineNumber) {
+        return index + 1;
+      }
+    }
+  }
+  return content.length;
+}
+function nugetPatternMatches(pattern, packageName) {
+  const normalizedName = normalizeNugetPackageName(packageName);
+  if (normalizedName === void 0) {
+    return false;
+  }
+  if (pattern === "*") {
+    return true;
+  }
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/gu, "\\$&").replace(/\*/gu, ".*");
+  return new RegExp(`^${escaped}$`, "iu").test(normalizedName);
 }
 
 // src/registries/crates.ts
@@ -35052,10 +35611,309 @@ function sleep2(milliseconds) {
   });
 }
 
-// src/registries/npm.ts
-var npmRegistryUrl = "https://registry.npmjs.org";
+// src/registries/nuget.ts
+var nugetServiceIndexUrl = "https://api.nuget.org/v3/index.json";
 var defaultTimeoutMs3 = 8e3;
 var defaultRetries3 = 2;
+var NugetRegistryClient = class {
+  timeoutMs;
+  retries;
+  userAgent;
+  fetchImpl;
+  cache = /* @__PURE__ */ new Map();
+  serviceIndex;
+  constructor(options = {}) {
+    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs3;
+    this.retries = options.retries ?? defaultRetries3;
+    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+  async getPackage(reference) {
+    if (reference.ecosystem !== "nuget") {
+      return {
+        status: "unsupported",
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        message: "NuGet.org registry client only supports NuGet packages.",
+        retryable: false
+      };
+    }
+    const cached = this.cache.get(reference.name);
+    if (cached !== void 0) {
+      return cached;
+    }
+    const request2 = this.getPackageUncached(reference.name);
+    this.cache.set(reference.name, request2);
+    return request2;
+  }
+  async getPackageUncached(name) {
+    let lastFailure;
+    for (let attempt = 0; attempt <= this.retries; attempt += 1) {
+      const result = await this.fetchPackage(name);
+      if (result.status === "found" || result.status === "not_found") {
+        return result;
+      }
+      lastFailure = result;
+      if (!result.retryable || attempt === this.retries) {
+        return result;
+      }
+      await sleep3(100 * (attempt + 1));
+    }
+    return lastFailure ?? {
+      status: "network_error",
+      ecosystem: "nuget",
+      name,
+      message: "NuGet.org registry request failed without a response.",
+      retryable: true
+    };
+  }
+  async fetchPackage(name) {
+    const registrationBase = await this.registrationBaseUrl(name);
+    if (typeof registrationBase !== "string") {
+      return registrationBase;
+    }
+    const indexUrl = `${registrationBase}${encodeURIComponent(name.toLowerCase())}/index.json`;
+    const indexResult = await this.fetchJson(name, indexUrl);
+    if (indexResult.status === "not_found") {
+      return { status: "not_found", ecosystem: "nuget", name };
+    }
+    if (indexResult.status !== "ok") {
+      return indexResult.failure;
+    }
+    return this.parseRegistrationIndex(name, indexUrl, indexResult.body);
+  }
+  async registrationBaseUrl(name) {
+    this.serviceIndex ??= this.fetchServiceIndex(name);
+    try {
+      return await this.serviceIndex;
+    } catch (error2) {
+      return failure3(
+        name,
+        "network_error",
+        error2 instanceof Error ? error2.message : String(error2),
+        true
+      );
+    }
+  }
+  async fetchServiceIndex(name) {
+    const result = await this.fetchJson(name, nugetServiceIndexUrl);
+    if (result.status !== "ok") {
+      throw new Error(result.status === "not_found" ? "NuGet.org service index was not found." : result.failure.message);
+    }
+    if (!isServiceIndex(result.body)) {
+      throw new Error("NuGet.org service index returned invalid metadata.");
+    }
+    const resource = result.body.resources.find(
+      (candidate) => isRegistrationBaseType(candidate["@type"])
+    );
+    const resourceUrl = resource?.["@id"];
+    if (resourceUrl === void 0) {
+      throw new Error("NuGet.org service index did not include a registration base URL.");
+    }
+    return resourceUrl.endsWith("/") ? resourceUrl : `${resourceUrl}/`;
+  }
+  async parseRegistrationIndex(name, indexUrl, body) {
+    if (!isRegistrationIndex(body)) {
+      return failure3(
+        name,
+        "invalid_response",
+        "NuGet.org registry returned invalid package metadata.",
+        false
+      );
+    }
+    const pageResults = await Promise.all(
+      (body.items ?? []).map(async (page) => {
+        if (Array.isArray(page.items)) {
+          return { status: "ok", leaves: page.items };
+        }
+        if (page["@id"] === void 0) {
+          return {
+            status: "failure",
+            failure: failure3(
+              name,
+              "invalid_response",
+              "NuGet.org registry returned a registration page without items.",
+              false
+            )
+          };
+        }
+        const pageResult = await this.fetchJson(name, page["@id"]);
+        if (pageResult.status !== "ok") {
+          return {
+            status: "failure",
+            failure: pageResult.status === "not_found" ? failure3(
+              name,
+              "invalid_response",
+              "NuGet.org registry registration page was not found.",
+              false
+            ) : pageResult.failure
+          };
+        }
+        return isRegistrationPage(pageResult.body) ? { status: "ok", leaves: pageResult.body.items ?? [] } : {
+          status: "failure",
+          failure: failure3(
+            name,
+            "invalid_response",
+            "NuGet.org registry returned invalid registration page metadata.",
+            false
+          )
+        };
+      })
+    );
+    const failedPage = pageResults.find((page) => page.status === "failure");
+    if (failedPage?.status === "failure") {
+      return failedPage.failure;
+    }
+    const firstPublishedAt = firstPublishedDate2(
+      pageResults.flatMap((page) => page.status === "ok" ? page.leaves : [])
+    );
+    const found = {
+      status: "found",
+      ecosystem: "nuget",
+      name,
+      registryUrl: indexUrl
+    };
+    return firstPublishedAt === void 0 ? found : { ...found, firstPublishedAt };
+  }
+  async fetchJson(name, url) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, this.timeoutMs);
+    try {
+      const response = await this.fetchImpl(url, {
+        headers: {
+          accept: "application/json",
+          "user-agent": this.userAgent
+        },
+        signal: controller.signal
+      });
+      if (response.status === 404) {
+        return { status: "not_found" };
+      }
+      if (response.status === 429) {
+        return {
+          status: "failure",
+          failure: failure3(name, "rate_limited", "NuGet.org registry rate limit exceeded.", true)
+        };
+      }
+      if (response.status >= 500) {
+        return {
+          status: "failure",
+          failure: failure3(
+            name,
+            "server_error",
+            `NuGet.org registry returned HTTP ${response.status}.`,
+            true
+          )
+        };
+      }
+      if (!response.ok) {
+        return {
+          status: "failure",
+          failure: failure3(
+            name,
+            "network_error",
+            `NuGet.org registry returned HTTP ${response.status}.`,
+            false
+          )
+        };
+      }
+      return { status: "ok", body: await response.json() };
+    } catch (error2) {
+      const message = error2 instanceof Error && error2.name === "AbortError" ? "NuGet.org registry request timed out." : error2 instanceof Error ? error2.message : String(error2);
+      return {
+        status: "failure",
+        failure: failure3(name, "network_error", message, true)
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+};
+function firstPublishedDate2(leaves) {
+  const publishedDates = leaves.map((leaf) => dateFromString3(leaf.catalogEntry?.published ?? leaf.published)).filter((date) => date !== void 0).filter((date) => date.getUTCFullYear() > 1900).sort((left, right) => left.getTime() - right.getTime());
+  return publishedDates[0];
+}
+function dateFromString3(input) {
+  if (input === void 0) {
+    return void 0;
+  }
+  const date = new Date(input);
+  return Number.isNaN(date.getTime()) ? void 0 : date;
+}
+function isServiceIndex(input) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+  const resources = input.resources;
+  return Array.isArray(resources) && resources.every(isServiceIndexResource);
+}
+function isServiceIndexResource(input) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+  const resource = input;
+  return (resource["@id"] === void 0 || typeof resource["@id"] === "string") && (resource["@type"] === void 0 || typeof resource["@type"] === "string");
+}
+function isRegistrationIndex(input) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+  const items = input.items;
+  return items === void 0 || Array.isArray(items) && items.every(isRegistrationPage);
+}
+function isRegistrationPage(input) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+  const page = input;
+  return (page["@id"] === void 0 || typeof page["@id"] === "string") && (page.items === void 0 || Array.isArray(page.items) && page.items.every(isRegistrationLeaf));
+}
+function isRegistrationLeaf(input) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+  const leaf = input;
+  if (leaf.published !== void 0 && typeof leaf.published !== "string") {
+    return false;
+  }
+  if (leaf.catalogEntry === void 0) {
+    return true;
+  }
+  if (typeof leaf.catalogEntry !== "object" || leaf.catalogEntry === null || Array.isArray(leaf.catalogEntry)) {
+    return false;
+  }
+  const catalogEntry = leaf.catalogEntry;
+  return catalogEntry.published === void 0 || typeof catalogEntry.published === "string";
+}
+function isRegistrationBaseType(input) {
+  if (input === void 0) {
+    return false;
+  }
+  return input.split(/\s+/u).some((entry) => entry.toLowerCase().startsWith("registrationsbaseurl/"));
+}
+function failure3(name, status, message, retryable) {
+  return {
+    status,
+    ecosystem: "nuget",
+    name,
+    message,
+    retryable
+  };
+}
+function sleep3(milliseconds) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, milliseconds);
+  });
+}
+
+// src/registries/npm.ts
+var npmRegistryUrl = "https://registry.npmjs.org";
+var defaultTimeoutMs4 = 8e3;
+var defaultRetries4 = 2;
 var NpmRegistryClient = class {
   timeoutMs;
   retries;
@@ -35063,8 +35921,8 @@ var NpmRegistryClient = class {
   fetchImpl;
   cache = /* @__PURE__ */ new Map();
   constructor(options = {}) {
-    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs3;
-    this.retries = options.retries ?? defaultRetries3;
+    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs4;
+    this.retries = options.retries ?? defaultRetries4;
     this.userAgent = options.userAgent ?? "sloplock/0.1.0";
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -35098,7 +35956,7 @@ var NpmRegistryClient = class {
       if (!result.retryable || attempt === this.retries) {
         return result;
       }
-      await sleep3(100 * (attempt + 1));
+      await sleep4(100 * (attempt + 1));
     }
     return lastFailure ?? {
       status: "network_error",
@@ -35125,10 +35983,10 @@ var NpmRegistryClient = class {
         return { status: "not_found", ecosystem: "npm", name };
       }
       if (response.status === 429) {
-        return failure3(name, "rate_limited", "npm registry rate limit exceeded.", true);
+        return failure4(name, "rate_limited", "npm registry rate limit exceeded.", true);
       }
       if (response.status >= 500) {
-        return failure3(
+        return failure4(
           name,
           "server_error",
           `npm registry returned HTTP ${response.status}.`,
@@ -35136,7 +35994,7 @@ var NpmRegistryClient = class {
         );
       }
       if (!response.ok) {
-        return failure3(
+        return failure4(
           name,
           "network_error",
           `npm registry returned HTTP ${response.status}.`,
@@ -35147,7 +36005,7 @@ var NpmRegistryClient = class {
       return parseMetadata2(name, metadata);
     } catch (error2) {
       const message = error2 instanceof Error && error2.name === "AbortError" ? "npm registry request timed out." : error2 instanceof Error ? error2.message : String(error2);
-      return failure3(name, "network_error", message, true);
+      return failure4(name, "network_error", message, true);
     } finally {
       clearTimeout(timeout);
     }
@@ -35155,14 +36013,14 @@ var NpmRegistryClient = class {
 };
 function parseMetadata2(name, metadata) {
   if (!isNpmMetadata(metadata)) {
-    return failure3(
+    return failure4(
       name,
       "invalid_response",
       "npm registry returned invalid package metadata.",
       false
     );
   }
-  const firstPublishedAt = firstPublishedDate2(metadata);
+  const firstPublishedAt = firstPublishedDate3(metadata);
   const found = {
     status: "found",
     ecosystem: "npm",
@@ -35171,19 +36029,19 @@ function parseMetadata2(name, metadata) {
   };
   return firstPublishedAt === void 0 ? found : { ...found, firstPublishedAt };
 }
-function firstPublishedDate2(metadata) {
+function firstPublishedDate3(metadata) {
   const time = metadata.time;
   if (time === void 0) {
     return void 0;
   }
-  const created = dateFromString3(time.created);
+  const created = dateFromString4(time.created);
   if (created !== void 0) {
     return created;
   }
-  const publishTimes = Object.entries(time).filter(([key]) => key !== "modified").map(([, value]) => dateFromString3(value)).filter((date) => date !== void 0).sort((left, right) => left.getTime() - right.getTime());
+  const publishTimes = Object.entries(time).filter(([key]) => key !== "modified").map(([, value]) => dateFromString4(value)).filter((date) => date !== void 0).sort((left, right) => left.getTime() - right.getTime());
   return publishTimes[0];
 }
-function dateFromString3(input) {
+function dateFromString4(input) {
   if (input === void 0) {
     return void 0;
   }
@@ -35193,7 +36051,7 @@ function dateFromString3(input) {
 function registryPackageUrl2(name) {
   return `${npmRegistryUrl}/${encodeURIComponent(name)}`;
 }
-function failure3(name, status, message, retryable) {
+function failure4(name, status, message, retryable) {
   return {
     status,
     ecosystem: "npm",
@@ -35215,7 +36073,7 @@ function isNpmMetadata(input) {
   }
   return Object.values(metadata.time).every((value) => typeof value === "string");
 }
-function sleep3(milliseconds) {
+function sleep4(milliseconds) {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
@@ -35225,8 +36083,8 @@ function sleep3(milliseconds) {
 
 // src/registries/packagist.ts
 var packagistApiUrl = "https://packagist.org/packages";
-var defaultTimeoutMs4 = 8e3;
-var defaultRetries4 = 2;
+var defaultTimeoutMs5 = 8e3;
+var defaultRetries5 = 2;
 var PackagistRegistryClient = class {
   timeoutMs;
   retries;
@@ -35234,8 +36092,8 @@ var PackagistRegistryClient = class {
   fetchImpl;
   cache = /* @__PURE__ */ new Map();
   constructor(options = {}) {
-    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs4;
-    this.retries = options.retries ?? defaultRetries4;
+    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs5;
+    this.retries = options.retries ?? defaultRetries5;
     this.userAgent = options.userAgent ?? "sloplock/0.1.0";
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -35268,7 +36126,7 @@ var PackagistRegistryClient = class {
       if (!result.retryable || attempt === this.retries) {
         return result;
       }
-      await sleep4(100 * (attempt + 1));
+      await sleep5(100 * (attempt + 1));
     }
     return lastFailure ?? {
       status: "network_error",
@@ -35295,7 +36153,7 @@ var PackagistRegistryClient = class {
         return { status: "not_found", ecosystem: "packagist", name };
       }
       if (response.status === 429) {
-        return failure4(
+        return failure5(
           name,
           "rate_limited",
           "Packagist registry rate limit exceeded.",
@@ -35303,7 +36161,7 @@ var PackagistRegistryClient = class {
         );
       }
       if (response.status >= 500) {
-        return failure4(
+        return failure5(
           name,
           "server_error",
           `Packagist registry returned HTTP ${response.status}.`,
@@ -35311,7 +36169,7 @@ var PackagistRegistryClient = class {
         );
       }
       if (!response.ok) {
-        return failure4(
+        return failure5(
           name,
           "network_error",
           `Packagist registry returned HTTP ${response.status}.`,
@@ -35323,7 +36181,7 @@ var PackagistRegistryClient = class {
         metadata = await response.json();
       } catch (error2) {
         const message = error2 instanceof Error ? error2.message : String(error2);
-        return failure4(
+        return failure5(
           name,
           "invalid_response",
           `Packagist registry returned invalid JSON: ${message}`,
@@ -35333,7 +36191,7 @@ var PackagistRegistryClient = class {
       return parseMetadata3(name, metadata);
     } catch (error2) {
       const message = error2 instanceof Error && error2.name === "AbortError" ? "Packagist registry request timed out." : error2 instanceof Error ? error2.message : String(error2);
-      return failure4(name, "network_error", message, true);
+      return failure5(name, "network_error", message, true);
     } finally {
       clearTimeout(timeout);
     }
@@ -35341,14 +36199,14 @@ var PackagistRegistryClient = class {
 };
 function parseMetadata3(name, metadata) {
   if (!isPackagistMetadata(metadata)) {
-    return failure4(
+    return failure5(
       name,
       "invalid_response",
       "Packagist registry returned invalid package metadata.",
       false
     );
   }
-  const firstPublishedAt = firstPublishedDate3(metadata);
+  const firstPublishedAt = firstPublishedDate4(metadata);
   const found = {
     status: "found",
     ecosystem: "packagist",
@@ -35357,15 +36215,15 @@ function parseMetadata3(name, metadata) {
   };
   return firstPublishedAt === void 0 ? found : { ...found, firstPublishedAt };
 }
-function firstPublishedDate3(metadata) {
-  const created = dateFromString4(metadata.package.time);
+function firstPublishedDate4(metadata) {
+  const created = dateFromString5(metadata.package.time);
   if (created !== void 0) {
     return created;
   }
-  const publishTimes = Object.values(metadata.package.versions ?? {}).map((version) => dateFromString4(version.time)).filter((date) => date !== void 0).sort((left, right) => left.getTime() - right.getTime());
+  const publishTimes = Object.values(metadata.package.versions ?? {}).map((version) => dateFromString5(version.time)).filter((date) => date !== void 0).sort((left, right) => left.getTime() - right.getTime());
   return publishTimes[0];
 }
-function dateFromString4(input) {
+function dateFromString5(input) {
   if (input === void 0) {
     return void 0;
   }
@@ -35405,7 +36263,7 @@ function registryPackageUrl3(name) {
     vendor ?? name
   )}/${encodeURIComponent(packageName ?? "")}.json`;
 }
-function failure4(name, status, message, retryable) {
+function failure5(name, status, message, retryable) {
   return {
     status,
     ecosystem: "packagist",
@@ -35414,7 +36272,7 @@ function failure4(name, status, message, retryable) {
     retryable
   };
 }
-function sleep4(milliseconds) {
+function sleep5(milliseconds) {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
@@ -35424,8 +36282,8 @@ function sleep4(milliseconds) {
 
 // src/registries/pypi.ts
 var pypiRegistryUrl = "https://pypi.org/pypi";
-var defaultTimeoutMs5 = 8e3;
-var defaultRetries5 = 2;
+var defaultTimeoutMs6 = 8e3;
+var defaultRetries6 = 2;
 var PypiRegistryClient = class {
   timeoutMs;
   retries;
@@ -35433,8 +36291,8 @@ var PypiRegistryClient = class {
   fetchImpl;
   cache = /* @__PURE__ */ new Map();
   constructor(options = {}) {
-    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs5;
-    this.retries = options.retries ?? defaultRetries5;
+    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs6;
+    this.retries = options.retries ?? defaultRetries6;
     this.userAgent = options.userAgent ?? "sloplock/0.1.0";
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -35467,7 +36325,7 @@ var PypiRegistryClient = class {
       if (!result.retryable || attempt === this.retries) {
         return result;
       }
-      await sleep5(100 * (attempt + 1));
+      await sleep6(100 * (attempt + 1));
     }
     return lastFailure ?? {
       status: "network_error",
@@ -35494,10 +36352,10 @@ var PypiRegistryClient = class {
         return { status: "not_found", ecosystem: "pypi", name };
       }
       if (response.status === 429) {
-        return failure5(name, "rate_limited", "PyPI registry rate limit exceeded.", true);
+        return failure6(name, "rate_limited", "PyPI registry rate limit exceeded.", true);
       }
       if (response.status >= 500) {
-        return failure5(
+        return failure6(
           name,
           "server_error",
           `PyPI registry returned HTTP ${response.status}.`,
@@ -35505,7 +36363,7 @@ var PypiRegistryClient = class {
         );
       }
       if (!response.ok) {
-        return failure5(
+        return failure6(
           name,
           "network_error",
           `PyPI registry returned HTTP ${response.status}.`,
@@ -35516,7 +36374,7 @@ var PypiRegistryClient = class {
       return parseMetadata4(name, metadata);
     } catch (error2) {
       const message = error2 instanceof Error && error2.name === "AbortError" ? "PyPI registry request timed out." : error2 instanceof Error ? error2.message : String(error2);
-      return failure5(name, "network_error", message, true);
+      return failure6(name, "network_error", message, true);
     } finally {
       clearTimeout(timeout);
     }
@@ -35524,14 +36382,14 @@ var PypiRegistryClient = class {
 };
 function parseMetadata4(name, metadata) {
   if (!isPypiMetadata(metadata)) {
-    return failure5(
+    return failure6(
       name,
       "invalid_response",
       "PyPI registry returned invalid package metadata.",
       false
     );
   }
-  const firstPublishedAt = firstPublishedDate4(metadata);
+  const firstPublishedAt = firstPublishedDate5(metadata);
   const found = {
     status: "found",
     ecosystem: "pypi",
@@ -35540,7 +36398,7 @@ function parseMetadata4(name, metadata) {
   };
   return firstPublishedAt === void 0 ? found : { ...found, firstPublishedAt };
 }
-function firstPublishedDate4(metadata) {
+function firstPublishedDate5(metadata) {
   const uploadDates = [
     ...uploadDatesFromReleases(metadata.releases),
     ...uploadDatesFromFiles(metadata.urls)
@@ -35557,9 +36415,9 @@ function uploadDatesFromFiles(files) {
   if (files === void 0) {
     return [];
   }
-  return files.map((file) => dateFromString5(file.upload_time_iso_8601 ?? file.upload_time)).filter((date) => date !== void 0);
+  return files.map((file) => dateFromString6(file.upload_time_iso_8601 ?? file.upload_time)).filter((date) => date !== void 0);
 }
-function dateFromString5(input) {
+function dateFromString6(input) {
   if (input === void 0) {
     return void 0;
   }
@@ -35601,7 +36459,7 @@ function isOptionalFileArray(input) {
 function registryPackageUrl4(name) {
   return `${pypiRegistryUrl}/${encodeURIComponent(name)}/json`;
 }
-function failure5(name, status, message, retryable) {
+function failure6(name, status, message, retryable) {
   return {
     status,
     ecosystem: "pypi",
@@ -35610,7 +36468,7 @@ function failure5(name, status, message, retryable) {
     retryable
   };
 }
-function sleep5(milliseconds) {
+function sleep6(milliseconds) {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
@@ -35621,8 +36479,8 @@ function sleep5(milliseconds) {
 // src/registries/rubygems.ts
 var rubygemsVersionsUrl = "https://rubygems.org/api/v1/versions";
 var rubygemsPackagePageUrl = "https://rubygems.org/gems";
-var defaultTimeoutMs6 = 8e3;
-var defaultRetries6 = 2;
+var defaultTimeoutMs7 = 8e3;
+var defaultRetries7 = 2;
 var RubyGemsRegistryClient = class {
   timeoutMs;
   retries;
@@ -35630,8 +36488,8 @@ var RubyGemsRegistryClient = class {
   fetchImpl;
   cache = /* @__PURE__ */ new Map();
   constructor(options = {}) {
-    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs6;
-    this.retries = options.retries ?? defaultRetries6;
+    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs7;
+    this.retries = options.retries ?? defaultRetries7;
     this.userAgent = options.userAgent ?? "sloplock/0.1.0 (https://github.com/theinfosecguy/sloplock)";
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -35664,7 +36522,7 @@ var RubyGemsRegistryClient = class {
       if (!result.retryable || attempt === this.retries) {
         return result;
       }
-      await sleep6(100 * (attempt + 1));
+      await sleep7(100 * (attempt + 1));
     }
     return lastFailure ?? {
       status: "network_error",
@@ -35691,7 +36549,7 @@ var RubyGemsRegistryClient = class {
         return { status: "not_found", ecosystem: "rubygems", name };
       }
       if (response.status === 429) {
-        return failure6(
+        return failure7(
           name,
           "rate_limited",
           "RubyGems.org registry rate limit exceeded.",
@@ -35699,7 +36557,7 @@ var RubyGemsRegistryClient = class {
         );
       }
       if (response.status >= 500) {
-        return failure6(
+        return failure7(
           name,
           "server_error",
           `RubyGems.org registry returned HTTP ${response.status}.`,
@@ -35707,7 +36565,7 @@ var RubyGemsRegistryClient = class {
         );
       }
       if (!response.ok) {
-        return failure6(
+        return failure7(
           name,
           "network_error",
           `RubyGems.org registry returned HTTP ${response.status}.`,
@@ -35718,7 +36576,7 @@ var RubyGemsRegistryClient = class {
       try {
         metadata = await response.json();
       } catch {
-        return failure6(
+        return failure7(
           name,
           "invalid_response",
           "RubyGems.org registry returned invalid package metadata.",
@@ -35728,7 +36586,7 @@ var RubyGemsRegistryClient = class {
       return parseMetadata5(name, metadata);
     } catch (error2) {
       const message = error2 instanceof Error && error2.name === "AbortError" ? "RubyGems.org registry request timed out." : error2 instanceof Error ? error2.message : String(error2);
-      return failure6(name, "network_error", message, true);
+      return failure7(name, "network_error", message, true);
     } finally {
       clearTimeout(timeout);
     }
@@ -35736,14 +36594,14 @@ var RubyGemsRegistryClient = class {
 };
 function parseMetadata5(name, metadata) {
   if (!isRubyGemsVersionArray(metadata)) {
-    return failure6(
+    return failure7(
       name,
       "invalid_response",
       "RubyGems.org registry returned invalid package metadata.",
       false
     );
   }
-  const firstPublishedAt = firstPublishedDate5(metadata);
+  const firstPublishedAt = firstPublishedDate6(metadata);
   const found = {
     status: "found",
     ecosystem: "rubygems",
@@ -35752,11 +36610,11 @@ function parseMetadata5(name, metadata) {
   };
   return firstPublishedAt === void 0 ? found : { ...found, firstPublishedAt };
 }
-function firstPublishedDate5(versions) {
-  const publishTimes = versions.map((version) => dateFromString6(version.created_at)).filter((date) => date !== void 0).sort((left, right) => left.getTime() - right.getTime());
+function firstPublishedDate6(versions) {
+  const publishTimes = versions.map((version) => dateFromString7(version.created_at)).filter((date) => date !== void 0).sort((left, right) => left.getTime() - right.getTime());
   return publishTimes[0];
 }
-function dateFromString6(input) {
+function dateFromString7(input) {
   if (input === void 0) {
     return void 0;
   }
@@ -35779,7 +36637,7 @@ function registryVersionsUrl(name) {
 function registryPackagePageUrlFor(name) {
   return `${rubygemsPackagePageUrl}/${encodeURIComponent(name)}`;
 }
-function failure6(name, status, message, retryable) {
+function failure7(name, status, message, retryable) {
   return {
     status,
     ecosystem: "rubygems",
@@ -35788,7 +36646,7 @@ function failure6(name, status, message, retryable) {
     retryable
   };
 }
-function sleep6(milliseconds) {
+function sleep7(milliseconds) {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
@@ -35801,6 +36659,7 @@ var DefaultRegistryClient = class {
   crates;
   go;
   npm;
+  nuget;
   packagist;
   pypi;
   rubygems;
@@ -35808,6 +36667,7 @@ var DefaultRegistryClient = class {
     this.crates = input.crates ?? new CratesRegistryClient();
     this.go = input.go ?? new GoProxyRegistryClient();
     this.npm = input.npm ?? new NpmRegistryClient();
+    this.nuget = input.nuget ?? new NugetRegistryClient();
     this.packagist = input.packagist ?? new PackagistRegistryClient();
     this.pypi = input.pypi ?? new PypiRegistryClient();
     this.rubygems = input.rubygems ?? new RubyGemsRegistryClient();
@@ -35820,6 +36680,8 @@ var DefaultRegistryClient = class {
         return this.go.getPackage(reference);
       case "npm":
         return this.npm.getPackage(reference);
+      case "nuget":
+        return this.nuget.getPackage(reference);
       case "packagist":
         return this.packagist.getPackage(reference);
       case "pypi":
@@ -35901,7 +36763,7 @@ function matchesIgnore(ecosystem, packageName, ruleId, rules) {
 // src/core/scan.ts
 var defaultRegistryConcurrency = 8;
 async function scan(options) {
-  const rootDir = import_node_path5.default.resolve(options.rootDir);
+  const rootDir = import_node_path6.default.resolve(options.rootDir);
   const now = options.now ?? /* @__PURE__ */ new Date();
   const loadedConfig = await loadConfig({
     rootDir,
@@ -35919,13 +36781,18 @@ async function scan(options) {
     ...loadedConfig.warnings,
     ...parsed.warnings
   ];
+  const sourceFiltered = await filterNugetReferencesBySourcePolicy({
+    rootDir,
+    references: parsed.references
+  });
+  warnings.push(...sourceFiltered.warnings);
   const activeEcosystems = options.ecosystems ?? loadedConfig.config.ecosystems;
   const goPrivatePatterns = [
     ...loadedConfig.config.go.privateModules,
     ...goPrivatePatternsFromEnvironment()
   ];
   const bestReferences = selectBestReferences(
-    parsed.references.filter(
+    sourceFiltered.references.filter(
       (reference) => activeEcosystems.includes(reference.ecosystem) && !isPrivateGoModuleReference(reference, goPrivatePatterns)
     )
   );
@@ -36223,11 +37090,11 @@ function ecosystemsInput(input) {
   if (trimmed.length === 0 || trimmed === "all") {
     return {};
   }
-  if (trimmed === "crates" || trimmed === "go" || trimmed === "npm" || trimmed === "packagist" || trimmed === "pypi" || trimmed === "rubygems") {
+  if (trimmed === "crates" || trimmed === "go" || trimmed === "npm" || trimmed === "nuget" || trimmed === "packagist" || trimmed === "pypi" || trimmed === "rubygems") {
     return { ecosystems: [trimmed] };
   }
   throw new Error(
-    "Action input ecosystem must be all, crates, go, npm, packagist, pypi, or rubygems."
+    "Action input ecosystem must be all, crates, go, npm, nuget, packagist, pypi, or rubygems."
   );
 }
 function readFailOn(input) {

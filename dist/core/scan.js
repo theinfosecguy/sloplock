@@ -2,6 +2,7 @@ import path from "node:path";
 import { loadConfig } from "../config/load-config.js";
 import { discoverDependencyFiles, parseWorkspaceFiles } from "../discovery/find-files.js";
 import { parseChangedDependencyReferences } from "../discovery/git.js";
+import { filterNugetReferencesBySourcePolicy } from "../discovery/nuget-config.js";
 import { DefaultRegistryClient } from "../registries/index.js";
 import { goPrivatePatternsFromEnvironment, matchesGoPrivateModulePattern, splitGoPrivatePatternList } from "./go.js";
 import { applySuppressions, buildPackageNotFoundFinding, buildPackageTooNewFinding } from "./policy.js";
@@ -25,12 +26,17 @@ export async function scan(options) {
         ...loadedConfig.warnings,
         ...parsed.warnings
     ];
+    const sourceFiltered = await filterNugetReferencesBySourcePolicy({
+        rootDir,
+        references: parsed.references
+    });
+    warnings.push(...sourceFiltered.warnings);
     const activeEcosystems = options.ecosystems ?? loadedConfig.config.ecosystems;
     const goPrivatePatterns = [
         ...loadedConfig.config.go.privateModules,
         ...goPrivatePatternsFromEnvironment()
     ];
-    const bestReferences = selectBestReferences(parsed.references.filter((reference) => activeEcosystems.includes(reference.ecosystem) &&
+    const bestReferences = selectBestReferences(sourceFiltered.references.filter((reference) => activeEcosystems.includes(reference.ecosystem) &&
         !isPrivateGoModuleReference(reference, goPrivatePatterns)));
     const registryClient = options.registryClient ?? new DefaultRegistryClient();
     const findings = [];

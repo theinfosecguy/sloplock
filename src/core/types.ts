@@ -2,6 +2,7 @@ export type Ecosystem =
   | "crates"
   | "go"
   | "npm"
+  | "nuget"
   | "packagist"
   | "pypi"
   | "rubygems";

@@ -52,6 +52,10 @@ describe("parseCliArgs", () => {
     expect(parseCliArgs(["--ecosystem", "rubygems"]).ecosystem).toBe("rubygems");
   });
 
+  it("accepts NuGet ecosystem scans", () => {
+    expect(parseCliArgs(["--ecosystem", "nuget"]).ecosystem).toBe("nuget");
+  });
+
   it("rejects extra positional arguments", () => {
     expect(() => parseCliArgs(["one", "two"])).toThrow(UsageError);
   });
