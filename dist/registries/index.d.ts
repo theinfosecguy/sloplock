@@ -1,0 +1,17 @@
+import type { Ecosystem, RegistryClient, RegistryPackageFailure, RegistryResult } from "../core/types.js";
+export declare class DefaultRegistryClient implements RegistryClient {
+    private readonly npm;
+    private readonly pypi;
+    constructor(input?: {
+        npm?: RegistryClient;
+        pypi?: RegistryClient;
+    });
+    getPackage(reference: {
+        ecosystem: Ecosystem;
+        name: string;
+    }): Promise<RegistryResult>;
+}
+export declare function unsupportedRegistryResult(reference: {
+    ecosystem: Ecosystem;
+    name: string;
+}): RegistryPackageFailure;

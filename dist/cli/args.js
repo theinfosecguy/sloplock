@@ -31,6 +31,7 @@ export function parseCliArgs(argv) {
         path: pathArg,
         format: options.format,
         ...(options.failOn === undefined ? {} : { failOn: options.failOn }),
+        ...(options.ecosystem === undefined ? {} : { ecosystem: options.ecosystem }),
         changedOnly: options.changedOnly,
         ...(options.base === undefined ? {} : { base: options.base }),
         ...(options.config === undefined ? {} : { config: options.config }),
@@ -45,7 +46,7 @@ export function helpText() {
 function buildProgram() {
     return new Command()
         .name("sloplock")
-        .description("Block nonexistent and too-new npm packages before they enter your repo.")
+        .description("Block nonexistent and too-new package dependencies before they enter your repo.")
         .argument("[path]", "directory to scan", ".")
         .allowExcessArguments(false)
         .showHelpAfterError(false)
@@ -53,7 +54,7 @@ function buildProgram() {
         .version("0.1.0", "-v, --version", "print version")
         .option("--format <format>", "output format: text, json, or markdown", parseFormat, "text")
         .option("--fail-on <severity>", "minimum severity that fails: medium or high", parseFailOn)
-        .option("--ecosystem <ecosystem>", "ecosystem to scan. V1 supports npm only", parseEcosystem, "npm")
+        .option("--ecosystem <ecosystem>", "ecosystem to scan: npm or pypi", parseEcosystem)
         .option("--changed-only", "scan only dependencies added since --base", false)
         .option("--base <ref>", "base git ref for --changed-only")
         .option("--config <path>", "config file. Default: sloplock.yml")
@@ -72,10 +73,10 @@ function parseFailOn(value) {
     throw new InvalidArgumentError("must be medium or high.");
 }
 function parseEcosystem(value) {
-    if (value === "npm") {
+    if (value === "npm" || value === "pypi") {
         return value;
     }
-    throw new InvalidArgumentError("V1 only supports npm.");
+    throw new InvalidArgumentError("must be npm or pypi.");
 }
 function hasFlag(argv, longFlag, shortFlag) {
     return argv.some((arg) => arg === longFlag || arg === shortFlag);

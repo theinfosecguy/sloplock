@@ -13,7 +13,17 @@ export class NpmRegistryClient {
         this.userAgent = options.userAgent ?? "sloplock/0.1.0";
         this.fetchImpl = options.fetchImpl ?? fetch;
     }
-    async getPackage(name) {
+    async getPackage(reference) {
+        if (reference.ecosystem !== "npm") {
+            return {
+                status: "unsupported",
+                ecosystem: reference.ecosystem,
+                name: reference.name,
+                message: "npm registry client only supports npm packages.",
+                retryable: false
+            };
+        }
+        const { name } = reference;
         const cached = this.cache.get(name);
         if (cached !== undefined) {
             return cached;

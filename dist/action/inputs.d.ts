@@ -1,7 +1,8 @@
-import type { Severity } from "../core/types.js";
+import type { Ecosystem, Severity } from "../core/types.js";
 export type ActionInputs = {
     path: string;
     failOn: Exclude<Severity, "low">;
+    ecosystems?: readonly Ecosystem[];
     changedOnly: boolean;
     base?: string;
     config?: string;

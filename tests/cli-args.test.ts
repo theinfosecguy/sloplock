@@ -12,7 +12,7 @@ describe("parseCliArgs", () => {
         "--fail-on",
         "medium",
         "--ecosystem",
-        "npm",
+        "pypi",
         "--changed-only",
         "--base",
         "origin/main",
@@ -24,6 +24,7 @@ describe("parseCliArgs", () => {
       path: "packages/app",
       format: "json",
       failOn: "medium",
+      ecosystem: "pypi",
       changedOnly: true,
       base: "origin/main",
       config: "sloplock.yml",
@@ -34,7 +35,7 @@ describe("parseCliArgs", () => {
   });
 
   it("rejects unsupported ecosystems", () => {
-    expect(() => parseCliArgs(["--ecosystem", "pypi"])).toThrow(UsageError);
+    expect(() => parseCliArgs(["--ecosystem", "rubygems"])).toThrow(UsageError);
   });
 
   it("rejects extra positional arguments", () => {

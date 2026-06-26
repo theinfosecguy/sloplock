@@ -5,7 +5,7 @@ import {
   parseWorkspaceFiles
 } from "../discovery/find-files.js";
 import { parseChangedDependencyReferences } from "../discovery/git.js";
-import { NpmRegistryClient } from "../registries/npm.js";
+import { DefaultRegistryClient } from "../registries/index.js";
 import {
   applySuppressions,
   buildPackageNotFoundFinding,
@@ -42,8 +42,13 @@ export async function scan(options: ScanOptions): Promise<ScanResult> {
     ...loadedConfig.warnings,
     ...parsed.warnings
   ];
-  const bestReferences = selectBestReferences(parsed.references);
-  const registryClient = options.registryClient ?? new NpmRegistryClient();
+  const activeEcosystems = options.ecosystems ?? loadedConfig.config.ecosystems;
+  const bestReferences = selectBestReferences(
+    parsed.references.filter((reference) =>
+      activeEcosystems.includes(reference.ecosystem)
+    )
+  );
+  const registryClient = options.registryClient ?? new DefaultRegistryClient();
   const findings: Finding[] = [];
   const registryFailures: RegistryPackageFailure[] = [];
   const registryEvaluations = await mapWithConcurrency(
@@ -83,7 +88,10 @@ async function evaluateReference(input: {
   warnings: ConfigWarning[];
   registryFailures: RegistryPackageFailure[];
 }> {
-  const registryPackage = await input.registryClient.getPackage(input.reference.name);
+  const registryPackage = await input.registryClient.getPackage({
+    ecosystem: input.reference.ecosystem,
+    name: input.reference.name
+  });
 
   switch (registryPackage.status) {
     case "found": {
@@ -152,15 +160,22 @@ function selectBestReferences(
   const byPackage = new Map<string, DependencyReference>();
 
   for (const reference of references) {
-    const existing = byPackage.get(reference.name);
+    const key = referenceKey(reference);
+    const existing = byPackage.get(key);
     if (existing === undefined || referenceScore(reference) < referenceScore(existing)) {
-      byPackage.set(reference.name, reference);
+      byPackage.set(key, reference);
     }
   }
 
-  return [...byPackage.values()].sort((left, right) =>
-    left.name.localeCompare(right.name)
+  return [...byPackage.values()].sort(
+    (left, right) =>
+      left.ecosystem.localeCompare(right.ecosystem) ||
+      left.name.localeCompare(right.name)
   );
+}
+
+function referenceKey(reference: DependencyReference): string {
+  return `${reference.ecosystem}:${reference.name}`;
 }
 
 function referenceScore(reference: DependencyReference): number {

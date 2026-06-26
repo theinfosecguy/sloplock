@@ -1,9 +1,10 @@
 import * as core from "@actions/core";
-import type { Severity } from "../core/types.js";
+import type { Ecosystem, Severity } from "../core/types.js";
 
 export type ActionInputs = {
   path: string;
   failOn: Exclude<Severity, "low">;
+  ecosystems?: readonly Ecosystem[];
   changedOnly: boolean;
   base?: string;
   config?: string;
@@ -15,11 +16,13 @@ export type ActionInputs = {
 export function readActionInputs(): ActionInputs {
   const base = core.getInput("base");
   const config = core.getInput("config");
+  const ecosystem = core.getInput("ecosystem");
   const githubToken = core.getInput("github-token");
 
   return {
     path: core.getInput("path") || ".",
     failOn: readFailOn(core.getInput("fail-on") || "high"),
+    ...ecosystemsInput(ecosystem),
     changedOnly: core.getBooleanInput("changed-only"),
     ...(base.trim().length === 0 ? {} : { base }),
     ...(config.trim().length === 0 ? {} : { config }),
@@ -27,6 +30,19 @@ export function readActionInputs(): ActionInputs {
     ...(githubToken.trim().length === 0 ? {} : { githubToken }),
     failClosed: core.getBooleanInput("fail-closed")
   };
+}
+
+function ecosystemsInput(input: string): { ecosystems?: readonly Ecosystem[] } {
+  const trimmed = input.trim();
+  if (trimmed.length === 0 || trimmed === "all") {
+    return {};
+  }
+
+  if (trimmed === "npm" || trimmed === "pypi") {
+    return { ecosystems: [trimmed] };
+  }
+
+  throw new Error("Action input ecosystem must be all, npm, or pypi.");
 }
 
 function readFailOn(input: string): "medium" | "high" {

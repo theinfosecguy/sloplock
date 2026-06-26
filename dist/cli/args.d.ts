@@ -1,9 +1,10 @@
-import type { Severity } from "../core/types.js";
+import type { Ecosystem, Severity } from "../core/types.js";
 export type OutputFormat = "text" | "json" | "markdown";
 export type CliArgs = {
     path: string;
     format: OutputFormat;
     failOn?: Exclude<Severity, "low">;
+    ecosystem?: Ecosystem;
     changedOnly: boolean;
     base?: string;
     config?: string;

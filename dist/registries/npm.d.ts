@@ -1,4 +1,4 @@
-import type { RegistryClient, RegistryResult } from "../core/types.js";
+import type { Ecosystem, RegistryClient, RegistryResult } from "../core/types.js";
 type NpmRegistryClientOptions = {
     timeoutMs?: number;
     retries?: number;
@@ -12,7 +12,10 @@ export declare class NpmRegistryClient implements RegistryClient {
     private readonly fetchImpl;
     private readonly cache;
     constructor(options?: NpmRegistryClientOptions);
-    getPackage(name: string): Promise<RegistryResult>;
+    getPackage(reference: {
+        ecosystem: Ecosystem;
+        name: string;
+    }): Promise<RegistryResult>;
     private getPackageUncached;
     private fetchPackage;
 }

@@ -5,7 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { scan } from "../src/core/scan.js";
-import type { RegistryClient, RegistryResult } from "../src/core/types.js";
+import type { Ecosystem, RegistryClient, RegistryResult } from "../src/core/types.js";
 
 const execFileAsync = promisify(execFile);
 const tempDirs: string[] = [];
@@ -75,6 +75,139 @@ ignore:
     });
 
     expect(result.findings).toEqual([]);
+  });
+
+  it("reports missing and too-new PyPI packages", async () => {
+    const rootDir = await tempProject({
+      "requirements.txt": `
+missing-python-package==1.0.0
+fresh-python-package>=1.0.0
+old-python-package~=1.0
+`
+    });
+    const result = await scan({
+      rootDir,
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "pypi:missing-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "missing-python-package"
+        },
+        "pypi:fresh-python-package": found(
+          "fresh-python-package",
+          "2026-06-22T00:00:00.000Z",
+          "pypi"
+        ),
+        "pypi:old-python-package": found(
+          "old-python-package",
+          "2020-01-01T00:00:00.000Z",
+          "pypi"
+        )
+      })
+    });
+
+    expect(result.findings.map((finding) => finding.ecosystem)).toEqual([
+      "pypi",
+      "pypi"
+    ]);
+    expect(result.findings.map((finding) => finding.rule).sort()).toEqual([
+      "package_not_found",
+      "package_too_new"
+    ]);
+  });
+
+  it("discovers common Python requirements files", async () => {
+    const rootDir = await tempProject({
+      "requirements-dev.txt": "missing-python-package==1.0.0\n"
+    });
+    const result = await scan({
+      rootDir,
+      registryClient: fakeRegistry({
+        "pypi:missing-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "missing-python-package"
+        }
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("pypi");
+    expect(result.findings[0]?.package).toBe("missing-python-package");
+    expect(result.findings[0]?.source.file).toBe("requirements-dev.txt");
+  });
+
+  it("follows requirements includes", async () => {
+    const rootDir = await tempProject({
+      "requirements.txt": "-r requirements-dev.txt\n",
+      "requirements-dev.txt": "missing-python-package==1.0.0\n"
+    });
+    const result = await scan({
+      rootDir,
+      registryClient: fakeRegistry({
+        "pypi:missing-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "missing-python-package"
+        }
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.package).toBe("missing-python-package");
+    expect(result.findings[0]?.source.file).toBe("requirements-dev.txt");
+  });
+
+  it("follows requirements includes with nonstandard file names", async () => {
+    const rootDir = await tempProject({
+      "requirements.txt": "-r dev.txt\n",
+      "dev.txt": "missing-python-package==1.0.0\n"
+    });
+    const result = await scan({
+      rootDir,
+      registryClient: fakeRegistry({
+        "pypi:missing-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "missing-python-package"
+        }
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.package).toBe("missing-python-package");
+    expect(result.findings[0]?.source.file).toBe("dev.txt");
+  });
+
+  it("filters scans to a selected ecosystem", async () => {
+    const rootDir = await tempProject({
+      "package.json": JSON.stringify({
+        dependencies: {
+          "missing-npm-package": "^1.0.0"
+        }
+      }),
+      "requirements.txt": "missing-python-package==1.0.0\n"
+    });
+    const calls: string[] = [];
+    const result = await scan({
+      rootDir,
+      ecosystems: ["pypi"],
+      registryClient: {
+        getPackage(reference) {
+          calls.push(`${reference.ecosystem}:${reference.name}`);
+          return Promise.resolve({
+            status: "not_found",
+            ecosystem: reference.ecosystem,
+            name: reference.name
+          });
+        }
+      }
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(calls).toEqual(["pypi:missing-python-package"]);
+    expect(result.findings[0]?.ecosystem).toBe("pypi");
   });
 
   it("changed-only scans only packages introduced after the base ref", async () => {
@@ -235,6 +368,41 @@ ignore:
     expect(result.findings[0]?.source.file).toBe("package-lock.json");
   });
 
+  it("changed-only scans packages introduced in requirements.txt", async () => {
+    const rootDir = await tempProject({
+      "requirements.txt": "old-python-package==1.0.0\n"
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "requirements.txt"),
+      "old-python-package==1.0.0\nnew-python-package==1.0.0\n"
+    );
+    await commitAll(rootDir, "update python requirements");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "pypi:new-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "new-python-package"
+        },
+        "pypi:old-python-package": found(
+          "old-python-package",
+          "2020-01-01T00:00:00.000Z",
+          "pypi"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("pypi");
+    expect(result.findings[0]?.package).toBe("new-python-package");
+  });
+
   it("deduplicates package references before registry lookup", async () => {
     const rootDir = await tempProject({
       "package.json": JSON.stringify({
@@ -257,15 +425,17 @@ ignore:
     const result = await scan({
       rootDir,
       registryClient: {
-        getPackage(name: string) {
-          calls.push(name);
-          return Promise.resolve(found(name, "2020-01-01T00:00:00.000Z"));
+        getPackage(reference) {
+          calls.push(`${reference.ecosystem}:${reference.name}`);
+          return Promise.resolve(
+            found(reference.name, "2020-01-01T00:00:00.000Z", reference.ecosystem)
+          );
         }
       }
     });
 
     expect(result.scannedDependencies).toBe(1);
-    expect(calls).toEqual(["react"]);
+    expect(calls).toEqual(["npm:react"]);
   });
 
   it("limits concurrent registry lookups while preserving deterministic findings", async () => {
@@ -287,23 +457,27 @@ ignore:
       rootDir,
       registryConcurrency: 2,
       registryClient: {
-        async getPackage(name: string) {
+        async getPackage(reference) {
           activeRequests += 1;
           maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
-          calls.push(name);
+          calls.push(`${reference.ecosystem}:${reference.name}`);
           await sleep(20);
           activeRequests -= 1;
-          return { status: "not_found", ecosystem: "npm", name };
+          return {
+            status: "not_found",
+            ecosystem: reference.ecosystem,
+            name: reference.name
+          };
         }
       }
     });
 
     expect(maxActiveRequests).toBe(2);
     expect(calls).toEqual([
-      "alpha-package",
-      "bravo-package",
-      "charlie-package",
-      "delta-package"
+      "npm:alpha-package",
+      "npm:bravo-package",
+      "npm:charlie-package",
+      "npm:delta-package"
     ]);
     expect(result.findings.map((finding) => finding.package)).toEqual([
       "alpha-package",
@@ -328,10 +502,14 @@ async function tempProject(files: Record<string, string>): Promise<string> {
   return tempDir;
 }
 
-function found(name: string, firstPublishedAt: string): RegistryResult {
+function found(
+  name: string,
+  firstPublishedAt: string,
+  ecosystem: Ecosystem = "npm"
+): RegistryResult {
   return {
     status: "found",
-    ecosystem: "npm",
+    ecosystem,
     name,
     firstPublishedAt: new Date(firstPublishedAt)
   };
@@ -339,10 +517,16 @@ function found(name: string, firstPublishedAt: string): RegistryResult {
 
 function fakeRegistry(results: Record<string, RegistryResult>): RegistryClient {
   return {
-    getPackage(name: string) {
-      const result = results[name];
+    getPackage(reference) {
+      const result =
+        results[`${reference.ecosystem}:${reference.name}`] ??
+        results[reference.name];
       if (result === undefined) {
-        return Promise.resolve({ status: "not_found", ecosystem: "npm", name });
+        return Promise.resolve({
+          status: "not_found",
+          ecosystem: reference.ecosystem,
+          name: reference.name
+        });
       }
 
       return Promise.resolve(result);

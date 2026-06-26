@@ -1,4 +1,5 @@
 import type {
+  Ecosystem,
   RegistryClient,
   RegistryPackageFound,
   RegistryPackageFailure,
@@ -34,7 +35,21 @@ export class NpmRegistryClient implements RegistryClient {
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
-  async getPackage(name: string): Promise<RegistryResult> {
+  async getPackage(reference: {
+    ecosystem: Ecosystem;
+    name: string;
+  }): Promise<RegistryResult> {
+    if (reference.ecosystem !== "npm") {
+      return {
+        status: "unsupported",
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        message: "npm registry client only supports npm packages.",
+        retryable: false
+      };
+    }
+
+    const { name } = reference;
     const cached = this.cache.get(name);
     if (cached !== undefined) {
       return cached;

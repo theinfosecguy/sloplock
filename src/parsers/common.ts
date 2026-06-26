@@ -8,6 +8,7 @@ export type ParseDependencyFileOptions = {
 export type ParsedDependencyFile = {
   references: DependencyReference[];
   warnings: string[];
+  includedFiles?: string[];
 };
 
 export function lineNumberForPattern(
@@ -32,6 +33,27 @@ export function makeNpmReference(input: {
 }): DependencyReference {
   return {
     ecosystem: "npm",
+    name: input.name,
+    ...(input.versionRange === undefined
+      ? {}
+      : { versionRange: input.versionRange }),
+    sourceFile: input.sourceFile,
+    ...(input.sourceLine === undefined ? {} : { sourceLine: input.sourceLine }),
+    sourceKind: input.sourceKind,
+    isDirect: input.isDirect
+  };
+}
+
+export function makePypiReference(input: {
+  name: string;
+  versionRange?: string;
+  sourceFile: string;
+  sourceLine?: number;
+  sourceKind: SourceKind;
+  isDirect: boolean;
+}): DependencyReference {
+  return {
+    ecosystem: "pypi",
     name: input.name,
     ...(input.versionRange === undefined
       ? {}
