@@ -3,8 +3,16 @@
   "version": "0.1.0",
   "description": "Block nonexistent and too-new package dependencies before they enter your repo.",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theinfosecguy/sloplock.git"
+  },
+  "bugs": {
+    "url": "https://github.com/theinfosecguy/sloplock/issues"
+  },
+  "homepage": "https://github.com/theinfosecguy/sloplock#readme",
   "bin": {
-    "sloplock": "./dist/cli/index.js"
+    "sloplock": "dist/cli/index.js"
   },
   "exports": {
     ".": "./dist/core/index.js"
@@ -20,7 +28,7 @@
   },
   "scripts": {
     "clean": "rm -rf dist coverage",
-    "build": "npm run clean && tsc -p tsconfig.json && npm run bundle:action",
+    "build": "npm run clean && tsc -p tsconfig.json && node -e \"require('node:fs').chmodSync('dist/cli/index.js', 0o755)\" && npm run bundle:action",
     "bundle:action": "esbuild src/action/index.ts --bundle --platform=node --target=node24 --format=cjs --sourcemap --outfile=dist/action/index.cjs --banner:js='// Bundled action entrypoint. Do not edit directly.'",
     "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
