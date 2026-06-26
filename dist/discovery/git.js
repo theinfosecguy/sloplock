@@ -83,7 +83,7 @@ async function getChangedSupportedFiles(rootDir, baseRef) {
         if (files.length === 0) {
             return [];
         }
-        throw new UsageError(`Unable to compute changed files against ${baseRef}. Pass --base or run a full scan.`);
+        throw new UsageError(`Unable to compute changed files against ${baseRef}. Pass --base, fetch git history with actions/checkout fetch-depth: 0, or run a full scan.`);
     }
 }
 async function readGitFile(rootDir, ref, file) {

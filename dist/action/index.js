@@ -1,18 +1,24 @@
 import * as core from "@actions/core";
+import * as github from "@actions/github";
 import { scan } from "../core/scan.js";
 import { renderMarkdown, renderStepSummary } from "../reporting/markdown.js";
 import { hasFailingFindings } from "../reporting/summary.js";
+import { resolveChangedOnlyBaseRef } from "./base-ref.js";
 import { upsertStickyComment } from "./comments.js";
 import { readActionInputs } from "./inputs.js";
 async function run() {
     const inputs = readActionInputs();
+    const baseRef = resolveChangedOnlyBaseRef({
+        ...(inputs.base === undefined ? {} : { inputBase: inputs.base }),
+        pullRequest: github.context.payload.pull_request
+    });
     const result = await scan({
         rootDir: inputs.path,
         changedOnly: inputs.changedOnly,
         failOn: inputs.failOn,
         failClosed: inputs.failClosed,
         isCi: true,
-        ...(inputs.base === undefined ? {} : { baseRef: inputs.base }),
+        ...(baseRef === undefined ? {} : { baseRef }),
         ...(inputs.config === undefined ? {} : { configPath: inputs.config })
     });
     annotateFindings(result.findings);

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -140,6 +140,178 @@ ignore:
     expect(result.findings).toHaveLength(1);
     expect(result.findings[0]?.package).toBe("new-missing-package");
   });
+
+  it("changed-only scans packages from added nested manifests", async () => {
+    const rootDir = await tempProject({
+      "package.json": JSON.stringify({
+        dependencies: {
+          "old-package": "^1.0.0"
+        }
+      })
+    });
+
+    await initGitRepository(rootDir);
+    await mkdir(path.join(rootDir, "packages", "app"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, "packages", "app", "package.json"),
+      JSON.stringify({
+        dependencies: {
+          "nested-missing-package": "^1.0.0"
+        }
+      })
+    );
+    await commitAll(rootDir, "add nested package");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "nested-missing-package": {
+          status: "not_found",
+          ecosystem: "npm",
+          name: "nested-missing-package"
+        },
+        "old-package": found("old-package", "2020-01-01T00:00:00.000Z")
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.package).toBe("nested-missing-package");
+    expect(result.findings[0]?.source.file).toBe("packages/app/package.json");
+  });
+
+  it("changed-only scans dependency additions from lockfile-only changes", async () => {
+    const rootDir = await tempProject({
+      "package-lock.json": JSON.stringify({
+        lockfileVersion: 3,
+        packages: {
+          "": {},
+          "node_modules/old-package": {
+            version: "1.0.0",
+            resolved: "https://registry.npmjs.org/old-package/-/old-package-1.0.0.tgz"
+          }
+        }
+      })
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "package-lock.json"),
+      JSON.stringify({
+        lockfileVersion: 3,
+        packages: {
+          "": {},
+          "node_modules/old-package": {
+            version: "1.0.0",
+            resolved: "https://registry.npmjs.org/old-package/-/old-package-1.0.0.tgz"
+          },
+          "node_modules/lockfile-missing-package": {
+            version: "1.0.0",
+            resolved:
+              "https://registry.npmjs.org/lockfile-missing-package/-/lockfile-missing-package-1.0.0.tgz"
+          }
+        }
+      })
+    );
+    await commitAll(rootDir, "update lockfile");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "lockfile-missing-package": {
+          status: "not_found",
+          ecosystem: "npm",
+          name: "lockfile-missing-package"
+        },
+        "old-package": found("old-package", "2020-01-01T00:00:00.000Z")
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.package).toBe("lockfile-missing-package");
+    expect(result.findings[0]?.source.file).toBe("package-lock.json");
+  });
+
+  it("deduplicates package references before registry lookup", async () => {
+    const rootDir = await tempProject({
+      "package.json": JSON.stringify({
+        dependencies: {
+          react: "^19.0.0"
+        }
+      }),
+      "package-lock.json": JSON.stringify({
+        lockfileVersion: 3,
+        packages: {
+          "": {},
+          "node_modules/react": {
+            version: "19.0.0",
+            resolved: "https://registry.npmjs.org/react/-/react-19.0.0.tgz"
+          }
+        }
+      })
+    });
+    const calls: string[] = [];
+    const result = await scan({
+      rootDir,
+      registryClient: {
+        getPackage(name: string) {
+          calls.push(name);
+          return Promise.resolve(found(name, "2020-01-01T00:00:00.000Z"));
+        }
+      }
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(calls).toEqual(["react"]);
+  });
+
+  it("limits concurrent registry lookups while preserving deterministic findings", async () => {
+    const rootDir = await tempProject({
+      "package.json": JSON.stringify({
+        dependencies: {
+          "delta-package": "^1.0.0",
+          "alpha-package": "^1.0.0",
+          "charlie-package": "^1.0.0",
+          "bravo-package": "^1.0.0"
+        }
+      })
+    });
+    let activeRequests = 0;
+    let maxActiveRequests = 0;
+    const calls: string[] = [];
+
+    const result = await scan({
+      rootDir,
+      registryConcurrency: 2,
+      registryClient: {
+        async getPackage(name: string) {
+          activeRequests += 1;
+          maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+          calls.push(name);
+          await sleep(20);
+          activeRequests -= 1;
+          return { status: "not_found", ecosystem: "npm", name };
+        }
+      }
+    });
+
+    expect(maxActiveRequests).toBe(2);
+    expect(calls).toEqual([
+      "alpha-package",
+      "bravo-package",
+      "charlie-package",
+      "delta-package"
+    ]);
+    expect(result.findings.map((finding) => finding.package)).toEqual([
+      "alpha-package",
+      "bravo-package",
+      "charlie-package",
+      "delta-package"
+    ]);
+  });
 });
 
 async function tempProject(files: Record<string, string>): Promise<string> {
@@ -147,9 +319,10 @@ async function tempProject(files: Record<string, string>): Promise<string> {
   tempDirs.push(tempDir);
 
   await Promise.all(
-    Object.entries(files).map(([file, content]) =>
-      writeFile(path.join(tempDir, file), content)
-    )
+    Object.entries(files).map(async ([file, content]) => {
+      await mkdir(path.dirname(path.join(tempDir, file)), { recursive: true });
+      await writeFile(path.join(tempDir, file), content);
+    })
   );
 
   return tempDir;
@@ -179,4 +352,33 @@ function fakeRegistry(results: Record<string, RegistryResult>): RegistryClient {
 
 async function git(rootDir: string, args: readonly string[]): Promise<void> {
   await execFileAsync("git", [...args], { cwd: rootDir });
+}
+
+async function initGitRepository(rootDir: string): Promise<void> {
+  await git(rootDir, ["init", "-b", "main"]);
+  await commitAll(rootDir, "base");
+  await git(rootDir, ["checkout", "-b", "feature"]);
+}
+
+async function commitAll(rootDir: string, message: string): Promise<void> {
+  await git(rootDir, ["add", "."]);
+  await git(rootDir, [
+    "-c",
+    "commit.gpgsign=false",
+    "-c",
+    "user.email=sloplock@example.test",
+    "-c",
+    "user.name=SlopLock",
+    "commit",
+    "-m",
+    message
+  ]);
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, milliseconds);
+  });
 }

@@ -88,6 +88,7 @@ export type ScanOptions = {
     configPath?: string;
     failOn?: Exclude<Severity, "low">;
     failClosed?: boolean;
+    registryConcurrency?: number;
     registryClient?: RegistryClient;
     now?: Date;
     isCi?: boolean;

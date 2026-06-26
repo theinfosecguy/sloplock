@@ -4,6 +4,7 @@ import { discoverDependencyFiles, parseWorkspaceFiles } from "../discovery/find-
 import { parseChangedDependencyReferences } from "../discovery/git.js";
 import { NpmRegistryClient } from "../registries/npm.js";
 import { applySuppressions, buildPackageNotFoundFinding, buildPackageTooNewFinding } from "./policy.js";
+const defaultRegistryConcurrency = 8;
 export async function scan(options) {
     const rootDir = path.resolve(options.rootDir);
     const now = options.now ?? new Date();
@@ -27,31 +28,16 @@ export async function scan(options) {
     const registryClient = options.registryClient ?? new NpmRegistryClient();
     const findings = [];
     const registryFailures = [];
-    for (const reference of bestReferences) {
-        const registryPackage = await registryClient.getPackage(reference.name);
-        switch (registryPackage.status) {
-            case "found": {
-                const finding = buildPackageTooNewFinding(reference, registryPackage, loadedConfig.config, now);
-                if (finding !== undefined) {
-                    findings.push(finding);
-                }
-                if (registryPackage.firstPublishedAt === undefined) {
-                    warnings.push({
-                        message: `Package ${reference.name} returned no first publish timestamp; cooldown skipped.`
-                    });
-                }
-                break;
-            }
-            case "not_found":
-                findings.push(buildPackageNotFoundFinding(reference));
-                break;
-            default:
-                registryFailures.push(registryPackage);
-                warnings.push({
-                    message: `Registry check failed for ${reference.name}: ${registryPackage.message}`
-                });
-                break;
-        }
+    const registryEvaluations = await mapWithConcurrency(bestReferences, normalizedConcurrency(options.registryConcurrency), async (reference) => evaluateReference({
+        reference,
+        registryClient,
+        now,
+        config: loadedConfig.config
+    }));
+    for (const evaluation of registryEvaluations) {
+        findings.push(...evaluation.findings);
+        warnings.push(...evaluation.warnings);
+        registryFailures.push(...evaluation.registryFailures);
     }
     return {
         findings: applySuppressions(findings, loadedConfig.config),
@@ -60,6 +46,42 @@ export async function scan(options) {
         scannedDependencies: bestReferences.length,
         failOn: loadedConfig.config.failOn
     };
+}
+async function evaluateReference(input) {
+    const registryPackage = await input.registryClient.getPackage(input.reference.name);
+    switch (registryPackage.status) {
+        case "found": {
+            const finding = buildPackageTooNewFinding(input.reference, registryPackage, input.config, input.now);
+            const warnings = registryPackage.firstPublishedAt === undefined
+                ? [
+                    {
+                        message: `Package ${input.reference.name} returned no first publish timestamp; cooldown skipped.`
+                    }
+                ]
+                : [];
+            return {
+                findings: finding === undefined ? [] : [finding],
+                warnings,
+                registryFailures: []
+            };
+        }
+        case "not_found":
+            return {
+                findings: [buildPackageNotFoundFinding(input.reference)],
+                warnings: [],
+                registryFailures: []
+            };
+        default:
+            return {
+                findings: [],
+                warnings: [
+                    {
+                        message: `Registry check failed for ${input.reference.name}: ${registryPackage.message}`
+                    }
+                ],
+                registryFailures: [registryPackage]
+            };
+    }
 }
 async function parseReferences(input) {
     if (input.changedOnly) {
@@ -89,5 +111,30 @@ function referenceScore(reference) {
         docs: 4
     };
     return sourceKindScore[reference.sourceKind];
+}
+async function mapWithConcurrency(inputs, concurrency, mapper) {
+    const outputs = new Array(inputs.length);
+    let nextIndex = 0;
+    async function worker() {
+        while (nextIndex < inputs.length) {
+            const currentIndex = nextIndex;
+            nextIndex += 1;
+            const input = inputs[currentIndex];
+            if (input !== undefined) {
+                outputs[currentIndex] = await mapper(input);
+            }
+        }
+    }
+    const workerCount = Math.min(concurrency, inputs.length);
+    await Promise.all(Array.from({ length: workerCount }, async () => {
+        await worker();
+    }));
+    return outputs;
+}
+function normalizedConcurrency(input) {
+    if (input === undefined || !Number.isFinite(input)) {
+        return defaultRegistryConcurrency;
+    }
+    return Math.max(1, Math.floor(input));
 }
 //# sourceMappingURL=scan.js.map

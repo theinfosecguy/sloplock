@@ -18746,6 +18746,909 @@ var require_undici = __commonJS({
   }
 });
 
+// node_modules/@actions/github/node_modules/@actions/http-client/lib/proxy.js
+var require_proxy = __commonJS({
+  "node_modules/@actions/github/node_modules/@actions/http-client/lib/proxy.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.getProxyUrl = getProxyUrl2;
+    exports2.checkBypass = checkBypass;
+    function getProxyUrl2(reqUrl) {
+      const usingSsl = reqUrl.protocol === "https:";
+      if (checkBypass(reqUrl)) {
+        return void 0;
+      }
+      const proxyVar = (() => {
+        if (usingSsl) {
+          return process.env["https_proxy"] || process.env["HTTPS_PROXY"];
+        } else {
+          return process.env["http_proxy"] || process.env["HTTP_PROXY"];
+        }
+      })();
+      if (proxyVar) {
+        try {
+          return new DecodedURL(proxyVar);
+        } catch (_a) {
+          if (!proxyVar.startsWith("http://") && !proxyVar.startsWith("https://"))
+            return new DecodedURL(`http://${proxyVar}`);
+        }
+      } else {
+        return void 0;
+      }
+    }
+    function checkBypass(reqUrl) {
+      if (!reqUrl.hostname) {
+        return false;
+      }
+      const reqHost = reqUrl.hostname;
+      if (isLoopbackAddress(reqHost)) {
+        return true;
+      }
+      const noProxy = process.env["no_proxy"] || process.env["NO_PROXY"] || "";
+      if (!noProxy) {
+        return false;
+      }
+      let reqPort;
+      if (reqUrl.port) {
+        reqPort = Number(reqUrl.port);
+      } else if (reqUrl.protocol === "http:") {
+        reqPort = 80;
+      } else if (reqUrl.protocol === "https:") {
+        reqPort = 443;
+      }
+      const upperReqHosts = [reqUrl.hostname.toUpperCase()];
+      if (typeof reqPort === "number") {
+        upperReqHosts.push(`${upperReqHosts[0]}:${reqPort}`);
+      }
+      for (const upperNoProxyItem of noProxy.split(",").map((x) => x.trim().toUpperCase()).filter((x) => x)) {
+        if (upperNoProxyItem === "*" || upperReqHosts.some((x) => x === upperNoProxyItem || x.endsWith(`.${upperNoProxyItem}`) || upperNoProxyItem.startsWith(".") && x.endsWith(`${upperNoProxyItem}`))) {
+          return true;
+        }
+      }
+      return false;
+    }
+    function isLoopbackAddress(host) {
+      const hostLower = host.toLowerCase();
+      return hostLower === "localhost" || hostLower.startsWith("127.") || hostLower.startsWith("[::1]") || hostLower.startsWith("[0:0:0:0:0:0:0:1]");
+    }
+    var DecodedURL = class extends URL {
+      constructor(url, base) {
+        super(url, base);
+        this._decodedUsername = decodeURIComponent(super.username);
+        this._decodedPassword = decodeURIComponent(super.password);
+      }
+      get username() {
+        return this._decodedUsername;
+      }
+      get password() {
+        return this._decodedPassword;
+      }
+    };
+  }
+});
+
+// node_modules/@actions/github/node_modules/@actions/http-client/lib/index.js
+var require_lib = __commonJS({
+  "node_modules/@actions/github/node_modules/@actions/http-client/lib/index.js"(exports2) {
+    "use strict";
+    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      var desc = Object.getOwnPropertyDescriptor(m, k);
+      if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+        desc = { enumerable: true, get: function() {
+          return m[k];
+        } };
+      }
+      Object.defineProperty(o, k2, desc);
+    }) : (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      o[k2] = m[k];
+    }));
+    var __setModuleDefault = exports2 && exports2.__setModuleDefault || (Object.create ? (function(o, v) {
+      Object.defineProperty(o, "default", { enumerable: true, value: v });
+    }) : function(o, v) {
+      o["default"] = v;
+    });
+    var __importStar = exports2 && exports2.__importStar || /* @__PURE__ */ (function() {
+      var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function(o2) {
+          var ar = [];
+          for (var k in o2) if (Object.prototype.hasOwnProperty.call(o2, k)) ar[ar.length] = k;
+          return ar;
+        };
+        return ownKeys(o);
+      };
+      return function(mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) {
+          for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        }
+        __setModuleDefault(result, mod);
+        return result;
+      };
+    })();
+    var __awaiter3 = exports2 && exports2.__awaiter || function(thisArg, _arguments, P, generator) {
+      function adopt(value) {
+        return value instanceof P ? value : new P(function(resolve) {
+          resolve(value);
+        });
+      }
+      return new (P || (P = Promise))(function(resolve, reject) {
+        function fulfilled(value) {
+          try {
+            step(generator.next(value));
+          } catch (e) {
+            reject(e);
+          }
+        }
+        function rejected(value) {
+          try {
+            step(generator["throw"](value));
+          } catch (e) {
+            reject(e);
+          }
+        }
+        function step(result) {
+          result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
+        }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+      });
+    };
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.HttpClient = exports2.HttpClientResponse = exports2.HttpClientError = exports2.MediaTypes = exports2.Headers = exports2.HttpCodes = void 0;
+    exports2.getProxyUrl = getProxyUrl2;
+    exports2.isHttps = isHttps;
+    var http = __importStar(require("http"));
+    var https = __importStar(require("https"));
+    var pm = __importStar(require_proxy());
+    var tunnel2 = __importStar(require_tunnel2());
+    var undici_1 = require_undici();
+    var HttpCodes2;
+    (function(HttpCodes3) {
+      HttpCodes3[HttpCodes3["OK"] = 200] = "OK";
+      HttpCodes3[HttpCodes3["MultipleChoices"] = 300] = "MultipleChoices";
+      HttpCodes3[HttpCodes3["MovedPermanently"] = 301] = "MovedPermanently";
+      HttpCodes3[HttpCodes3["ResourceMoved"] = 302] = "ResourceMoved";
+      HttpCodes3[HttpCodes3["SeeOther"] = 303] = "SeeOther";
+      HttpCodes3[HttpCodes3["NotModified"] = 304] = "NotModified";
+      HttpCodes3[HttpCodes3["UseProxy"] = 305] = "UseProxy";
+      HttpCodes3[HttpCodes3["SwitchProxy"] = 306] = "SwitchProxy";
+      HttpCodes3[HttpCodes3["TemporaryRedirect"] = 307] = "TemporaryRedirect";
+      HttpCodes3[HttpCodes3["PermanentRedirect"] = 308] = "PermanentRedirect";
+      HttpCodes3[HttpCodes3["BadRequest"] = 400] = "BadRequest";
+      HttpCodes3[HttpCodes3["Unauthorized"] = 401] = "Unauthorized";
+      HttpCodes3[HttpCodes3["PaymentRequired"] = 402] = "PaymentRequired";
+      HttpCodes3[HttpCodes3["Forbidden"] = 403] = "Forbidden";
+      HttpCodes3[HttpCodes3["NotFound"] = 404] = "NotFound";
+      HttpCodes3[HttpCodes3["MethodNotAllowed"] = 405] = "MethodNotAllowed";
+      HttpCodes3[HttpCodes3["NotAcceptable"] = 406] = "NotAcceptable";
+      HttpCodes3[HttpCodes3["ProxyAuthenticationRequired"] = 407] = "ProxyAuthenticationRequired";
+      HttpCodes3[HttpCodes3["RequestTimeout"] = 408] = "RequestTimeout";
+      HttpCodes3[HttpCodes3["Conflict"] = 409] = "Conflict";
+      HttpCodes3[HttpCodes3["Gone"] = 410] = "Gone";
+      HttpCodes3[HttpCodes3["TooManyRequests"] = 429] = "TooManyRequests";
+      HttpCodes3[HttpCodes3["InternalServerError"] = 500] = "InternalServerError";
+      HttpCodes3[HttpCodes3["NotImplemented"] = 501] = "NotImplemented";
+      HttpCodes3[HttpCodes3["BadGateway"] = 502] = "BadGateway";
+      HttpCodes3[HttpCodes3["ServiceUnavailable"] = 503] = "ServiceUnavailable";
+      HttpCodes3[HttpCodes3["GatewayTimeout"] = 504] = "GatewayTimeout";
+    })(HttpCodes2 || (exports2.HttpCodes = HttpCodes2 = {}));
+    var Headers2;
+    (function(Headers3) {
+      Headers3["Accept"] = "accept";
+      Headers3["ContentType"] = "content-type";
+    })(Headers2 || (exports2.Headers = Headers2 = {}));
+    var MediaTypes2;
+    (function(MediaTypes3) {
+      MediaTypes3["ApplicationJson"] = "application/json";
+    })(MediaTypes2 || (exports2.MediaTypes = MediaTypes2 = {}));
+    function getProxyUrl2(serverUrl) {
+      const proxyUrl = pm.getProxyUrl(new URL(serverUrl));
+      return proxyUrl ? proxyUrl.href : "";
+    }
+    var HttpRedirectCodes2 = [
+      HttpCodes2.MovedPermanently,
+      HttpCodes2.ResourceMoved,
+      HttpCodes2.SeeOther,
+      HttpCodes2.TemporaryRedirect,
+      HttpCodes2.PermanentRedirect
+    ];
+    var HttpResponseRetryCodes2 = [
+      HttpCodes2.BadGateway,
+      HttpCodes2.ServiceUnavailable,
+      HttpCodes2.GatewayTimeout
+    ];
+    var RetryableHttpVerbs = ["OPTIONS", "GET", "DELETE", "HEAD"];
+    var ExponentialBackoffCeiling = 10;
+    var ExponentialBackoffTimeSlice = 5;
+    var HttpClientError = class _HttpClientError extends Error {
+      constructor(message, statusCode) {
+        super(message);
+        this.name = "HttpClientError";
+        this.statusCode = statusCode;
+        Object.setPrototypeOf(this, _HttpClientError.prototype);
+      }
+    };
+    exports2.HttpClientError = HttpClientError;
+    var HttpClientResponse = class {
+      constructor(message) {
+        this.message = message;
+      }
+      readBody() {
+        return __awaiter3(this, void 0, void 0, function* () {
+          return new Promise((resolve) => __awaiter3(this, void 0, void 0, function* () {
+            let output = Buffer.alloc(0);
+            this.message.on("data", (chunk) => {
+              output = Buffer.concat([output, chunk]);
+            });
+            this.message.on("end", () => {
+              resolve(output.toString());
+            });
+          }));
+        });
+      }
+      readBodyBuffer() {
+        return __awaiter3(this, void 0, void 0, function* () {
+          return new Promise((resolve) => __awaiter3(this, void 0, void 0, function* () {
+            const chunks = [];
+            this.message.on("data", (chunk) => {
+              chunks.push(chunk);
+            });
+            this.message.on("end", () => {
+              resolve(Buffer.concat(chunks));
+            });
+          }));
+        });
+      }
+    };
+    exports2.HttpClientResponse = HttpClientResponse;
+    function isHttps(requestUrl) {
+      const parsedUrl = new URL(requestUrl);
+      return parsedUrl.protocol === "https:";
+    }
+    var HttpClient3 = class {
+      constructor(userAgent2, handlers, requestOptions) {
+        this._ignoreSslError = false;
+        this._allowRedirects = true;
+        this._allowRedirectDowngrade = false;
+        this._maxRedirects = 50;
+        this._allowRetries = false;
+        this._maxRetries = 1;
+        this._keepAlive = false;
+        this._disposed = false;
+        this.userAgent = this._getUserAgentWithOrchestrationId(userAgent2);
+        this.handlers = handlers || [];
+        this.requestOptions = requestOptions;
+        if (requestOptions) {
+          if (requestOptions.ignoreSslError != null) {
+            this._ignoreSslError = requestOptions.ignoreSslError;
+          }
+          this._socketTimeout = requestOptions.socketTimeout;
+          if (requestOptions.allowRedirects != null) {
+            this._allowRedirects = requestOptions.allowRedirects;
+          }
+          if (requestOptions.allowRedirectDowngrade != null) {
+            this._allowRedirectDowngrade = requestOptions.allowRedirectDowngrade;
+          }
+          if (requestOptions.maxRedirects != null) {
+            this._maxRedirects = Math.max(requestOptions.maxRedirects, 0);
+          }
+          if (requestOptions.keepAlive != null) {
+            this._keepAlive = requestOptions.keepAlive;
+          }
+          if (requestOptions.allowRetries != null) {
+            this._allowRetries = requestOptions.allowRetries;
+          }
+          if (requestOptions.maxRetries != null) {
+            this._maxRetries = requestOptions.maxRetries;
+          }
+        }
+      }
+      options(requestUrl, additionalHeaders) {
+        return __awaiter3(this, void 0, void 0, function* () {
+          return this.request("OPTIONS", requestUrl, null, additionalHeaders || {});
+        });
+      }
+      get(requestUrl, additionalHeaders) {
+        return __awaiter3(this, void 0, void 0, function* () {
+          return this.request("GET", requestUrl, null, additionalHeaders || {});
+        });
+      }
+      del(requestUrl, additionalHeaders) {
+        return __awaiter3(this, void 0, void 0, function* () {
+          return this.request("DELETE", requestUrl, null, additionalHeaders || {});
+        });
+      }
+      post(requestUrl, data, additionalHeaders) {
+        return __awaiter3(this, void 0, void 0, function* () {
+          return this.request("POST", requestUrl, data, additionalHeaders || {});
+        });
+      }
+      patch(requestUrl, data, additionalHeaders) {
+        return __awaiter3(this, void 0, void 0, function* () {
+          return this.request("PATCH", requestUrl, data, additionalHeaders || {});
+        });
+      }
+      put(requestUrl, data, additionalHeaders) {
+        return __awaiter3(this, void 0, void 0, function* () {
+          return this.request("PUT", requestUrl, data, additionalHeaders || {});
+        });
+      }
+      head(requestUrl, additionalHeaders) {
+        return __awaiter3(this, void 0, void 0, function* () {
+          return this.request("HEAD", requestUrl, null, additionalHeaders || {});
+        });
+      }
+      sendStream(verb, requestUrl, stream, additionalHeaders) {
+        return __awaiter3(this, void 0, void 0, function* () {
+          return this.request(verb, requestUrl, stream, additionalHeaders);
+        });
+      }
+      /**
+       * Gets a typed object from an endpoint
+       * Be aware that not found returns a null.  Other errors (4xx, 5xx) reject the promise
+       */
+      getJson(requestUrl_1) {
+        return __awaiter3(this, arguments, void 0, function* (requestUrl, additionalHeaders = {}) {
+          additionalHeaders[Headers2.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers2.Accept, MediaTypes2.ApplicationJson);
+          const res = yield this.get(requestUrl, additionalHeaders);
+          return this._processResponse(res, this.requestOptions);
+        });
+      }
+      postJson(requestUrl_1, obj_1) {
+        return __awaiter3(this, arguments, void 0, function* (requestUrl, obj, additionalHeaders = {}) {
+          const data = JSON.stringify(obj, null, 2);
+          additionalHeaders[Headers2.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers2.Accept, MediaTypes2.ApplicationJson);
+          additionalHeaders[Headers2.ContentType] = this._getExistingOrDefaultContentTypeHeader(additionalHeaders, MediaTypes2.ApplicationJson);
+          const res = yield this.post(requestUrl, data, additionalHeaders);
+          return this._processResponse(res, this.requestOptions);
+        });
+      }
+      putJson(requestUrl_1, obj_1) {
+        return __awaiter3(this, arguments, void 0, function* (requestUrl, obj, additionalHeaders = {}) {
+          const data = JSON.stringify(obj, null, 2);
+          additionalHeaders[Headers2.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers2.Accept, MediaTypes2.ApplicationJson);
+          additionalHeaders[Headers2.ContentType] = this._getExistingOrDefaultContentTypeHeader(additionalHeaders, MediaTypes2.ApplicationJson);
+          const res = yield this.put(requestUrl, data, additionalHeaders);
+          return this._processResponse(res, this.requestOptions);
+        });
+      }
+      patchJson(requestUrl_1, obj_1) {
+        return __awaiter3(this, arguments, void 0, function* (requestUrl, obj, additionalHeaders = {}) {
+          const data = JSON.stringify(obj, null, 2);
+          additionalHeaders[Headers2.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers2.Accept, MediaTypes2.ApplicationJson);
+          additionalHeaders[Headers2.ContentType] = this._getExistingOrDefaultContentTypeHeader(additionalHeaders, MediaTypes2.ApplicationJson);
+          const res = yield this.patch(requestUrl, data, additionalHeaders);
+          return this._processResponse(res, this.requestOptions);
+        });
+      }
+      /**
+       * Makes a raw http request.
+       * All other methods such as get, post, patch, and request ultimately call this.
+       * Prefer get, del, post and patch
+       */
+      request(verb, requestUrl, data, headers) {
+        return __awaiter3(this, void 0, void 0, function* () {
+          if (this._disposed) {
+            throw new Error("Client has already been disposed.");
+          }
+          const parsedUrl = new URL(requestUrl);
+          let info = this._prepareRequest(verb, parsedUrl, headers);
+          const maxTries = this._allowRetries && RetryableHttpVerbs.includes(verb) ? this._maxRetries + 1 : 1;
+          let numTries = 0;
+          let response;
+          do {
+            response = yield this.requestRaw(info, data);
+            if (response && response.message && response.message.statusCode === HttpCodes2.Unauthorized) {
+              let authenticationHandler;
+              for (const handler2 of this.handlers) {
+                if (handler2.canHandleAuthentication(response)) {
+                  authenticationHandler = handler2;
+                  break;
+                }
+              }
+              if (authenticationHandler) {
+                return authenticationHandler.handleAuthentication(this, info, data);
+              } else {
+                return response;
+              }
+            }
+            let redirectsRemaining = this._maxRedirects;
+            while (response.message.statusCode && HttpRedirectCodes2.includes(response.message.statusCode) && this._allowRedirects && redirectsRemaining > 0) {
+              const redirectUrl = response.message.headers["location"];
+              if (!redirectUrl) {
+                break;
+              }
+              const parsedRedirectUrl = new URL(redirectUrl);
+              if (parsedUrl.protocol === "https:" && parsedUrl.protocol !== parsedRedirectUrl.protocol && !this._allowRedirectDowngrade) {
+                throw new Error("Redirect from HTTPS to HTTP protocol. This downgrade is not allowed for security reasons. If you want to allow this behavior, set the allowRedirectDowngrade option to true.");
+              }
+              yield response.readBody();
+              if (parsedRedirectUrl.hostname !== parsedUrl.hostname) {
+                for (const header in headers) {
+                  if (header.toLowerCase() === "authorization") {
+                    delete headers[header];
+                  }
+                }
+              }
+              info = this._prepareRequest(verb, parsedRedirectUrl, headers);
+              response = yield this.requestRaw(info, data);
+              redirectsRemaining--;
+            }
+            if (!response.message.statusCode || !HttpResponseRetryCodes2.includes(response.message.statusCode)) {
+              return response;
+            }
+            numTries += 1;
+            if (numTries < maxTries) {
+              yield response.readBody();
+              yield this._performExponentialBackoff(numTries);
+            }
+          } while (numTries < maxTries);
+          return response;
+        });
+      }
+      /**
+       * Needs to be called if keepAlive is set to true in request options.
+       */
+      dispose() {
+        if (this._agent) {
+          this._agent.destroy();
+        }
+        this._disposed = true;
+      }
+      /**
+       * Raw request.
+       * @param info
+       * @param data
+       */
+      requestRaw(info, data) {
+        return __awaiter3(this, void 0, void 0, function* () {
+          return new Promise((resolve, reject) => {
+            function callbackForResult(err, res) {
+              if (err) {
+                reject(err);
+              } else if (!res) {
+                reject(new Error("Unknown error"));
+              } else {
+                resolve(res);
+              }
+            }
+            this.requestRawWithCallback(info, data, callbackForResult);
+          });
+        });
+      }
+      /**
+       * Raw request with callback.
+       * @param info
+       * @param data
+       * @param onResult
+       */
+      requestRawWithCallback(info, data, onResult) {
+        if (typeof data === "string") {
+          if (!info.options.headers) {
+            info.options.headers = {};
+          }
+          info.options.headers["Content-Length"] = Buffer.byteLength(data, "utf8");
+        }
+        let callbackCalled = false;
+        function handleResult(err, res) {
+          if (!callbackCalled) {
+            callbackCalled = true;
+            onResult(err, res);
+          }
+        }
+        const req = info.httpModule.request(info.options, (msg) => {
+          const res = new HttpClientResponse(msg);
+          handleResult(void 0, res);
+        });
+        let socket;
+        req.on("socket", (sock) => {
+          socket = sock;
+        });
+        req.setTimeout(this._socketTimeout || 3 * 6e4, () => {
+          if (socket) {
+            socket.end();
+          }
+          handleResult(new Error(`Request timeout: ${info.options.path}`));
+        });
+        req.on("error", function(err) {
+          handleResult(err);
+        });
+        if (data && typeof data === "string") {
+          req.write(data, "utf8");
+        }
+        if (data && typeof data !== "string") {
+          data.on("close", function() {
+            req.end();
+          });
+          data.pipe(req);
+        } else {
+          req.end();
+        }
+      }
+      /**
+       * Gets an http agent. This function is useful when you need an http agent that handles
+       * routing through a proxy server - depending upon the url and proxy environment variables.
+       * @param serverUrl  The server URL where the request will be sent. For example, https://api.github.com
+       */
+      getAgent(serverUrl) {
+        const parsedUrl = new URL(serverUrl);
+        return this._getAgent(parsedUrl);
+      }
+      getAgentDispatcher(serverUrl) {
+        const parsedUrl = new URL(serverUrl);
+        const proxyUrl = pm.getProxyUrl(parsedUrl);
+        const useProxy = proxyUrl && proxyUrl.hostname;
+        if (!useProxy) {
+          return;
+        }
+        return this._getProxyAgentDispatcher(parsedUrl, proxyUrl);
+      }
+      _prepareRequest(method, requestUrl, headers) {
+        const info = {};
+        info.parsedUrl = requestUrl;
+        const usingSsl = info.parsedUrl.protocol === "https:";
+        info.httpModule = usingSsl ? https : http;
+        const defaultPort = usingSsl ? 443 : 80;
+        info.options = {};
+        info.options.host = info.parsedUrl.hostname;
+        info.options.port = info.parsedUrl.port ? parseInt(info.parsedUrl.port) : defaultPort;
+        info.options.path = (info.parsedUrl.pathname || "") + (info.parsedUrl.search || "");
+        info.options.method = method;
+        info.options.headers = this._mergeHeaders(headers);
+        if (this.userAgent != null) {
+          info.options.headers["user-agent"] = this.userAgent;
+        }
+        info.options.agent = this._getAgent(info.parsedUrl);
+        if (this.handlers) {
+          for (const handler2 of this.handlers) {
+            handler2.prepareRequest(info.options);
+          }
+        }
+        return info;
+      }
+      _mergeHeaders(headers) {
+        if (this.requestOptions && this.requestOptions.headers) {
+          return Object.assign({}, lowercaseKeys2(this.requestOptions.headers), lowercaseKeys2(headers || {}));
+        }
+        return lowercaseKeys2(headers || {});
+      }
+      /**
+       * Gets an existing header value or returns a default.
+       * Handles converting number header values to strings since HTTP headers must be strings.
+       * Note: This returns string | string[] since some headers can have multiple values.
+       * For headers that must always be a single string (like Content-Type), use the
+       * specialized _getExistingOrDefaultContentTypeHeader method instead.
+       */
+      _getExistingOrDefaultHeader(additionalHeaders, header, _default) {
+        let clientHeader;
+        if (this.requestOptions && this.requestOptions.headers) {
+          const headerValue = lowercaseKeys2(this.requestOptions.headers)[header];
+          if (headerValue) {
+            clientHeader = typeof headerValue === "number" ? headerValue.toString() : headerValue;
+          }
+        }
+        const additionalValue = additionalHeaders[header];
+        if (additionalValue !== void 0) {
+          return typeof additionalValue === "number" ? additionalValue.toString() : additionalValue;
+        }
+        if (clientHeader !== void 0) {
+          return clientHeader;
+        }
+        return _default;
+      }
+      /**
+       * Specialized version of _getExistingOrDefaultHeader for Content-Type header.
+       * Always returns a single string (not an array) since Content-Type should be a single value.
+       * Converts arrays to comma-separated strings and numbers to strings to ensure type safety.
+       * This was split from _getExistingOrDefaultHeader to provide stricter typing for callers
+       * that assign the result to places expecting a string (e.g., additionalHeaders[Headers.ContentType]).
+       */
+      _getExistingOrDefaultContentTypeHeader(additionalHeaders, _default) {
+        let clientHeader;
+        if (this.requestOptions && this.requestOptions.headers) {
+          const headerValue = lowercaseKeys2(this.requestOptions.headers)[Headers2.ContentType];
+          if (headerValue) {
+            if (typeof headerValue === "number") {
+              clientHeader = String(headerValue);
+            } else if (Array.isArray(headerValue)) {
+              clientHeader = headerValue.join(", ");
+            } else {
+              clientHeader = headerValue;
+            }
+          }
+        }
+        const additionalValue = additionalHeaders[Headers2.ContentType];
+        if (additionalValue !== void 0) {
+          if (typeof additionalValue === "number") {
+            return String(additionalValue);
+          } else if (Array.isArray(additionalValue)) {
+            return additionalValue.join(", ");
+          } else {
+            return additionalValue;
+          }
+        }
+        if (clientHeader !== void 0) {
+          return clientHeader;
+        }
+        return _default;
+      }
+      _getAgent(parsedUrl) {
+        let agent;
+        const proxyUrl = pm.getProxyUrl(parsedUrl);
+        const useProxy = proxyUrl && proxyUrl.hostname;
+        if (this._keepAlive && useProxy) {
+          agent = this._proxyAgent;
+        }
+        if (!useProxy) {
+          agent = this._agent;
+        }
+        if (agent) {
+          return agent;
+        }
+        const usingSsl = parsedUrl.protocol === "https:";
+        let maxSockets = 100;
+        if (this.requestOptions) {
+          maxSockets = this.requestOptions.maxSockets || http.globalAgent.maxSockets;
+        }
+        if (proxyUrl && proxyUrl.hostname) {
+          const agentOptions = {
+            maxSockets,
+            keepAlive: this._keepAlive,
+            proxy: Object.assign(Object.assign({}, (proxyUrl.username || proxyUrl.password) && {
+              proxyAuth: `${proxyUrl.username}:${proxyUrl.password}`
+            }), { host: proxyUrl.hostname, port: proxyUrl.port })
+          };
+          let tunnelAgent;
+          const overHttps = proxyUrl.protocol === "https:";
+          if (usingSsl) {
+            tunnelAgent = overHttps ? tunnel2.httpsOverHttps : tunnel2.httpsOverHttp;
+          } else {
+            tunnelAgent = overHttps ? tunnel2.httpOverHttps : tunnel2.httpOverHttp;
+          }
+          agent = tunnelAgent(agentOptions);
+          this._proxyAgent = agent;
+        }
+        if (!agent) {
+          const options = { keepAlive: this._keepAlive, maxSockets };
+          agent = usingSsl ? new https.Agent(options) : new http.Agent(options);
+          this._agent = agent;
+        }
+        if (usingSsl && this._ignoreSslError) {
+          agent.options = Object.assign(agent.options || {}, {
+            rejectUnauthorized: false
+          });
+        }
+        return agent;
+      }
+      _getProxyAgentDispatcher(parsedUrl, proxyUrl) {
+        let proxyAgent;
+        if (this._keepAlive) {
+          proxyAgent = this._proxyAgentDispatcher;
+        }
+        if (proxyAgent) {
+          return proxyAgent;
+        }
+        const usingSsl = parsedUrl.protocol === "https:";
+        proxyAgent = new undici_1.ProxyAgent(Object.assign({ uri: proxyUrl.href, pipelining: !this._keepAlive ? 0 : 1 }, (proxyUrl.username || proxyUrl.password) && {
+          token: `Basic ${Buffer.from(`${proxyUrl.username}:${proxyUrl.password}`).toString("base64")}`
+        }));
+        this._proxyAgentDispatcher = proxyAgent;
+        if (usingSsl && this._ignoreSslError) {
+          proxyAgent.options = Object.assign(proxyAgent.options.requestTls || {}, {
+            rejectUnauthorized: false
+          });
+        }
+        return proxyAgent;
+      }
+      _getUserAgentWithOrchestrationId(userAgent2) {
+        const baseUserAgent = userAgent2 || "actions/http-client";
+        const orchId = process.env["ACTIONS_ORCHESTRATION_ID"];
+        if (orchId) {
+          const sanitizedId = orchId.replace(/[^a-z0-9_.-]/gi, "_");
+          return `${baseUserAgent} actions_orchestration_id/${sanitizedId}`;
+        }
+        return baseUserAgent;
+      }
+      _performExponentialBackoff(retryNumber) {
+        return __awaiter3(this, void 0, void 0, function* () {
+          retryNumber = Math.min(ExponentialBackoffCeiling, retryNumber);
+          const ms = ExponentialBackoffTimeSlice * Math.pow(2, retryNumber);
+          return new Promise((resolve) => setTimeout(() => resolve(), ms));
+        });
+      }
+      _processResponse(res, options) {
+        return __awaiter3(this, void 0, void 0, function* () {
+          return new Promise((resolve, reject) => __awaiter3(this, void 0, void 0, function* () {
+            const statusCode = res.message.statusCode || 0;
+            const response = {
+              statusCode,
+              result: null,
+              headers: {}
+            };
+            if (statusCode === HttpCodes2.NotFound) {
+              resolve(response);
+            }
+            function dateTimeDeserializer(key, value) {
+              if (typeof value === "string") {
+                const a = new Date(value);
+                if (!isNaN(a.valueOf())) {
+                  return a;
+                }
+              }
+              return value;
+            }
+            let obj;
+            let contents;
+            try {
+              contents = yield res.readBody();
+              if (contents && contents.length > 0) {
+                if (options && options.deserializeDates) {
+                  obj = JSON.parse(contents, dateTimeDeserializer);
+                } else {
+                  obj = JSON.parse(contents);
+                }
+                response.result = obj;
+              }
+              response.headers = res.message.headers;
+            } catch (err) {
+            }
+            if (statusCode > 299) {
+              let msg;
+              if (obj && obj.message) {
+                msg = obj.message;
+              } else if (contents && contents.length > 0) {
+                msg = contents;
+              } else {
+                msg = `Failed request: (${statusCode})`;
+              }
+              const err = new HttpClientError(msg, statusCode);
+              err.result = response.result;
+              reject(err);
+            } else {
+              resolve(response);
+            }
+          }));
+        });
+      }
+    };
+    exports2.HttpClient = HttpClient3;
+    var lowercaseKeys2 = (obj) => Object.keys(obj).reduce((c, k) => (c[k.toLowerCase()] = obj[k], c), {});
+  }
+});
+
+// node_modules/content-type/dist/index.js
+var require_dist = __commonJS({
+  "node_modules/content-type/dist/index.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.format = format;
+    exports2.parse = parse3;
+    var TEXT_REGEXP = /^[\u0009\u0020-\u007e\u0080-\u00ff]*$/;
+    var TOKEN_REGEXP = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+    var QUOTE_REGEXP = /[\\"]/g;
+    var TYPE_REGEXP = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+\/[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+    var NullObject = /* @__PURE__ */ (() => {
+      const C = function() {
+      };
+      C.prototype = /* @__PURE__ */ Object.create(null);
+      return C;
+    })();
+    function format(obj) {
+      const { type, parameters } = obj;
+      if (!type || !TYPE_REGEXP.test(type)) {
+        throw new TypeError(`Invalid type: ${type}`);
+      }
+      let result = type;
+      if (parameters) {
+        for (const param of Object.keys(parameters)) {
+          if (!TOKEN_REGEXP.test(param)) {
+            throw new TypeError(`Invalid parameter name: ${param}`);
+          }
+          result += `; ${param}=${qstring(parameters[param])}`;
+        }
+      }
+      return result;
+    }
+    function parse3(header, options) {
+      const len = header.length;
+      let index = skipOWS(header, 0, len);
+      const valueStart = index;
+      index = skipValue(header, index, len);
+      const valueEnd = trailingOWS(header, valueStart, index);
+      const type = header.slice(valueStart, valueEnd).toLowerCase();
+      const parameters = options?.parameters === false ? new NullObject() : parseParameters(header, index, len);
+      return { type, parameters };
+    }
+    var SP = 32;
+    var HTAB = 9;
+    var SEMI = 59;
+    var EQ = 61;
+    var DQUOTE = 34;
+    var BSLASH = 92;
+    function parseParameters(header, index, len) {
+      const parameters = new NullObject();
+      parameter: while (index < len) {
+        index = skipOWS(header, index + 1, len);
+        const keyStart = index;
+        while (index < len) {
+          const code = header.charCodeAt(index);
+          if (code === SEMI)
+            continue parameter;
+          if (code === EQ) {
+            const keyEnd = trailingOWS(header, keyStart, index);
+            const key = header.slice(keyStart, keyEnd).toLowerCase();
+            index = skipOWS(header, index + 1, len);
+            if (index < len && header.charCodeAt(index) === DQUOTE) {
+              index++;
+              let value = "";
+              while (index < len) {
+                const code2 = header.charCodeAt(index++);
+                if (code2 === DQUOTE) {
+                  index = skipValue(header, index, len);
+                  if (parameters[key] === void 0)
+                    parameters[key] = value;
+                  break;
+                }
+                if (code2 === BSLASH && index < len) {
+                  value += header[index++];
+                  continue;
+                }
+                value += String.fromCharCode(code2);
+              }
+              continue parameter;
+            }
+            const valueStart = index;
+            index = skipValue(header, index, len);
+            if (parameters[key] === void 0) {
+              const valueEnd = trailingOWS(header, valueStart, index);
+              parameters[key] = header.slice(valueStart, valueEnd);
+            }
+            continue parameter;
+          }
+          index++;
+        }
+      }
+      return parameters;
+    }
+    function skipValue(str, index, len) {
+      while (index < len) {
+        const char = str.charCodeAt(index);
+        if (char === SEMI)
+          break;
+        index++;
+      }
+      return index;
+    }
+    function skipOWS(header, index, len) {
+      while (index < len) {
+        const char = header.charCodeAt(index);
+        if (char !== SP && char !== HTAB)
+          break;
+        index++;
+      }
+      return index;
+    }
+    function trailingOWS(header, start, end) {
+      while (end > start) {
+        const char = header.charCodeAt(end - 1);
+        if (char !== SP && char !== HTAB)
+          break;
+        end--;
+      }
+      return end;
+    }
+    function qstring(str) {
+      if (TOKEN_REGEXP.test(str))
+        return str;
+      if (TEXT_REGEXP.test(str))
+        return `"${str.replace(QUOTE_REGEXP, "\\$&")}"`;
+      throw new TypeError(`Invalid parameter value: ${str}`);
+    }
+  }
+});
+
 // node_modules/yaml/dist/nodes/identity.js
 var require_identity = __commonJS({
   "node_modules/yaml/dist/nodes/identity.js"(exports2) {
@@ -26022,7 +26925,7 @@ var require_public_api = __commonJS({
 });
 
 // node_modules/yaml/dist/index.js
-var require_dist = __commonJS({
+var require_dist2 = __commonJS({
   "node_modules/yaml/dist/index.js"(exports2) {
     "use strict";
     var composer = require_composer();
@@ -26070,909 +26973,6 @@ var require_dist = __commonJS({
     exports2.stringify = publicApi.stringify;
     exports2.visit = visit.visit;
     exports2.visitAsync = visit.visitAsync;
-  }
-});
-
-// node_modules/@actions/github/node_modules/@actions/http-client/lib/proxy.js
-var require_proxy = __commonJS({
-  "node_modules/@actions/github/node_modules/@actions/http-client/lib/proxy.js"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.getProxyUrl = getProxyUrl2;
-    exports2.checkBypass = checkBypass;
-    function getProxyUrl2(reqUrl) {
-      const usingSsl = reqUrl.protocol === "https:";
-      if (checkBypass(reqUrl)) {
-        return void 0;
-      }
-      const proxyVar = (() => {
-        if (usingSsl) {
-          return process.env["https_proxy"] || process.env["HTTPS_PROXY"];
-        } else {
-          return process.env["http_proxy"] || process.env["HTTP_PROXY"];
-        }
-      })();
-      if (proxyVar) {
-        try {
-          return new DecodedURL(proxyVar);
-        } catch (_a) {
-          if (!proxyVar.startsWith("http://") && !proxyVar.startsWith("https://"))
-            return new DecodedURL(`http://${proxyVar}`);
-        }
-      } else {
-        return void 0;
-      }
-    }
-    function checkBypass(reqUrl) {
-      if (!reqUrl.hostname) {
-        return false;
-      }
-      const reqHost = reqUrl.hostname;
-      if (isLoopbackAddress(reqHost)) {
-        return true;
-      }
-      const noProxy = process.env["no_proxy"] || process.env["NO_PROXY"] || "";
-      if (!noProxy) {
-        return false;
-      }
-      let reqPort;
-      if (reqUrl.port) {
-        reqPort = Number(reqUrl.port);
-      } else if (reqUrl.protocol === "http:") {
-        reqPort = 80;
-      } else if (reqUrl.protocol === "https:") {
-        reqPort = 443;
-      }
-      const upperReqHosts = [reqUrl.hostname.toUpperCase()];
-      if (typeof reqPort === "number") {
-        upperReqHosts.push(`${upperReqHosts[0]}:${reqPort}`);
-      }
-      for (const upperNoProxyItem of noProxy.split(",").map((x) => x.trim().toUpperCase()).filter((x) => x)) {
-        if (upperNoProxyItem === "*" || upperReqHosts.some((x) => x === upperNoProxyItem || x.endsWith(`.${upperNoProxyItem}`) || upperNoProxyItem.startsWith(".") && x.endsWith(`${upperNoProxyItem}`))) {
-          return true;
-        }
-      }
-      return false;
-    }
-    function isLoopbackAddress(host) {
-      const hostLower = host.toLowerCase();
-      return hostLower === "localhost" || hostLower.startsWith("127.") || hostLower.startsWith("[::1]") || hostLower.startsWith("[0:0:0:0:0:0:0:1]");
-    }
-    var DecodedURL = class extends URL {
-      constructor(url, base) {
-        super(url, base);
-        this._decodedUsername = decodeURIComponent(super.username);
-        this._decodedPassword = decodeURIComponent(super.password);
-      }
-      get username() {
-        return this._decodedUsername;
-      }
-      get password() {
-        return this._decodedPassword;
-      }
-    };
-  }
-});
-
-// node_modules/@actions/github/node_modules/@actions/http-client/lib/index.js
-var require_lib = __commonJS({
-  "node_modules/@actions/github/node_modules/@actions/http-client/lib/index.js"(exports2) {
-    "use strict";
-    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
-      if (k2 === void 0) k2 = k;
-      var desc = Object.getOwnPropertyDescriptor(m, k);
-      if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-        desc = { enumerable: true, get: function() {
-          return m[k];
-        } };
-      }
-      Object.defineProperty(o, k2, desc);
-    }) : (function(o, m, k, k2) {
-      if (k2 === void 0) k2 = k;
-      o[k2] = m[k];
-    }));
-    var __setModuleDefault = exports2 && exports2.__setModuleDefault || (Object.create ? (function(o, v) {
-      Object.defineProperty(o, "default", { enumerable: true, value: v });
-    }) : function(o, v) {
-      o["default"] = v;
-    });
-    var __importStar = exports2 && exports2.__importStar || /* @__PURE__ */ (function() {
-      var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function(o2) {
-          var ar = [];
-          for (var k in o2) if (Object.prototype.hasOwnProperty.call(o2, k)) ar[ar.length] = k;
-          return ar;
-        };
-        return ownKeys(o);
-      };
-      return function(mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) {
-          for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        }
-        __setModuleDefault(result, mod);
-        return result;
-      };
-    })();
-    var __awaiter3 = exports2 && exports2.__awaiter || function(thisArg, _arguments, P, generator) {
-      function adopt(value) {
-        return value instanceof P ? value : new P(function(resolve) {
-          resolve(value);
-        });
-      }
-      return new (P || (P = Promise))(function(resolve, reject) {
-        function fulfilled(value) {
-          try {
-            step(generator.next(value));
-          } catch (e) {
-            reject(e);
-          }
-        }
-        function rejected(value) {
-          try {
-            step(generator["throw"](value));
-          } catch (e) {
-            reject(e);
-          }
-        }
-        function step(result) {
-          result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
-        }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-      });
-    };
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.HttpClient = exports2.HttpClientResponse = exports2.HttpClientError = exports2.MediaTypes = exports2.Headers = exports2.HttpCodes = void 0;
-    exports2.getProxyUrl = getProxyUrl2;
-    exports2.isHttps = isHttps;
-    var http = __importStar(require("http"));
-    var https = __importStar(require("https"));
-    var pm = __importStar(require_proxy());
-    var tunnel2 = __importStar(require_tunnel2());
-    var undici_1 = require_undici();
-    var HttpCodes2;
-    (function(HttpCodes3) {
-      HttpCodes3[HttpCodes3["OK"] = 200] = "OK";
-      HttpCodes3[HttpCodes3["MultipleChoices"] = 300] = "MultipleChoices";
-      HttpCodes3[HttpCodes3["MovedPermanently"] = 301] = "MovedPermanently";
-      HttpCodes3[HttpCodes3["ResourceMoved"] = 302] = "ResourceMoved";
-      HttpCodes3[HttpCodes3["SeeOther"] = 303] = "SeeOther";
-      HttpCodes3[HttpCodes3["NotModified"] = 304] = "NotModified";
-      HttpCodes3[HttpCodes3["UseProxy"] = 305] = "UseProxy";
-      HttpCodes3[HttpCodes3["SwitchProxy"] = 306] = "SwitchProxy";
-      HttpCodes3[HttpCodes3["TemporaryRedirect"] = 307] = "TemporaryRedirect";
-      HttpCodes3[HttpCodes3["PermanentRedirect"] = 308] = "PermanentRedirect";
-      HttpCodes3[HttpCodes3["BadRequest"] = 400] = "BadRequest";
-      HttpCodes3[HttpCodes3["Unauthorized"] = 401] = "Unauthorized";
-      HttpCodes3[HttpCodes3["PaymentRequired"] = 402] = "PaymentRequired";
-      HttpCodes3[HttpCodes3["Forbidden"] = 403] = "Forbidden";
-      HttpCodes3[HttpCodes3["NotFound"] = 404] = "NotFound";
-      HttpCodes3[HttpCodes3["MethodNotAllowed"] = 405] = "MethodNotAllowed";
-      HttpCodes3[HttpCodes3["NotAcceptable"] = 406] = "NotAcceptable";
-      HttpCodes3[HttpCodes3["ProxyAuthenticationRequired"] = 407] = "ProxyAuthenticationRequired";
-      HttpCodes3[HttpCodes3["RequestTimeout"] = 408] = "RequestTimeout";
-      HttpCodes3[HttpCodes3["Conflict"] = 409] = "Conflict";
-      HttpCodes3[HttpCodes3["Gone"] = 410] = "Gone";
-      HttpCodes3[HttpCodes3["TooManyRequests"] = 429] = "TooManyRequests";
-      HttpCodes3[HttpCodes3["InternalServerError"] = 500] = "InternalServerError";
-      HttpCodes3[HttpCodes3["NotImplemented"] = 501] = "NotImplemented";
-      HttpCodes3[HttpCodes3["BadGateway"] = 502] = "BadGateway";
-      HttpCodes3[HttpCodes3["ServiceUnavailable"] = 503] = "ServiceUnavailable";
-      HttpCodes3[HttpCodes3["GatewayTimeout"] = 504] = "GatewayTimeout";
-    })(HttpCodes2 || (exports2.HttpCodes = HttpCodes2 = {}));
-    var Headers2;
-    (function(Headers3) {
-      Headers3["Accept"] = "accept";
-      Headers3["ContentType"] = "content-type";
-    })(Headers2 || (exports2.Headers = Headers2 = {}));
-    var MediaTypes2;
-    (function(MediaTypes3) {
-      MediaTypes3["ApplicationJson"] = "application/json";
-    })(MediaTypes2 || (exports2.MediaTypes = MediaTypes2 = {}));
-    function getProxyUrl2(serverUrl) {
-      const proxyUrl = pm.getProxyUrl(new URL(serverUrl));
-      return proxyUrl ? proxyUrl.href : "";
-    }
-    var HttpRedirectCodes2 = [
-      HttpCodes2.MovedPermanently,
-      HttpCodes2.ResourceMoved,
-      HttpCodes2.SeeOther,
-      HttpCodes2.TemporaryRedirect,
-      HttpCodes2.PermanentRedirect
-    ];
-    var HttpResponseRetryCodes2 = [
-      HttpCodes2.BadGateway,
-      HttpCodes2.ServiceUnavailable,
-      HttpCodes2.GatewayTimeout
-    ];
-    var RetryableHttpVerbs = ["OPTIONS", "GET", "DELETE", "HEAD"];
-    var ExponentialBackoffCeiling = 10;
-    var ExponentialBackoffTimeSlice = 5;
-    var HttpClientError = class _HttpClientError extends Error {
-      constructor(message, statusCode) {
-        super(message);
-        this.name = "HttpClientError";
-        this.statusCode = statusCode;
-        Object.setPrototypeOf(this, _HttpClientError.prototype);
-      }
-    };
-    exports2.HttpClientError = HttpClientError;
-    var HttpClientResponse = class {
-      constructor(message) {
-        this.message = message;
-      }
-      readBody() {
-        return __awaiter3(this, void 0, void 0, function* () {
-          return new Promise((resolve) => __awaiter3(this, void 0, void 0, function* () {
-            let output = Buffer.alloc(0);
-            this.message.on("data", (chunk) => {
-              output = Buffer.concat([output, chunk]);
-            });
-            this.message.on("end", () => {
-              resolve(output.toString());
-            });
-          }));
-        });
-      }
-      readBodyBuffer() {
-        return __awaiter3(this, void 0, void 0, function* () {
-          return new Promise((resolve) => __awaiter3(this, void 0, void 0, function* () {
-            const chunks = [];
-            this.message.on("data", (chunk) => {
-              chunks.push(chunk);
-            });
-            this.message.on("end", () => {
-              resolve(Buffer.concat(chunks));
-            });
-          }));
-        });
-      }
-    };
-    exports2.HttpClientResponse = HttpClientResponse;
-    function isHttps(requestUrl) {
-      const parsedUrl = new URL(requestUrl);
-      return parsedUrl.protocol === "https:";
-    }
-    var HttpClient3 = class {
-      constructor(userAgent2, handlers, requestOptions) {
-        this._ignoreSslError = false;
-        this._allowRedirects = true;
-        this._allowRedirectDowngrade = false;
-        this._maxRedirects = 50;
-        this._allowRetries = false;
-        this._maxRetries = 1;
-        this._keepAlive = false;
-        this._disposed = false;
-        this.userAgent = this._getUserAgentWithOrchestrationId(userAgent2);
-        this.handlers = handlers || [];
-        this.requestOptions = requestOptions;
-        if (requestOptions) {
-          if (requestOptions.ignoreSslError != null) {
-            this._ignoreSslError = requestOptions.ignoreSslError;
-          }
-          this._socketTimeout = requestOptions.socketTimeout;
-          if (requestOptions.allowRedirects != null) {
-            this._allowRedirects = requestOptions.allowRedirects;
-          }
-          if (requestOptions.allowRedirectDowngrade != null) {
-            this._allowRedirectDowngrade = requestOptions.allowRedirectDowngrade;
-          }
-          if (requestOptions.maxRedirects != null) {
-            this._maxRedirects = Math.max(requestOptions.maxRedirects, 0);
-          }
-          if (requestOptions.keepAlive != null) {
-            this._keepAlive = requestOptions.keepAlive;
-          }
-          if (requestOptions.allowRetries != null) {
-            this._allowRetries = requestOptions.allowRetries;
-          }
-          if (requestOptions.maxRetries != null) {
-            this._maxRetries = requestOptions.maxRetries;
-          }
-        }
-      }
-      options(requestUrl, additionalHeaders) {
-        return __awaiter3(this, void 0, void 0, function* () {
-          return this.request("OPTIONS", requestUrl, null, additionalHeaders || {});
-        });
-      }
-      get(requestUrl, additionalHeaders) {
-        return __awaiter3(this, void 0, void 0, function* () {
-          return this.request("GET", requestUrl, null, additionalHeaders || {});
-        });
-      }
-      del(requestUrl, additionalHeaders) {
-        return __awaiter3(this, void 0, void 0, function* () {
-          return this.request("DELETE", requestUrl, null, additionalHeaders || {});
-        });
-      }
-      post(requestUrl, data, additionalHeaders) {
-        return __awaiter3(this, void 0, void 0, function* () {
-          return this.request("POST", requestUrl, data, additionalHeaders || {});
-        });
-      }
-      patch(requestUrl, data, additionalHeaders) {
-        return __awaiter3(this, void 0, void 0, function* () {
-          return this.request("PATCH", requestUrl, data, additionalHeaders || {});
-        });
-      }
-      put(requestUrl, data, additionalHeaders) {
-        return __awaiter3(this, void 0, void 0, function* () {
-          return this.request("PUT", requestUrl, data, additionalHeaders || {});
-        });
-      }
-      head(requestUrl, additionalHeaders) {
-        return __awaiter3(this, void 0, void 0, function* () {
-          return this.request("HEAD", requestUrl, null, additionalHeaders || {});
-        });
-      }
-      sendStream(verb, requestUrl, stream, additionalHeaders) {
-        return __awaiter3(this, void 0, void 0, function* () {
-          return this.request(verb, requestUrl, stream, additionalHeaders);
-        });
-      }
-      /**
-       * Gets a typed object from an endpoint
-       * Be aware that not found returns a null.  Other errors (4xx, 5xx) reject the promise
-       */
-      getJson(requestUrl_1) {
-        return __awaiter3(this, arguments, void 0, function* (requestUrl, additionalHeaders = {}) {
-          additionalHeaders[Headers2.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers2.Accept, MediaTypes2.ApplicationJson);
-          const res = yield this.get(requestUrl, additionalHeaders);
-          return this._processResponse(res, this.requestOptions);
-        });
-      }
-      postJson(requestUrl_1, obj_1) {
-        return __awaiter3(this, arguments, void 0, function* (requestUrl, obj, additionalHeaders = {}) {
-          const data = JSON.stringify(obj, null, 2);
-          additionalHeaders[Headers2.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers2.Accept, MediaTypes2.ApplicationJson);
-          additionalHeaders[Headers2.ContentType] = this._getExistingOrDefaultContentTypeHeader(additionalHeaders, MediaTypes2.ApplicationJson);
-          const res = yield this.post(requestUrl, data, additionalHeaders);
-          return this._processResponse(res, this.requestOptions);
-        });
-      }
-      putJson(requestUrl_1, obj_1) {
-        return __awaiter3(this, arguments, void 0, function* (requestUrl, obj, additionalHeaders = {}) {
-          const data = JSON.stringify(obj, null, 2);
-          additionalHeaders[Headers2.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers2.Accept, MediaTypes2.ApplicationJson);
-          additionalHeaders[Headers2.ContentType] = this._getExistingOrDefaultContentTypeHeader(additionalHeaders, MediaTypes2.ApplicationJson);
-          const res = yield this.put(requestUrl, data, additionalHeaders);
-          return this._processResponse(res, this.requestOptions);
-        });
-      }
-      patchJson(requestUrl_1, obj_1) {
-        return __awaiter3(this, arguments, void 0, function* (requestUrl, obj, additionalHeaders = {}) {
-          const data = JSON.stringify(obj, null, 2);
-          additionalHeaders[Headers2.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers2.Accept, MediaTypes2.ApplicationJson);
-          additionalHeaders[Headers2.ContentType] = this._getExistingOrDefaultContentTypeHeader(additionalHeaders, MediaTypes2.ApplicationJson);
-          const res = yield this.patch(requestUrl, data, additionalHeaders);
-          return this._processResponse(res, this.requestOptions);
-        });
-      }
-      /**
-       * Makes a raw http request.
-       * All other methods such as get, post, patch, and request ultimately call this.
-       * Prefer get, del, post and patch
-       */
-      request(verb, requestUrl, data, headers) {
-        return __awaiter3(this, void 0, void 0, function* () {
-          if (this._disposed) {
-            throw new Error("Client has already been disposed.");
-          }
-          const parsedUrl = new URL(requestUrl);
-          let info = this._prepareRequest(verb, parsedUrl, headers);
-          const maxTries = this._allowRetries && RetryableHttpVerbs.includes(verb) ? this._maxRetries + 1 : 1;
-          let numTries = 0;
-          let response;
-          do {
-            response = yield this.requestRaw(info, data);
-            if (response && response.message && response.message.statusCode === HttpCodes2.Unauthorized) {
-              let authenticationHandler;
-              for (const handler2 of this.handlers) {
-                if (handler2.canHandleAuthentication(response)) {
-                  authenticationHandler = handler2;
-                  break;
-                }
-              }
-              if (authenticationHandler) {
-                return authenticationHandler.handleAuthentication(this, info, data);
-              } else {
-                return response;
-              }
-            }
-            let redirectsRemaining = this._maxRedirects;
-            while (response.message.statusCode && HttpRedirectCodes2.includes(response.message.statusCode) && this._allowRedirects && redirectsRemaining > 0) {
-              const redirectUrl = response.message.headers["location"];
-              if (!redirectUrl) {
-                break;
-              }
-              const parsedRedirectUrl = new URL(redirectUrl);
-              if (parsedUrl.protocol === "https:" && parsedUrl.protocol !== parsedRedirectUrl.protocol && !this._allowRedirectDowngrade) {
-                throw new Error("Redirect from HTTPS to HTTP protocol. This downgrade is not allowed for security reasons. If you want to allow this behavior, set the allowRedirectDowngrade option to true.");
-              }
-              yield response.readBody();
-              if (parsedRedirectUrl.hostname !== parsedUrl.hostname) {
-                for (const header in headers) {
-                  if (header.toLowerCase() === "authorization") {
-                    delete headers[header];
-                  }
-                }
-              }
-              info = this._prepareRequest(verb, parsedRedirectUrl, headers);
-              response = yield this.requestRaw(info, data);
-              redirectsRemaining--;
-            }
-            if (!response.message.statusCode || !HttpResponseRetryCodes2.includes(response.message.statusCode)) {
-              return response;
-            }
-            numTries += 1;
-            if (numTries < maxTries) {
-              yield response.readBody();
-              yield this._performExponentialBackoff(numTries);
-            }
-          } while (numTries < maxTries);
-          return response;
-        });
-      }
-      /**
-       * Needs to be called if keepAlive is set to true in request options.
-       */
-      dispose() {
-        if (this._agent) {
-          this._agent.destroy();
-        }
-        this._disposed = true;
-      }
-      /**
-       * Raw request.
-       * @param info
-       * @param data
-       */
-      requestRaw(info, data) {
-        return __awaiter3(this, void 0, void 0, function* () {
-          return new Promise((resolve, reject) => {
-            function callbackForResult(err, res) {
-              if (err) {
-                reject(err);
-              } else if (!res) {
-                reject(new Error("Unknown error"));
-              } else {
-                resolve(res);
-              }
-            }
-            this.requestRawWithCallback(info, data, callbackForResult);
-          });
-        });
-      }
-      /**
-       * Raw request with callback.
-       * @param info
-       * @param data
-       * @param onResult
-       */
-      requestRawWithCallback(info, data, onResult) {
-        if (typeof data === "string") {
-          if (!info.options.headers) {
-            info.options.headers = {};
-          }
-          info.options.headers["Content-Length"] = Buffer.byteLength(data, "utf8");
-        }
-        let callbackCalled = false;
-        function handleResult(err, res) {
-          if (!callbackCalled) {
-            callbackCalled = true;
-            onResult(err, res);
-          }
-        }
-        const req = info.httpModule.request(info.options, (msg) => {
-          const res = new HttpClientResponse(msg);
-          handleResult(void 0, res);
-        });
-        let socket;
-        req.on("socket", (sock) => {
-          socket = sock;
-        });
-        req.setTimeout(this._socketTimeout || 3 * 6e4, () => {
-          if (socket) {
-            socket.end();
-          }
-          handleResult(new Error(`Request timeout: ${info.options.path}`));
-        });
-        req.on("error", function(err) {
-          handleResult(err);
-        });
-        if (data && typeof data === "string") {
-          req.write(data, "utf8");
-        }
-        if (data && typeof data !== "string") {
-          data.on("close", function() {
-            req.end();
-          });
-          data.pipe(req);
-        } else {
-          req.end();
-        }
-      }
-      /**
-       * Gets an http agent. This function is useful when you need an http agent that handles
-       * routing through a proxy server - depending upon the url and proxy environment variables.
-       * @param serverUrl  The server URL where the request will be sent. For example, https://api.github.com
-       */
-      getAgent(serverUrl) {
-        const parsedUrl = new URL(serverUrl);
-        return this._getAgent(parsedUrl);
-      }
-      getAgentDispatcher(serverUrl) {
-        const parsedUrl = new URL(serverUrl);
-        const proxyUrl = pm.getProxyUrl(parsedUrl);
-        const useProxy = proxyUrl && proxyUrl.hostname;
-        if (!useProxy) {
-          return;
-        }
-        return this._getProxyAgentDispatcher(parsedUrl, proxyUrl);
-      }
-      _prepareRequest(method, requestUrl, headers) {
-        const info = {};
-        info.parsedUrl = requestUrl;
-        const usingSsl = info.parsedUrl.protocol === "https:";
-        info.httpModule = usingSsl ? https : http;
-        const defaultPort = usingSsl ? 443 : 80;
-        info.options = {};
-        info.options.host = info.parsedUrl.hostname;
-        info.options.port = info.parsedUrl.port ? parseInt(info.parsedUrl.port) : defaultPort;
-        info.options.path = (info.parsedUrl.pathname || "") + (info.parsedUrl.search || "");
-        info.options.method = method;
-        info.options.headers = this._mergeHeaders(headers);
-        if (this.userAgent != null) {
-          info.options.headers["user-agent"] = this.userAgent;
-        }
-        info.options.agent = this._getAgent(info.parsedUrl);
-        if (this.handlers) {
-          for (const handler2 of this.handlers) {
-            handler2.prepareRequest(info.options);
-          }
-        }
-        return info;
-      }
-      _mergeHeaders(headers) {
-        if (this.requestOptions && this.requestOptions.headers) {
-          return Object.assign({}, lowercaseKeys2(this.requestOptions.headers), lowercaseKeys2(headers || {}));
-        }
-        return lowercaseKeys2(headers || {});
-      }
-      /**
-       * Gets an existing header value or returns a default.
-       * Handles converting number header values to strings since HTTP headers must be strings.
-       * Note: This returns string | string[] since some headers can have multiple values.
-       * For headers that must always be a single string (like Content-Type), use the
-       * specialized _getExistingOrDefaultContentTypeHeader method instead.
-       */
-      _getExistingOrDefaultHeader(additionalHeaders, header, _default) {
-        let clientHeader;
-        if (this.requestOptions && this.requestOptions.headers) {
-          const headerValue = lowercaseKeys2(this.requestOptions.headers)[header];
-          if (headerValue) {
-            clientHeader = typeof headerValue === "number" ? headerValue.toString() : headerValue;
-          }
-        }
-        const additionalValue = additionalHeaders[header];
-        if (additionalValue !== void 0) {
-          return typeof additionalValue === "number" ? additionalValue.toString() : additionalValue;
-        }
-        if (clientHeader !== void 0) {
-          return clientHeader;
-        }
-        return _default;
-      }
-      /**
-       * Specialized version of _getExistingOrDefaultHeader for Content-Type header.
-       * Always returns a single string (not an array) since Content-Type should be a single value.
-       * Converts arrays to comma-separated strings and numbers to strings to ensure type safety.
-       * This was split from _getExistingOrDefaultHeader to provide stricter typing for callers
-       * that assign the result to places expecting a string (e.g., additionalHeaders[Headers.ContentType]).
-       */
-      _getExistingOrDefaultContentTypeHeader(additionalHeaders, _default) {
-        let clientHeader;
-        if (this.requestOptions && this.requestOptions.headers) {
-          const headerValue = lowercaseKeys2(this.requestOptions.headers)[Headers2.ContentType];
-          if (headerValue) {
-            if (typeof headerValue === "number") {
-              clientHeader = String(headerValue);
-            } else if (Array.isArray(headerValue)) {
-              clientHeader = headerValue.join(", ");
-            } else {
-              clientHeader = headerValue;
-            }
-          }
-        }
-        const additionalValue = additionalHeaders[Headers2.ContentType];
-        if (additionalValue !== void 0) {
-          if (typeof additionalValue === "number") {
-            return String(additionalValue);
-          } else if (Array.isArray(additionalValue)) {
-            return additionalValue.join(", ");
-          } else {
-            return additionalValue;
-          }
-        }
-        if (clientHeader !== void 0) {
-          return clientHeader;
-        }
-        return _default;
-      }
-      _getAgent(parsedUrl) {
-        let agent;
-        const proxyUrl = pm.getProxyUrl(parsedUrl);
-        const useProxy = proxyUrl && proxyUrl.hostname;
-        if (this._keepAlive && useProxy) {
-          agent = this._proxyAgent;
-        }
-        if (!useProxy) {
-          agent = this._agent;
-        }
-        if (agent) {
-          return agent;
-        }
-        const usingSsl = parsedUrl.protocol === "https:";
-        let maxSockets = 100;
-        if (this.requestOptions) {
-          maxSockets = this.requestOptions.maxSockets || http.globalAgent.maxSockets;
-        }
-        if (proxyUrl && proxyUrl.hostname) {
-          const agentOptions = {
-            maxSockets,
-            keepAlive: this._keepAlive,
-            proxy: Object.assign(Object.assign({}, (proxyUrl.username || proxyUrl.password) && {
-              proxyAuth: `${proxyUrl.username}:${proxyUrl.password}`
-            }), { host: proxyUrl.hostname, port: proxyUrl.port })
-          };
-          let tunnelAgent;
-          const overHttps = proxyUrl.protocol === "https:";
-          if (usingSsl) {
-            tunnelAgent = overHttps ? tunnel2.httpsOverHttps : tunnel2.httpsOverHttp;
-          } else {
-            tunnelAgent = overHttps ? tunnel2.httpOverHttps : tunnel2.httpOverHttp;
-          }
-          agent = tunnelAgent(agentOptions);
-          this._proxyAgent = agent;
-        }
-        if (!agent) {
-          const options = { keepAlive: this._keepAlive, maxSockets };
-          agent = usingSsl ? new https.Agent(options) : new http.Agent(options);
-          this._agent = agent;
-        }
-        if (usingSsl && this._ignoreSslError) {
-          agent.options = Object.assign(agent.options || {}, {
-            rejectUnauthorized: false
-          });
-        }
-        return agent;
-      }
-      _getProxyAgentDispatcher(parsedUrl, proxyUrl) {
-        let proxyAgent;
-        if (this._keepAlive) {
-          proxyAgent = this._proxyAgentDispatcher;
-        }
-        if (proxyAgent) {
-          return proxyAgent;
-        }
-        const usingSsl = parsedUrl.protocol === "https:";
-        proxyAgent = new undici_1.ProxyAgent(Object.assign({ uri: proxyUrl.href, pipelining: !this._keepAlive ? 0 : 1 }, (proxyUrl.username || proxyUrl.password) && {
-          token: `Basic ${Buffer.from(`${proxyUrl.username}:${proxyUrl.password}`).toString("base64")}`
-        }));
-        this._proxyAgentDispatcher = proxyAgent;
-        if (usingSsl && this._ignoreSslError) {
-          proxyAgent.options = Object.assign(proxyAgent.options.requestTls || {}, {
-            rejectUnauthorized: false
-          });
-        }
-        return proxyAgent;
-      }
-      _getUserAgentWithOrchestrationId(userAgent2) {
-        const baseUserAgent = userAgent2 || "actions/http-client";
-        const orchId = process.env["ACTIONS_ORCHESTRATION_ID"];
-        if (orchId) {
-          const sanitizedId = orchId.replace(/[^a-z0-9_.-]/gi, "_");
-          return `${baseUserAgent} actions_orchestration_id/${sanitizedId}`;
-        }
-        return baseUserAgent;
-      }
-      _performExponentialBackoff(retryNumber) {
-        return __awaiter3(this, void 0, void 0, function* () {
-          retryNumber = Math.min(ExponentialBackoffCeiling, retryNumber);
-          const ms = ExponentialBackoffTimeSlice * Math.pow(2, retryNumber);
-          return new Promise((resolve) => setTimeout(() => resolve(), ms));
-        });
-      }
-      _processResponse(res, options) {
-        return __awaiter3(this, void 0, void 0, function* () {
-          return new Promise((resolve, reject) => __awaiter3(this, void 0, void 0, function* () {
-            const statusCode = res.message.statusCode || 0;
-            const response = {
-              statusCode,
-              result: null,
-              headers: {}
-            };
-            if (statusCode === HttpCodes2.NotFound) {
-              resolve(response);
-            }
-            function dateTimeDeserializer(key, value) {
-              if (typeof value === "string") {
-                const a = new Date(value);
-                if (!isNaN(a.valueOf())) {
-                  return a;
-                }
-              }
-              return value;
-            }
-            let obj;
-            let contents;
-            try {
-              contents = yield res.readBody();
-              if (contents && contents.length > 0) {
-                if (options && options.deserializeDates) {
-                  obj = JSON.parse(contents, dateTimeDeserializer);
-                } else {
-                  obj = JSON.parse(contents);
-                }
-                response.result = obj;
-              }
-              response.headers = res.message.headers;
-            } catch (err) {
-            }
-            if (statusCode > 299) {
-              let msg;
-              if (obj && obj.message) {
-                msg = obj.message;
-              } else if (contents && contents.length > 0) {
-                msg = contents;
-              } else {
-                msg = `Failed request: (${statusCode})`;
-              }
-              const err = new HttpClientError(msg, statusCode);
-              err.result = response.result;
-              reject(err);
-            } else {
-              resolve(response);
-            }
-          }));
-        });
-      }
-    };
-    exports2.HttpClient = HttpClient3;
-    var lowercaseKeys2 = (obj) => Object.keys(obj).reduce((c, k) => (c[k.toLowerCase()] = obj[k], c), {});
-  }
-});
-
-// node_modules/content-type/dist/index.js
-var require_dist2 = __commonJS({
-  "node_modules/content-type/dist/index.js"(exports2) {
-    "use strict";
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.format = format;
-    exports2.parse = parse3;
-    var TEXT_REGEXP = /^[\u0009\u0020-\u007e\u0080-\u00ff]*$/;
-    var TOKEN_REGEXP = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
-    var QUOTE_REGEXP = /[\\"]/g;
-    var TYPE_REGEXP = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+\/[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
-    var NullObject = /* @__PURE__ */ (() => {
-      const C = function() {
-      };
-      C.prototype = /* @__PURE__ */ Object.create(null);
-      return C;
-    })();
-    function format(obj) {
-      const { type, parameters } = obj;
-      if (!type || !TYPE_REGEXP.test(type)) {
-        throw new TypeError(`Invalid type: ${type}`);
-      }
-      let result = type;
-      if (parameters) {
-        for (const param of Object.keys(parameters)) {
-          if (!TOKEN_REGEXP.test(param)) {
-            throw new TypeError(`Invalid parameter name: ${param}`);
-          }
-          result += `; ${param}=${qstring(parameters[param])}`;
-        }
-      }
-      return result;
-    }
-    function parse3(header, options) {
-      const len = header.length;
-      let index = skipOWS(header, 0, len);
-      const valueStart = index;
-      index = skipValue(header, index, len);
-      const valueEnd = trailingOWS(header, valueStart, index);
-      const type = header.slice(valueStart, valueEnd).toLowerCase();
-      const parameters = options?.parameters === false ? new NullObject() : parseParameters(header, index, len);
-      return { type, parameters };
-    }
-    var SP = 32;
-    var HTAB = 9;
-    var SEMI = 59;
-    var EQ = 61;
-    var DQUOTE = 34;
-    var BSLASH = 92;
-    function parseParameters(header, index, len) {
-      const parameters = new NullObject();
-      parameter: while (index < len) {
-        index = skipOWS(header, index + 1, len);
-        const keyStart = index;
-        while (index < len) {
-          const code = header.charCodeAt(index);
-          if (code === SEMI)
-            continue parameter;
-          if (code === EQ) {
-            const keyEnd = trailingOWS(header, keyStart, index);
-            const key = header.slice(keyStart, keyEnd).toLowerCase();
-            index = skipOWS(header, index + 1, len);
-            if (index < len && header.charCodeAt(index) === DQUOTE) {
-              index++;
-              let value = "";
-              while (index < len) {
-                const code2 = header.charCodeAt(index++);
-                if (code2 === DQUOTE) {
-                  index = skipValue(header, index, len);
-                  if (parameters[key] === void 0)
-                    parameters[key] = value;
-                  break;
-                }
-                if (code2 === BSLASH && index < len) {
-                  value += header[index++];
-                  continue;
-                }
-                value += String.fromCharCode(code2);
-              }
-              continue parameter;
-            }
-            const valueStart = index;
-            index = skipValue(header, index, len);
-            if (parameters[key] === void 0) {
-              const valueEnd = trailingOWS(header, valueStart, index);
-              parameters[key] = header.slice(valueStart, valueEnd);
-            }
-            continue parameter;
-          }
-          index++;
-        }
-      }
-      return parameters;
-    }
-    function skipValue(str, index, len) {
-      while (index < len) {
-        const char = str.charCodeAt(index);
-        if (char === SEMI)
-          break;
-        index++;
-      }
-      return index;
-    }
-    function skipOWS(header, index, len) {
-      while (index < len) {
-        const char = header.charCodeAt(index);
-        if (char !== SP && char !== HTAB)
-          break;
-        index++;
-      }
-      return index;
-    }
-    function trailingOWS(header, start, end) {
-      while (end > start) {
-        const char = header.charCodeAt(end - 1);
-        if (char !== SP && char !== HTAB)
-          break;
-        end--;
-      }
-      return end;
-    }
-    function qstring(str) {
-      if (TOKEN_REGEXP.test(str))
-        return str;
-      if (TEXT_REGEXP.test(str))
-        return `"${str.replace(QUOTE_REGEXP, "\\$&")}"`;
-      throw new TypeError(`Invalid parameter value: ${str}`);
-    }
   }
 });
 
@@ -27478,1338 +27478,6 @@ function error(message, properties = {}) {
 }
 function warning(message, properties = {}) {
   issueCommand("warning", toCommandProperties(properties), message instanceof Error ? message.toString() : message);
-}
-
-// src/core/scan.ts
-var import_node_path4 = __toESM(require("node:path"), 1);
-
-// src/config/load-config.ts
-var import_promises = require("node:fs/promises");
-var import_node_path = __toESM(require("node:path"), 1);
-var import_yaml = __toESM(require_dist(), 1);
-
-// src/core/errors.ts
-var SlopLockError = class extends Error {
-  exitCode;
-  constructor(message, exitCode) {
-    super(message);
-    this.name = "SlopLockError";
-    this.exitCode = exitCode;
-  }
-};
-var UsageError = class extends SlopLockError {
-  constructor(message) {
-    super(message, 2);
-    this.name = "UsageError";
-  }
-};
-
-// src/core/npm.ts
-var npmPackageNamePattern = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
-function normalizeNpmPackageName(name) {
-  const normalized = name.trim().toLowerCase();
-  if (normalized.length === 0 || normalized.length > 214 || normalized.includes(" ") || !npmPackageNamePattern.test(normalized)) {
-    return void 0;
-  }
-  return normalized;
-}
-function packageNameFromNpmAlias(versionRange) {
-  if (!versionRange.startsWith("npm:")) {
-    return void 0;
-  }
-  const aliasTarget = versionRange.slice("npm:".length);
-  const name = aliasTarget.startsWith("@") ? aliasTarget.match(/^(@[^/]+\/[^@/]+)/u)?.[1] : aliasTarget.match(/^([^@]+)/u)?.[1];
-  return name === void 0 ? void 0 : normalizeNpmPackageName(name);
-}
-function isRegistryVersionRange(versionRange) {
-  const trimmed = versionRange.trim();
-  if (trimmed.length === 0) {
-    return true;
-  }
-  if (trimmed.startsWith("npm:")) {
-    return true;
-  }
-  const nonRegistryPrefixes = [
-    "file:",
-    "link:",
-    "workspace:",
-    "portal:",
-    "patch:",
-    "git:",
-    "git+",
-    "github:",
-    "http:",
-    "https:"
-  ];
-  return !nonRegistryPrefixes.some((prefix) => trimmed.startsWith(prefix));
-}
-function isRegistryLockfileSpecifier(specifier) {
-  const trimmed = specifier.trim();
-  if (trimmed.length === 0) {
-    return false;
-  }
-  if (hasNonRegistryProtocol(trimmed)) {
-    return false;
-  }
-  if (trimmed.startsWith("http:") || trimmed.startsWith("https:")) {
-    return isPublicNpmRegistryUrl(trimmed);
-  }
-  return true;
-}
-function hasNonRegistryProtocol(specifier) {
-  const trimmed = specifier.trim();
-  const nonRegistryPrefixes = [
-    "file:",
-    "link:",
-    "workspace:",
-    "portal:",
-    "patch:",
-    "git:",
-    "git+",
-    "github:"
-  ];
-  return nonRegistryPrefixes.some((prefix) => trimmed.startsWith(prefix));
-}
-function isPublicNpmRegistryUrl(specifier) {
-  try {
-    const url = new URL(specifier);
-    return url.hostname === "registry.npmjs.org";
-  } catch {
-    return false;
-  }
-}
-
-// src/config/load-config.ts
-var defaultConfig = {
-  failOn: "high",
-  ecosystems: ["npm"],
-  cooldown: {
-    highDays: 7,
-    mediumDays: 30
-  },
-  allow: [],
-  ignore: []
-};
-async function loadConfig(options) {
-  const warnings = [];
-  const configFile = options.configPath ?? "sloplock.yml";
-  const configFilePath = import_node_path.default.isAbsolute(configFile) ? configFile : import_node_path.default.join(options.rootDir, configFile);
-  const exists2 = await fileExists(configFilePath);
-  const configInput = exists2 ? parseConfigFile(await (0, import_promises.readFile)(configFilePath, "utf8"), configFile) : {};
-  if (!exists2 && options.configPath !== void 0) {
-    throw new UsageError(`Config file not found: ${options.configPath}`);
-  }
-  const config = mergeConfig(configInput, options.failOn);
-  const filteredAllow = filterExpiredAllowRules(
-    config.allow,
-    warnings,
-    configFile,
-    options.now
-  );
-  const filteredIgnore = filterExpiredIgnoreRules(
-    config.ignore,
-    warnings,
-    configFile,
-    options.now
-  );
-  if (options.isCi === true) {
-    for (const rule of [...filteredAllow, ...filteredIgnore]) {
-      if (rule.expires === void 0) {
-        warnings.push({
-          file: configFile,
-          message: `Allow or ignore entry for ${rule.package} should include an expires date in CI.`
-        });
-      }
-    }
-  }
-  return {
-    config: {
-      ...config,
-      allow: filteredAllow,
-      ignore: filteredIgnore
-    },
-    warnings
-  };
-}
-function parseConfigFile(content, sourceFile) {
-  try {
-    return (0, import_yaml.parse)(content) ?? {};
-  } catch (error2) {
-    const message = error2 instanceof Error ? error2.message : String(error2);
-    throw new UsageError(`Invalid YAML in ${sourceFile}: ${message}`);
-  }
-}
-function mergeConfig(input, failOnOverride) {
-  if (!isRecord(input)) {
-    throw new UsageError("Config file must contain a mapping.");
-  }
-  const failOn = parseFailOn(input.failOn, failOnOverride);
-  const cooldown = parseCooldown(input.cooldown);
-  const ecosystems = parseEcosystems(input.ecosystems);
-  return {
-    failOn,
-    ecosystems,
-    cooldown,
-    allow: parseAllowRules(input.allow),
-    ignore: parseIgnoreRules(input.ignore)
-  };
-}
-function parseFailOn(input, override) {
-  if (override !== void 0) {
-    return override;
-  }
-  if (input === void 0) {
-    return defaultConfig.failOn;
-  }
-  if (input === "medium" || input === "high") {
-    return input;
-  }
-  throw new UsageError("Config failOn must be either medium or high.");
-}
-function parseCooldown(input) {
-  if (input === void 0) {
-    return defaultConfig.cooldown;
-  }
-  if (!isRecord(input)) {
-    throw new UsageError("Config cooldown must contain highDays and mediumDays.");
-  }
-  const highDays = parsePositiveInteger(input.highDays, "cooldown.highDays");
-  const mediumDays = parsePositiveInteger(input.mediumDays, "cooldown.mediumDays");
-  if (highDays > mediumDays) {
-    throw new UsageError("Config cooldown.highDays must be <= cooldown.mediumDays.");
-  }
-  return { highDays, mediumDays };
-}
-function parseEcosystems(input) {
-  if (input === void 0) {
-    return ["npm"];
-  }
-  if (!Array.isArray(input) || input.length === 0) {
-    throw new UsageError("Config ecosystems must be a non-empty array.");
-  }
-  for (const ecosystem of input) {
-    if (ecosystem !== "npm") {
-      throw new UsageError("V1 only supports the npm ecosystem.");
-    }
-  }
-  return ["npm"];
-}
-function parseAllowRules(input) {
-  if (input === void 0) {
-    return [];
-  }
-  if (!Array.isArray(input)) {
-    throw new UsageError("Config allow must be an array.");
-  }
-  return input.map((entry, index) => {
-    if (!isRecord(entry)) {
-      throw new UsageError(`Config allow[${index}] must be a mapping.`);
-    }
-    const ecosystem = parseEcosystem(entry.ecosystem, `allow[${index}].ecosystem`);
-    const packageName = parsePackage(entry.package, `allow[${index}].package`);
-    const reason = parseReason(entry.reason, `allow[${index}].reason`);
-    const expires = parseOptionalDate(entry.expires, `allow[${index}].expires`);
-    return expires === void 0 ? { ecosystem, package: packageName, reason } : { ecosystem, package: packageName, reason, expires };
-  });
-}
-function parseIgnoreRules(input) {
-  if (input === void 0) {
-    return [];
-  }
-  if (!Array.isArray(input)) {
-    throw new UsageError("Config ignore must be an array.");
-  }
-  return input.map((entry, index) => {
-    if (!isRecord(entry)) {
-      throw new UsageError(`Config ignore[${index}] must be a mapping.`);
-    }
-    const rule = parseRule(entry.rule, `ignore[${index}].rule`);
-    const ecosystem = parseEcosystem(entry.ecosystem, `ignore[${index}].ecosystem`);
-    const packageName = parsePackage(entry.package, `ignore[${index}].package`);
-    const reason = parseReason(entry.reason, `ignore[${index}].reason`);
-    const expires = parseOptionalDate(entry.expires, `ignore[${index}].expires`);
-    return expires === void 0 ? { rule, ecosystem, package: packageName, reason } : { rule, ecosystem, package: packageName, reason, expires };
-  });
-}
-function filterExpiredAllowRules(rules, warnings, sourceFile, now) {
-  return rules.filter((rule) => {
-    if (rule.expires === void 0 || rule.expires.getTime() >= startOfDay(now)) {
-      return true;
-    }
-    warnings.push({
-      file: sourceFile,
-      message: `Expired allow entry ignored for ${rule.package}.`
-    });
-    return false;
-  });
-}
-function filterExpiredIgnoreRules(rules, warnings, sourceFile, now) {
-  return rules.filter((rule) => {
-    if (rule.expires === void 0 || rule.expires.getTime() >= startOfDay(now)) {
-      return true;
-    }
-    warnings.push({
-      file: sourceFile,
-      message: `Expired ignore entry ignored for ${rule.package}.`
-    });
-    return false;
-  });
-}
-function parseEcosystem(input, field) {
-  if (input === "npm") {
-    return input;
-  }
-  throw new UsageError(`Config ${field} must be npm.`);
-}
-function parseRule(input, field) {
-  if (input === "package_not_found" || input === "package_too_new") {
-    return input;
-  }
-  throw new UsageError(
-    `Config ${field} must be package_not_found or package_too_new.`
-  );
-}
-function parsePackage(input, field) {
-  if (typeof input !== "string") {
-    throw new UsageError(`Config ${field} must be a package name.`);
-  }
-  const packageName = normalizeNpmPackageName(input);
-  if (packageName === void 0) {
-    throw new UsageError(`Config ${field} is not a valid npm package name.`);
-  }
-  return packageName;
-}
-function parseReason(input, field) {
-  if (typeof input !== "string" || input.trim().length === 0) {
-    throw new UsageError(`Config ${field} must be a non-empty reason.`);
-  }
-  return input.trim();
-}
-function parseOptionalDate(input, field) {
-  if (input === void 0) {
-    return void 0;
-  }
-  if (typeof input !== "string") {
-    throw new UsageError(`Config ${field} must be an ISO date string.`);
-  }
-  const date = /* @__PURE__ */ new Date(`${input}T00:00:00.000Z`);
-  if (!/^\d{4}-\d{2}-\d{2}$/u.test(input) || Number.isNaN(date.getTime())) {
-    throw new UsageError(`Config ${field} must use YYYY-MM-DD.`);
-  }
-  return date;
-}
-function parsePositiveInteger(input, field) {
-  if (!Number.isInteger(input) || typeof input !== "number" || input < 0) {
-    throw new UsageError(`Config ${field} must be a non-negative integer.`);
-  }
-  return input;
-}
-function isRecord(input) {
-  return typeof input === "object" && input !== null && !Array.isArray(input);
-}
-async function fileExists(filePath) {
-  try {
-    await (0, import_promises.access)(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-function startOfDay(date) {
-  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-}
-
-// src/discovery/find-files.ts
-var import_promises2 = require("node:fs/promises");
-var import_node_path3 = __toESM(require("node:path"), 1);
-
-// src/parsers/index.ts
-var import_node_path2 = __toESM(require("node:path"), 1);
-
-// src/parsers/common.ts
-function lineNumberForPattern(content, pattern) {
-  const match = pattern.exec(content);
-  if (match?.index === void 0) {
-    return void 0;
-  }
-  return content.slice(0, match.index).split("\n").length;
-}
-function makeNpmReference(input) {
-  return {
-    ecosystem: "npm",
-    name: input.name,
-    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
-    sourceFile: input.sourceFile,
-    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
-    sourceKind: input.sourceKind,
-    isDirect: input.isDirect
-  };
-}
-function isRecord2(input) {
-  return typeof input === "object" && input !== null && !Array.isArray(input);
-}
-function toPosixPath2(filePath) {
-  return filePath.split("\\").join("/");
-}
-
-// src/parsers/package-json.ts
-var dependencySections = [
-  "dependencies",
-  "devDependencies",
-  "peerDependencies",
-  "optionalDependencies"
-];
-function parsePackageJson(options) {
-  const warnings = [];
-  const parsed = parseJsonObject(options.content, options.sourceFile);
-  const references = [];
-  for (const section of dependencySections) {
-    const dependencies = parsed[section];
-    if (!isRecord2(dependencies)) {
-      continue;
-    }
-    for (const [rawName, rawVersion] of Object.entries(dependencies)) {
-      if (typeof rawVersion !== "string" || !isRegistryVersionRange(rawVersion)) {
-        continue;
-      }
-      const packageName = packageNameFromNpmAlias(rawVersion) ?? normalizeNpmPackageName(rawName);
-      if (packageName === void 0) {
-        warnings.push(`Skipped invalid npm package name ${rawName}.`);
-        continue;
-      }
-      references.push(
-        makeNpmReference({
-          name: packageName,
-          versionRange: rawVersion,
-          sourceFile: options.sourceFile,
-          sourceKind: "manifest",
-          isDirect: true,
-          ...lineNumberInput(options.content, rawName)
-        })
-      );
-    }
-  }
-  return { references, warnings };
-}
-function parseJsonObject(content, sourceFile) {
-  try {
-    const parsed = JSON.parse(content);
-    if (!isRecord2(parsed)) {
-      throw new Error("expected a JSON object");
-    }
-    return parsed;
-  } catch (error2) {
-    const message = error2 instanceof Error ? error2.message : String(error2);
-    throw new Error(`Invalid JSON in ${sourceFile}: ${message}`);
-  }
-}
-function lineNumberForPackage(content, packageName) {
-  const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  return lineNumberForPattern(content, new RegExp(`"${escaped}"\\s*:`, "u"));
-}
-function lineNumberInput(content, packageName) {
-  const sourceLine = lineNumberForPackage(content, packageName);
-  return sourceLine === void 0 ? {} : { sourceLine };
-}
-
-// src/parsers/package-lock.ts
-function parsePackageLock(options) {
-  const parsed = parseJsonObject2(options.content, options.sourceFile);
-  const references = [
-    ...parsePackagesObject(parsed.packages, options.sourceFile),
-    ...parseDependenciesObject(parsed.dependencies, options.sourceFile)
-  ];
-  return {
-    references: dedupeReferences(references),
-    warnings: []
-  };
-}
-function parsePackagesObject(packages, sourceFile) {
-  if (!isRecord2(packages)) {
-    return [];
-  }
-  const references = [];
-  for (const [packagePath, metadata] of Object.entries(packages)) {
-    if (packagePath === "" || !isRecord2(metadata)) {
-      continue;
-    }
-    const packageName = packageNameFromNodeModulesPath(packagePath);
-    if (packageName === void 0) {
-      continue;
-    }
-    if (typeof metadata.resolved === "string" && !isRegistryLockfileSpecifier(metadata.resolved)) {
-      continue;
-    }
-    references.push(
-      makeNpmReference({
-        name: packageName,
-        sourceFile,
-        sourceKind: "lockfile",
-        isDirect: false
-      })
-    );
-  }
-  return references;
-}
-function parseDependenciesObject(dependencies, sourceFile) {
-  if (!isRecord2(dependencies)) {
-    return [];
-  }
-  const references = [];
-  for (const [rawName, metadata] of Object.entries(dependencies)) {
-    if (!isPackageLockDependencyRegistryEntry(metadata)) {
-      if (isRecord2(metadata)) {
-        references.push(...parseDependenciesObject(metadata.dependencies, sourceFile));
-      }
-      continue;
-    }
-    const packageName = normalizeNpmPackageName(rawName);
-    if (packageName !== void 0) {
-      references.push(
-        makeNpmReference({
-          name: packageName,
-          sourceFile,
-          sourceKind: "lockfile",
-          isDirect: false
-        })
-      );
-    }
-    if (isRecord2(metadata)) {
-      references.push(...parseDependenciesObject(metadata.dependencies, sourceFile));
-    }
-  }
-  return references;
-}
-function isPackageLockDependencyRegistryEntry(metadata) {
-  if (!isRecord2(metadata)) {
-    return true;
-  }
-  for (const field of ["version", "resolved"]) {
-    const specifier = metadata[field];
-    if (typeof specifier === "string" && !isRegistryLockfileSpecifier(specifier)) {
-      return false;
-    }
-  }
-  return true;
-}
-function packageNameFromNodeModulesPath(packagePath) {
-  const parts = packagePath.split("node_modules/");
-  const last = parts.at(-1);
-  if (last === void 0 || last.length === 0) {
-    return void 0;
-  }
-  const [first, second] = last.split("/");
-  const name = first?.startsWith("@") === true && second !== void 0 ? `${first}/${second}` : first;
-  return name === void 0 ? void 0 : normalizeNpmPackageName(name);
-}
-function parseJsonObject2(content, sourceFile) {
-  try {
-    const parsed = JSON.parse(content);
-    if (!isRecord2(parsed)) {
-      throw new Error("expected a JSON object");
-    }
-    return parsed;
-  } catch (error2) {
-    const message = error2 instanceof Error ? error2.message : String(error2);
-    throw new Error(`Invalid JSON in ${sourceFile}: ${message}`);
-  }
-}
-function dedupeReferences(references) {
-  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
-}
-
-// src/parsers/pnpm-lock.ts
-var import_yaml2 = __toESM(require_dist(), 1);
-function parsePnpmLock(options) {
-  const parsed = parseYamlObject(options.content, options.sourceFile);
-  const references = [
-    ...parseImporters(parsed.importers, options.sourceFile),
-    ...parsePackages(parsed.packages, options.sourceFile)
-  ];
-  return {
-    references: dedupeReferences2(references),
-    warnings: []
-  };
-}
-function parseImporters(importers, sourceFile) {
-  if (!isRecord2(importers)) {
-    return [];
-  }
-  const references = [];
-  for (const importer of Object.values(importers)) {
-    if (!isRecord2(importer)) {
-      continue;
-    }
-    for (const field of ["dependencies", "devDependencies", "optionalDependencies"]) {
-      const dependencies = importer[field];
-      if (!isRecord2(dependencies)) {
-        continue;
-      }
-      for (const [rawName, rawMetadata] of Object.entries(dependencies)) {
-        const packageName = packageNameFromPnpmDependency(rawName, rawMetadata);
-        if (packageName === void 0) {
-          continue;
-        }
-        references.push(
-          makeNpmReference({
-            name: packageName,
-            sourceFile,
-            sourceKind: "lockfile",
-            isDirect: true
-          })
-        );
-      }
-    }
-  }
-  return references;
-}
-function parsePackages(packages, sourceFile) {
-  if (!isRecord2(packages)) {
-    return [];
-  }
-  const references = [];
-  for (const packageKey of Object.keys(packages)) {
-    const packageName = packageNameFromPnpmPackageKey(packageKey);
-    if (packageName === void 0) {
-      continue;
-    }
-    references.push(
-      makeNpmReference({
-        name: packageName,
-        sourceFile,
-        sourceKind: "lockfile",
-        isDirect: false
-      })
-    );
-  }
-  return references;
-}
-function packageNameFromPnpmDependency(rawName, metadata) {
-  if (isRecord2(metadata)) {
-    const version = metadata.version;
-    if (typeof version === "string") {
-      if (isNonRegistryPnpmSpecifier(version)) {
-        return void 0;
-      }
-      const aliasPackage = packageNameFromNpmAlias(version);
-      if (aliasPackage !== void 0) {
-        return aliasPackage;
-      }
-    }
-    const specifier = metadata.specifier;
-    if (typeof specifier === "string" && isNonRegistryPnpmSpecifier(specifier)) {
-      return void 0;
-    }
-  }
-  if (typeof metadata === "string") {
-    if (isNonRegistryPnpmSpecifier(metadata)) {
-      return void 0;
-    }
-    const aliasPackage = packageNameFromNpmAlias(metadata);
-    if (aliasPackage !== void 0) {
-      return aliasPackage;
-    }
-  }
-  return normalizeNpmPackageName(rawName);
-}
-function packageNameFromPnpmPackageKey(packageKey) {
-  const key = packageKey.startsWith("/") ? packageKey.slice(1) : packageKey;
-  if (isNonRegistryPnpmPackageKey(key)) {
-    return void 0;
-  }
-  if (key.startsWith("@")) {
-    const slashParts = key.split("/");
-    const scope = slashParts[0];
-    const packageName = slashParts[1];
-    if (scope !== void 0 && packageName !== void 0 && slashParts.length >= 3) {
-      return normalizeNpmPackageName(`${scope}/${packageName}`);
-    }
-    return normalizeNpmPackageName(key.match(/^(@[^/]+\/[^@/]+)@/u)?.[1] ?? "");
-  }
-  const slashName = key.match(/^([^/]+)\//u)?.[1];
-  if (slashName !== void 0) {
-    return normalizeNpmPackageName(slashName);
-  }
-  return normalizeNpmPackageName(key.match(/^([^@]+)@/u)?.[1] ?? "");
-}
-function isNonRegistryPnpmSpecifier(specifier) {
-  if (hasNonRegistryProtocol(specifier)) {
-    return true;
-  }
-  if (specifier.startsWith("http:") || specifier.startsWith("https:")) {
-    return !isPublicNpmRegistryUrl(specifier);
-  }
-  return false;
-}
-function isNonRegistryPnpmPackageKey(packageKey) {
-  if (hasNonRegistryProtocol(packageKey)) {
-    return true;
-  }
-  return /(?:^|@)(?:file|link|workspace|portal|patch|git|github):/u.test(
-    packageKey
-  );
-}
-function parseYamlObject(content, sourceFile) {
-  try {
-    const parsed = (0, import_yaml2.parse)(content) ?? {};
-    if (!isRecord2(parsed)) {
-      throw new Error("expected a YAML mapping");
-    }
-    return parsed;
-  } catch (error2) {
-    const message = error2 instanceof Error ? error2.message : String(error2);
-    throw new Error(`Invalid YAML in ${sourceFile}: ${message}`);
-  }
-}
-function dedupeReferences2(references) {
-  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
-}
-
-// src/parsers/yarn-lock.ts
-function parseYarnLock(options) {
-  const references = [];
-  const lines = options.content.split(/\r?\n/u);
-  for (const [index, line] of lines.entries()) {
-    if (!isDescriptorLine(line)) {
-      continue;
-    }
-    for (const descriptor of splitDescriptors(line)) {
-      const packageName = packageNameFromYarnDescriptor(descriptor);
-      if (packageName === void 0) {
-        continue;
-      }
-      references.push(
-        makeNpmReference({
-          name: packageName,
-          sourceFile: options.sourceFile,
-          sourceLine: index + 1,
-          sourceKind: "lockfile",
-          isDirect: false
-        })
-      );
-    }
-  }
-  return {
-    references: dedupeReferences3(references),
-    warnings: []
-  };
-}
-function isDescriptorLine(line) {
-  return line.trimEnd().endsWith(":") && !line.startsWith(" ") && !line.startsWith("	");
-}
-function splitDescriptors(line) {
-  const trimmed = line.trim().replace(/:$/u, "");
-  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-    return trimmed.slice(1, -1).split(/",\s*"/u).map((descriptor) => descriptor.trim()).filter(Boolean);
-  }
-  return trimmed.split(/,\s*/u).map((descriptor) => descriptor.replace(/^"|"$/gu, "").trim()).filter(Boolean);
-}
-function packageNameFromYarnDescriptor(descriptor) {
-  if (isNonRegistryYarnDescriptor(descriptor)) {
-    return void 0;
-  }
-  if (descriptor.includes("@npm:")) {
-    const [rawBeforeNpm, rawAfterNpm] = descriptor.split("@npm:", 2);
-    if (rawBeforeNpm === void 0 || rawAfterNpm === void 0) {
-      return void 0;
-    }
-    const aliasTarget = packageNameFromPossibleAliasTarget(rawAfterNpm);
-    if (aliasTarget !== void 0) {
-      return aliasTarget;
-    }
-    return normalizeNpmPackageName(rawBeforeNpm);
-  }
-  if (descriptor.startsWith("@")) {
-    return normalizeNpmPackageName(
-      descriptor.match(/^(@[^/]+\/[^@/]+)/u)?.[1] ?? ""
-    );
-  }
-  return normalizeNpmPackageName(descriptor.match(/^([^@]+)/u)?.[1] ?? "");
-}
-function isNonRegistryYarnDescriptor(descriptor) {
-  const descriptorProtocol = descriptor.match(
-    /(?:^|@)(file|link|workspace|portal|patch|git|github|https?):/u
-  );
-  if (descriptorProtocol === null) {
-    return false;
-  }
-  const protocol = descriptorProtocol[1];
-  if (protocol === "http" || protocol === "https") {
-    const urlStart = descriptor.indexOf(`${protocol}:`);
-    return !isPublicNpmRegistryUrl(descriptor.slice(urlStart));
-  }
-  return hasNonRegistryProtocol(`${protocol}:`);
-}
-function packageNameFromPossibleAliasTarget(value) {
-  if (value.startsWith("@")) {
-    const match2 = value.match(/^(@[^/]+\/[^@/]+)@/u);
-    return match2?.[1] === void 0 ? void 0 : normalizeNpmPackageName(match2[1]);
-  }
-  const match = value.match(/^([a-z0-9][a-z0-9._-]*)@/iu);
-  return match?.[1] === void 0 ? void 0 : normalizeNpmPackageName(match[1]);
-}
-function dedupeReferences3(references) {
-  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
-}
-
-// src/parsers/index.ts
-var supportedFileNames = /* @__PURE__ */ new Set([
-  "package.json",
-  "package-lock.json",
-  "pnpm-lock.yaml",
-  "yarn.lock"
-]);
-function isSupportedDependencyFile(filePath) {
-  return supportedFileNames.has(import_node_path2.default.basename(filePath));
-}
-function parseDependencyFile(input) {
-  const fileName = import_node_path2.default.basename(input.sourceFile);
-  const parsed = parseByFileName(fileName, input.sourceFile, input.content);
-  return {
-    references: parsed.references,
-    warnings: parsed.warnings.map((message) => ({
-      file: input.sourceFile,
-      message
-    }))
-  };
-}
-function parseByFileName(fileName, sourceFile, content) {
-  switch (fileName) {
-    case "package.json":
-      return parsePackageJson({ sourceFile, content });
-    case "package-lock.json":
-      return parsePackageLock({ sourceFile, content });
-    case "pnpm-lock.yaml":
-      return parsePnpmLock({ sourceFile, content });
-    case "yarn.lock":
-      return parseYarnLock({ sourceFile, content });
-    default:
-      return { references: [], warnings: [] };
-  }
-}
-
-// src/discovery/find-files.ts
-var ignoredDirectories = /* @__PURE__ */ new Set([
-  ".git",
-  "node_modules",
-  "dist",
-  "coverage",
-  ".next",
-  ".turbo"
-]);
-async function discoverDependencyFiles(rootDir) {
-  const files = [];
-  await walk(rootDir, rootDir, files);
-  return files.sort();
-}
-async function parseWorkspaceFiles(input) {
-  const references = [];
-  const warnings = [];
-  for (const relativeFile of input.files) {
-    const absoluteFile = import_node_path3.default.join(input.rootDir, relativeFile);
-    const parsed = parseDependencyFile({
-      sourceFile: relativeFile,
-      content: await (0, import_promises2.readFile)(absoluteFile, "utf8")
-    });
-    references.push(...parsed.references);
-    warnings.push(...parsed.warnings);
-  }
-  return { references, warnings };
-}
-async function walk(rootDir, currentDir, files) {
-  const entries = await (0, import_promises2.readdir)(currentDir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.isDirectory()) {
-      if (!ignoredDirectories.has(entry.name)) {
-        await walk(rootDir, import_node_path3.default.join(currentDir, entry.name), files);
-      }
-      continue;
-    }
-    if (!entry.isFile()) {
-      continue;
-    }
-    const absolutePath = import_node_path3.default.join(currentDir, entry.name);
-    const relativePath = toPosixPath2(import_node_path3.default.relative(rootDir, absolutePath));
-    if (isSupportedDependencyFile(relativePath)) {
-      files.push(relativePath);
-    }
-  }
-}
-
-// src/discovery/git.ts
-var import_node_child_process = require("node:child_process");
-var import_node_util = require("node:util");
-var execFileAsync = (0, import_node_util.promisify)(import_node_child_process.execFile);
-async function parseChangedDependencyReferences(input) {
-  const baseRef = input.baseRef ?? "origin/main";
-  if (!await isGitRepository(input.rootDir)) {
-    throw new UsageError("--changed-only requires a git repository.");
-  }
-  const mergeBase = await getMergeBase(input.rootDir, baseRef);
-  const changedFiles = await getChangedSupportedFiles(input.rootDir, mergeBase);
-  if (changedFiles.length === 0) {
-    return { references: [], warnings: [] };
-  }
-  const head = await parseWorkspaceFiles({
-    rootDir: input.rootDir,
-    files: changedFiles
-  });
-  const base = await parseBaseFiles({
-    rootDir: input.rootDir,
-    baseRef: mergeBase,
-    files: changedFiles
-  });
-  return {
-    references: diffDependencyReferences(base.references, head.references),
-    warnings: [...head.warnings, ...base.warnings]
-  };
-}
-function diffDependencyReferences(baseReferences, headReferences) {
-  const basePackages = new Set(baseReferences.map((reference) => reference.name));
-  return headReferences.filter((reference) => !basePackages.has(reference.name));
-}
-async function parseBaseFiles(input) {
-  const references = [];
-  const warnings = [];
-  for (const file of input.files) {
-    const content = await readGitFile(input.rootDir, input.baseRef, file);
-    if (content === void 0) {
-      continue;
-    }
-    const parsed = parseDependencyFile({ sourceFile: file, content });
-    references.push(...parsed.references);
-    warnings.push(...parsed.warnings);
-  }
-  return { references, warnings };
-}
-async function isGitRepository(rootDir) {
-  try {
-    await execGit(rootDir, ["rev-parse", "--is-inside-work-tree"]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-async function getMergeBase(rootDir, baseRef) {
-  try {
-    const output = await execGit(rootDir, ["merge-base", baseRef, "HEAD"]);
-    return output.trim();
-  } catch {
-    return baseRef;
-  }
-}
-async function getChangedSupportedFiles(rootDir, baseRef) {
-  try {
-    const output = await execGit(rootDir, [
-      "diff",
-      "--name-only",
-      "--diff-filter=AMRT",
-      `${baseRef}...HEAD`
-    ]);
-    return output.split(/\r?\n/u).map((file) => file.trim()).filter((file) => file.length > 0 && isSupportedDependencyFile(file)).sort();
-  } catch {
-    const files = await discoverDependencyFiles(rootDir);
-    if (files.length === 0) {
-      return [];
-    }
-    throw new UsageError(
-      `Unable to compute changed files against ${baseRef}. Pass --base or run a full scan.`
-    );
-  }
-}
-async function readGitFile(rootDir, ref, file) {
-  try {
-    return await execGit(rootDir, ["show", `${ref}:${file}`]);
-  } catch {
-    return void 0;
-  }
-}
-async function execGit(rootDir, args) {
-  const { stdout } = await execFileAsync("git", [...args], {
-    cwd: rootDir,
-    maxBuffer: 10 * 1024 * 1024
-  });
-  return stdout;
-}
-
-// src/registries/npm.ts
-var npmRegistryUrl = "https://registry.npmjs.org";
-var defaultTimeoutMs = 8e3;
-var defaultRetries = 2;
-var NpmRegistryClient = class {
-  timeoutMs;
-  retries;
-  userAgent;
-  fetchImpl;
-  cache = /* @__PURE__ */ new Map();
-  constructor(options = {}) {
-    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
-    this.retries = options.retries ?? defaultRetries;
-    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
-    this.fetchImpl = options.fetchImpl ?? fetch;
-  }
-  async getPackage(name) {
-    const cached = this.cache.get(name);
-    if (cached !== void 0) {
-      return cached;
-    }
-    const request2 = this.getPackageUncached(name);
-    this.cache.set(name, request2);
-    return request2;
-  }
-  async getPackageUncached(name) {
-    let lastFailure;
-    for (let attempt = 0; attempt <= this.retries; attempt += 1) {
-      const result = await this.fetchPackage(name);
-      if (result.status === "found" || result.status === "not_found") {
-        return result;
-      }
-      lastFailure = result;
-      if (!result.retryable || attempt === this.retries) {
-        return result;
-      }
-      await sleep(100 * (attempt + 1));
-    }
-    return lastFailure ?? {
-      status: "network_error",
-      ecosystem: "npm",
-      name,
-      message: "npm registry request failed without a response.",
-      retryable: true
-    };
-  }
-  async fetchPackage(name) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => {
-      controller.abort();
-    }, this.timeoutMs);
-    try {
-      const response = await this.fetchImpl(registryPackageUrl(name), {
-        headers: {
-          accept: "application/json",
-          "user-agent": this.userAgent
-        },
-        signal: controller.signal
-      });
-      if (response.status === 404) {
-        return { status: "not_found", ecosystem: "npm", name };
-      }
-      if (response.status === 429) {
-        return failure(name, "rate_limited", "npm registry rate limit exceeded.", true);
-      }
-      if (response.status >= 500) {
-        return failure(
-          name,
-          "server_error",
-          `npm registry returned HTTP ${response.status}.`,
-          true
-        );
-      }
-      if (!response.ok) {
-        return failure(
-          name,
-          "network_error",
-          `npm registry returned HTTP ${response.status}.`,
-          false
-        );
-      }
-      const metadata = await response.json();
-      return parseMetadata(name, metadata);
-    } catch (error2) {
-      const message = error2 instanceof Error && error2.name === "AbortError" ? "npm registry request timed out." : error2 instanceof Error ? error2.message : String(error2);
-      return failure(name, "network_error", message, true);
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-};
-function parseMetadata(name, metadata) {
-  if (!isNpmMetadata(metadata)) {
-    return failure(
-      name,
-      "invalid_response",
-      "npm registry returned invalid package metadata.",
-      false
-    );
-  }
-  const firstPublishedAt = firstPublishedDate(metadata);
-  const found = {
-    status: "found",
-    ecosystem: "npm",
-    name,
-    registryUrl: registryPackageUrl(name)
-  };
-  return firstPublishedAt === void 0 ? found : { ...found, firstPublishedAt };
-}
-function firstPublishedDate(metadata) {
-  const time = metadata.time;
-  if (time === void 0) {
-    return void 0;
-  }
-  const created = dateFromString(time.created);
-  if (created !== void 0) {
-    return created;
-  }
-  const publishTimes = Object.entries(time).filter(([key]) => key !== "modified").map(([, value]) => dateFromString(value)).filter((date) => date !== void 0).sort((left, right) => left.getTime() - right.getTime());
-  return publishTimes[0];
-}
-function dateFromString(input) {
-  if (input === void 0) {
-    return void 0;
-  }
-  const date = new Date(input);
-  return Number.isNaN(date.getTime()) ? void 0 : date;
-}
-function registryPackageUrl(name) {
-  return `${npmRegistryUrl}/${encodeURIComponent(name)}`;
-}
-function failure(name, status, message, retryable) {
-  return {
-    status,
-    ecosystem: "npm",
-    name,
-    message,
-    retryable
-  };
-}
-function isNpmMetadata(input) {
-  if (typeof input !== "object" || input === null || Array.isArray(input)) {
-    return false;
-  }
-  const metadata = input;
-  if (metadata.time === void 0) {
-    return true;
-  }
-  if (typeof metadata.time !== "object" || metadata.time === null || Array.isArray(metadata.time)) {
-    return false;
-  }
-  return Object.values(metadata.time).every((value) => typeof value === "string");
-}
-function sleep(milliseconds) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve();
-    }, milliseconds);
-  });
-}
-
-// src/core/policy.ts
-var millisecondsPerDay = 24 * 60 * 60 * 1e3;
-function buildPackageNotFoundFinding(reference) {
-  const source = reference.sourceLine === void 0 ? { file: reference.sourceFile } : { file: reference.sourceFile, line: reference.sourceLine };
-  return {
-    rule: "package_not_found",
-    severity: reference.sourceKind === "docs" || reference.sourceKind === "shell" ? "medium" : "high",
-    ecosystem: "npm",
-    package: reference.name,
-    source,
-    evidence: "Package does not exist in the npm registry.",
-    recommendation: "Verify the intended package name before installing or merging."
-  };
-}
-function buildPackageTooNewFinding(reference, registryPackage, config, now) {
-  if (registryPackage.firstPublishedAt === void 0) {
-    return void 0;
-  }
-  const ageDays = Math.floor(
-    (now.getTime() - registryPackage.firstPublishedAt.getTime()) / millisecondsPerDay
-  );
-  if (ageDays < 0) {
-    return void 0;
-  }
-  const severity = ageDays <= config.cooldown.highDays ? "high" : ageDays <= config.cooldown.mediumDays ? "medium" : void 0;
-  if (severity === void 0) {
-    return void 0;
-  }
-  const cappedSeverity = reference.sourceKind === "docs" || reference.sourceKind === "shell" ? "medium" : severity;
-  const source = reference.sourceLine === void 0 ? { file: reference.sourceFile } : { file: reference.sourceFile, line: reference.sourceLine };
-  return {
-    rule: "package_too_new",
-    severity: cappedSeverity,
-    ecosystem: "npm",
-    package: reference.name,
-    source,
-    evidence: `Package was first published ${ageDays} days ago. Cooldown policy is ${config.cooldown.mediumDays} days.`,
-    recommendation: "Wait for cooldown or add an explicit temporary allow rule."
-  };
-}
-function applySuppressions(findings, config) {
-  return findings.filter((finding) => {
-    if (matchesAllow(finding.package, config.allow)) {
-      return false;
-    }
-    return !matchesIgnore(finding.package, finding.rule, config.ignore);
-  });
-}
-function matchesAllow(packageName, rules) {
-  const normalized = normalizeNpmPackageName(packageName);
-  return rules.some(
-    (rule) => normalized !== void 0 && rule.package === normalized
-  );
-}
-function matchesIgnore(packageName, ruleId, rules) {
-  const normalized = normalizeNpmPackageName(packageName);
-  return rules.some(
-    (rule) => normalized !== void 0 && rule.package === normalized && rule.rule === ruleId
-  );
-}
-
-// src/core/scan.ts
-async function scan(options) {
-  const rootDir = import_node_path4.default.resolve(options.rootDir);
-  const now = options.now ?? /* @__PURE__ */ new Date();
-  const loadedConfig = await loadConfig({
-    rootDir,
-    ...options.configPath === void 0 ? {} : { configPath: options.configPath },
-    ...options.failOn === void 0 ? {} : { failOn: options.failOn },
-    now,
-    ...options.isCi === void 0 ? {} : { isCi: options.isCi }
-  });
-  const parsed = await parseReferences({
-    rootDir,
-    changedOnly: options.changedOnly ?? false,
-    ...options.baseRef === void 0 ? {} : { baseRef: options.baseRef }
-  });
-  const warnings = [
-    ...loadedConfig.warnings,
-    ...parsed.warnings
-  ];
-  const bestReferences = selectBestReferences(parsed.references);
-  const registryClient = options.registryClient ?? new NpmRegistryClient();
-  const findings = [];
-  const registryFailures = [];
-  for (const reference of bestReferences) {
-    const registryPackage = await registryClient.getPackage(reference.name);
-    switch (registryPackage.status) {
-      case "found": {
-        const finding = buildPackageTooNewFinding(
-          reference,
-          registryPackage,
-          loadedConfig.config,
-          now
-        );
-        if (finding !== void 0) {
-          findings.push(finding);
-        }
-        if (registryPackage.firstPublishedAt === void 0) {
-          warnings.push({
-            message: `Package ${reference.name} returned no first publish timestamp; cooldown skipped.`
-          });
-        }
-        break;
-      }
-      case "not_found":
-        findings.push(buildPackageNotFoundFinding(reference));
-        break;
-      default:
-        registryFailures.push(registryPackage);
-        warnings.push({
-          message: `Registry check failed for ${reference.name}: ${registryPackage.message}`
-        });
-        break;
-    }
-  }
-  return {
-    findings: applySuppressions(findings, loadedConfig.config),
-    warnings,
-    registryFailures,
-    scannedDependencies: bestReferences.length,
-    failOn: loadedConfig.config.failOn
-  };
-}
-async function parseReferences(input) {
-  if (input.changedOnly) {
-    return parseChangedDependencyReferences({
-      rootDir: input.rootDir,
-      ...input.baseRef === void 0 ? {} : { baseRef: input.baseRef }
-    });
-  }
-  const files = await discoverDependencyFiles(input.rootDir);
-  return parseWorkspaceFiles({ rootDir: input.rootDir, files });
-}
-function selectBestReferences(references) {
-  const byPackage = /* @__PURE__ */ new Map();
-  for (const reference of references) {
-    const existing = byPackage.get(reference.name);
-    if (existing === void 0 || referenceScore(reference) < referenceScore(existing)) {
-      byPackage.set(reference.name, reference);
-    }
-  }
-  return [...byPackage.values()].sort(
-    (left, right) => left.name.localeCompare(right.name)
-  );
-}
-function referenceScore(reference) {
-  const sourceKindScore = {
-    manifest: 0,
-    lockfile: reference.isDirect ? 1 : 2,
-    shell: 3,
-    docs: 4
-  };
-  return sourceKindScore[reference.sourceKind];
-}
-
-// src/reporting/markdown.ts
-var stickyCommentMarker = "<!-- sloplock-comment -->";
-function renderMarkdown(result) {
-  const lines = [stickyCommentMarker, "", `SlopLock found ${result.findings.length} findings.`];
-  if (result.warnings.length > 0) {
-    lines.push("", "Warnings:");
-    for (const warning2 of result.warnings) {
-      lines.push(`- ${escapeMarkdown(formatWarning(warning2))}`);
-    }
-  }
-  if (result.findings.length === 0) {
-    return lines.join("\n");
-  }
-  lines.push(
-    "",
-    "| Severity | Ecosystem | Package | Rule | Evidence | Source |",
-    "| --- | --- | --- | --- | --- | --- |"
-  );
-  for (const finding of result.findings) {
-    lines.push(
-      `| ${escapeMarkdown(finding.severity.toUpperCase())} | ${escapeMarkdown(
-        finding.ecosystem
-      )} | ${escapeMarkdown(finding.package)} | ${escapeMarkdown(
-        finding.rule
-      )} | ${escapeMarkdown(finding.evidence)} | ${escapeMarkdown(
-        formatSource(finding)
-      )} |`
-    );
-  }
-  return lines.join("\n");
-}
-function renderStepSummary(result) {
-  return renderMarkdown(result).replace(`${stickyCommentMarker}
-
-`, "");
-}
-function formatSource(finding) {
-  return finding.source.line === void 0 ? finding.source.file : `${finding.source.file}:${finding.source.line}`;
-}
-function formatWarning(warning2) {
-  return warning2.file === void 0 ? warning2.message : `${warning2.file}: ${warning2.message}`;
-}
-function escapeMarkdown(input) {
-  return input.replace(/\|/gu, "\\|").replace(/\r?\n/gu, " ");
-}
-
-// src/core/severity.ts
-var severityRank = {
-  low: 0,
-  medium: 1,
-  high: 2
-};
-function isAtOrAboveSeverity(severity, threshold) {
-  return severityRank[severity] >= severityRank[threshold];
-}
-
-// src/reporting/summary.ts
-function hasFailingFindings(result, threshold) {
-  return result.findings.some(
-    (finding) => isAtOrAboveSeverity(finding.severity, threshold)
-  );
 }
 
 // node_modules/@actions/github/lib/context.js
@@ -29364,7 +28032,7 @@ function withDefaults(oldDefaults, newDefaults) {
 var endpoint = withDefaults(null, DEFAULTS);
 
 // node_modules/@octokit/request/dist-bundle/index.js
-var import_content_type = __toESM(require_dist2(), 1);
+var import_content_type = __toESM(require_dist(), 1);
 
 // node_modules/json-with-bigint/json-with-bigint.js
 var intRegex = /^-?\d+$/;
@@ -32557,6 +31225,1423 @@ function getOctokit(token, options, ...additionalPlugins) {
   return new GitHubWithPlugins(getOctokitOptions(token, options));
 }
 
+// src/core/scan.ts
+var import_node_path4 = __toESM(require("node:path"), 1);
+
+// src/config/load-config.ts
+var import_promises = require("node:fs/promises");
+var import_node_path = __toESM(require("node:path"), 1);
+var import_yaml = __toESM(require_dist2(), 1);
+
+// src/core/errors.ts
+var SlopLockError = class extends Error {
+  exitCode;
+  constructor(message, exitCode) {
+    super(message);
+    this.name = "SlopLockError";
+    this.exitCode = exitCode;
+  }
+};
+var UsageError = class extends SlopLockError {
+  constructor(message) {
+    super(message, 2);
+    this.name = "UsageError";
+  }
+};
+
+// src/core/npm.ts
+var npmPackageNamePattern = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
+function normalizeNpmPackageName(name) {
+  const normalized = name.trim().toLowerCase();
+  if (normalized.length === 0 || normalized.length > 214 || normalized.includes(" ") || !npmPackageNamePattern.test(normalized)) {
+    return void 0;
+  }
+  return normalized;
+}
+function packageNameFromNpmAlias(versionRange) {
+  if (!versionRange.startsWith("npm:")) {
+    return void 0;
+  }
+  const aliasTarget = versionRange.slice("npm:".length);
+  const name = aliasTarget.startsWith("@") ? aliasTarget.match(/^(@[^/]+\/[^@/]+)/u)?.[1] : aliasTarget.match(/^([^@]+)/u)?.[1];
+  return name === void 0 ? void 0 : normalizeNpmPackageName(name);
+}
+function isRegistryVersionRange(versionRange) {
+  const trimmed = versionRange.trim();
+  if (trimmed.length === 0) {
+    return true;
+  }
+  if (trimmed.startsWith("npm:")) {
+    return true;
+  }
+  const nonRegistryPrefixes = [
+    "file:",
+    "link:",
+    "workspace:",
+    "portal:",
+    "patch:",
+    "git:",
+    "git+",
+    "github:",
+    "http:",
+    "https:"
+  ];
+  return !nonRegistryPrefixes.some((prefix) => trimmed.startsWith(prefix));
+}
+function isRegistryLockfileSpecifier(specifier) {
+  const trimmed = specifier.trim();
+  if (trimmed.length === 0) {
+    return false;
+  }
+  if (hasNonRegistryProtocol(trimmed)) {
+    return false;
+  }
+  if (trimmed.startsWith("http:") || trimmed.startsWith("https:")) {
+    return isPublicNpmRegistryUrl(trimmed);
+  }
+  return true;
+}
+function hasNonRegistryProtocol(specifier) {
+  const trimmed = specifier.trim();
+  const nonRegistryPrefixes = [
+    "file:",
+    "link:",
+    "workspace:",
+    "portal:",
+    "patch:",
+    "git:",
+    "git+",
+    "github:"
+  ];
+  return nonRegistryPrefixes.some((prefix) => trimmed.startsWith(prefix));
+}
+function isPublicNpmRegistryUrl(specifier) {
+  try {
+    const url = new URL(specifier);
+    return url.hostname === "registry.npmjs.org";
+  } catch {
+    return false;
+  }
+}
+
+// src/config/load-config.ts
+var defaultConfig = {
+  failOn: "high",
+  ecosystems: ["npm"],
+  cooldown: {
+    highDays: 7,
+    mediumDays: 30
+  },
+  allow: [],
+  ignore: []
+};
+async function loadConfig(options) {
+  const warnings = [];
+  const configFile = options.configPath ?? "sloplock.yml";
+  const configFilePath = import_node_path.default.isAbsolute(configFile) ? configFile : import_node_path.default.join(options.rootDir, configFile);
+  const exists2 = await fileExists(configFilePath);
+  const configInput = exists2 ? parseConfigFile(await (0, import_promises.readFile)(configFilePath, "utf8"), configFile) : {};
+  if (!exists2 && options.configPath !== void 0) {
+    throw new UsageError(`Config file not found: ${options.configPath}`);
+  }
+  const config = mergeConfig(configInput, options.failOn);
+  const filteredAllow = filterExpiredAllowRules(
+    config.allow,
+    warnings,
+    configFile,
+    options.now
+  );
+  const filteredIgnore = filterExpiredIgnoreRules(
+    config.ignore,
+    warnings,
+    configFile,
+    options.now
+  );
+  if (options.isCi === true) {
+    for (const rule of [...filteredAllow, ...filteredIgnore]) {
+      if (rule.expires === void 0) {
+        warnings.push({
+          file: configFile,
+          message: `Allow or ignore entry for ${rule.package} should include an expires date in CI.`
+        });
+      }
+    }
+  }
+  return {
+    config: {
+      ...config,
+      allow: filteredAllow,
+      ignore: filteredIgnore
+    },
+    warnings
+  };
+}
+function parseConfigFile(content, sourceFile) {
+  try {
+    return (0, import_yaml.parse)(content) ?? {};
+  } catch (error2) {
+    const message = error2 instanceof Error ? error2.message : String(error2);
+    throw new UsageError(`Invalid YAML in ${sourceFile}: ${message}`);
+  }
+}
+function mergeConfig(input, failOnOverride) {
+  if (!isRecord(input)) {
+    throw new UsageError("Config file must contain a mapping.");
+  }
+  const failOn = parseFailOn(input.failOn, failOnOverride);
+  const cooldown = parseCooldown(input.cooldown);
+  const ecosystems = parseEcosystems(input.ecosystems);
+  return {
+    failOn,
+    ecosystems,
+    cooldown,
+    allow: parseAllowRules(input.allow),
+    ignore: parseIgnoreRules(input.ignore)
+  };
+}
+function parseFailOn(input, override) {
+  if (override !== void 0) {
+    return override;
+  }
+  if (input === void 0) {
+    return defaultConfig.failOn;
+  }
+  if (input === "medium" || input === "high") {
+    return input;
+  }
+  throw new UsageError("Config failOn must be either medium or high.");
+}
+function parseCooldown(input) {
+  if (input === void 0) {
+    return defaultConfig.cooldown;
+  }
+  if (!isRecord(input)) {
+    throw new UsageError("Config cooldown must contain highDays and mediumDays.");
+  }
+  const highDays = parsePositiveInteger(input.highDays, "cooldown.highDays");
+  const mediumDays = parsePositiveInteger(input.mediumDays, "cooldown.mediumDays");
+  if (highDays > mediumDays) {
+    throw new UsageError("Config cooldown.highDays must be <= cooldown.mediumDays.");
+  }
+  return { highDays, mediumDays };
+}
+function parseEcosystems(input) {
+  if (input === void 0) {
+    return ["npm"];
+  }
+  if (!Array.isArray(input) || input.length === 0) {
+    throw new UsageError("Config ecosystems must be a non-empty array.");
+  }
+  for (const ecosystem of input) {
+    if (ecosystem !== "npm") {
+      throw new UsageError("V1 only supports the npm ecosystem.");
+    }
+  }
+  return ["npm"];
+}
+function parseAllowRules(input) {
+  if (input === void 0) {
+    return [];
+  }
+  if (!Array.isArray(input)) {
+    throw new UsageError("Config allow must be an array.");
+  }
+  return input.map((entry, index) => {
+    if (!isRecord(entry)) {
+      throw new UsageError(`Config allow[${index}] must be a mapping.`);
+    }
+    const ecosystem = parseEcosystem(entry.ecosystem, `allow[${index}].ecosystem`);
+    const packageName = parsePackage(entry.package, `allow[${index}].package`);
+    const reason = parseReason(entry.reason, `allow[${index}].reason`);
+    const expires = parseOptionalDate(entry.expires, `allow[${index}].expires`);
+    return expires === void 0 ? { ecosystem, package: packageName, reason } : { ecosystem, package: packageName, reason, expires };
+  });
+}
+function parseIgnoreRules(input) {
+  if (input === void 0) {
+    return [];
+  }
+  if (!Array.isArray(input)) {
+    throw new UsageError("Config ignore must be an array.");
+  }
+  return input.map((entry, index) => {
+    if (!isRecord(entry)) {
+      throw new UsageError(`Config ignore[${index}] must be a mapping.`);
+    }
+    const rule = parseRule(entry.rule, `ignore[${index}].rule`);
+    const ecosystem = parseEcosystem(entry.ecosystem, `ignore[${index}].ecosystem`);
+    const packageName = parsePackage(entry.package, `ignore[${index}].package`);
+    const reason = parseReason(entry.reason, `ignore[${index}].reason`);
+    const expires = parseOptionalDate(entry.expires, `ignore[${index}].expires`);
+    return expires === void 0 ? { rule, ecosystem, package: packageName, reason } : { rule, ecosystem, package: packageName, reason, expires };
+  });
+}
+function filterExpiredAllowRules(rules, warnings, sourceFile, now) {
+  return rules.filter((rule) => {
+    if (rule.expires === void 0 || rule.expires.getTime() >= startOfDay(now)) {
+      return true;
+    }
+    warnings.push({
+      file: sourceFile,
+      message: `Expired allow entry ignored for ${rule.package}.`
+    });
+    return false;
+  });
+}
+function filterExpiredIgnoreRules(rules, warnings, sourceFile, now) {
+  return rules.filter((rule) => {
+    if (rule.expires === void 0 || rule.expires.getTime() >= startOfDay(now)) {
+      return true;
+    }
+    warnings.push({
+      file: sourceFile,
+      message: `Expired ignore entry ignored for ${rule.package}.`
+    });
+    return false;
+  });
+}
+function parseEcosystem(input, field) {
+  if (input === "npm") {
+    return input;
+  }
+  throw new UsageError(`Config ${field} must be npm.`);
+}
+function parseRule(input, field) {
+  if (input === "package_not_found" || input === "package_too_new") {
+    return input;
+  }
+  throw new UsageError(
+    `Config ${field} must be package_not_found or package_too_new.`
+  );
+}
+function parsePackage(input, field) {
+  if (typeof input !== "string") {
+    throw new UsageError(`Config ${field} must be a package name.`);
+  }
+  const packageName = normalizeNpmPackageName(input);
+  if (packageName === void 0) {
+    throw new UsageError(`Config ${field} is not a valid npm package name.`);
+  }
+  return packageName;
+}
+function parseReason(input, field) {
+  if (typeof input !== "string" || input.trim().length === 0) {
+    throw new UsageError(`Config ${field} must be a non-empty reason.`);
+  }
+  return input.trim();
+}
+function parseOptionalDate(input, field) {
+  if (input === void 0) {
+    return void 0;
+  }
+  if (typeof input !== "string") {
+    throw new UsageError(`Config ${field} must be an ISO date string.`);
+  }
+  const date = /* @__PURE__ */ new Date(`${input}T00:00:00.000Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(input) || Number.isNaN(date.getTime())) {
+    throw new UsageError(`Config ${field} must use YYYY-MM-DD.`);
+  }
+  return date;
+}
+function parsePositiveInteger(input, field) {
+  if (!Number.isInteger(input) || typeof input !== "number" || input < 0) {
+    throw new UsageError(`Config ${field} must be a non-negative integer.`);
+  }
+  return input;
+}
+function isRecord(input) {
+  return typeof input === "object" && input !== null && !Array.isArray(input);
+}
+async function fileExists(filePath) {
+  try {
+    await (0, import_promises.access)(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function startOfDay(date) {
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+
+// src/discovery/find-files.ts
+var import_promises2 = require("node:fs/promises");
+var import_node_path3 = __toESM(require("node:path"), 1);
+
+// src/parsers/index.ts
+var import_node_path2 = __toESM(require("node:path"), 1);
+
+// src/parsers/common.ts
+function lineNumberForPattern(content, pattern) {
+  const match = pattern.exec(content);
+  if (match?.index === void 0) {
+    return void 0;
+  }
+  return content.slice(0, match.index).split("\n").length;
+}
+function makeNpmReference(input) {
+  return {
+    ecosystem: "npm",
+    name: input.name,
+    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
+    sourceFile: input.sourceFile,
+    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
+    sourceKind: input.sourceKind,
+    isDirect: input.isDirect
+  };
+}
+function isRecord2(input) {
+  return typeof input === "object" && input !== null && !Array.isArray(input);
+}
+function toPosixPath2(filePath) {
+  return filePath.split("\\").join("/");
+}
+
+// src/parsers/package-json.ts
+var dependencySections = [
+  "dependencies",
+  "devDependencies",
+  "peerDependencies",
+  "optionalDependencies"
+];
+function parsePackageJson(options) {
+  const warnings = [];
+  const parsed = parseJsonObject(options.content, options.sourceFile);
+  const references = [];
+  for (const section of dependencySections) {
+    const dependencies = parsed[section];
+    if (!isRecord2(dependencies)) {
+      continue;
+    }
+    for (const [rawName, rawVersion] of Object.entries(dependencies)) {
+      if (typeof rawVersion !== "string" || !isRegistryVersionRange(rawVersion)) {
+        continue;
+      }
+      const packageName = packageNameFromNpmAlias(rawVersion) ?? normalizeNpmPackageName(rawName);
+      if (packageName === void 0) {
+        warnings.push(`Skipped invalid npm package name ${rawName}.`);
+        continue;
+      }
+      references.push(
+        makeNpmReference({
+          name: packageName,
+          versionRange: rawVersion,
+          sourceFile: options.sourceFile,
+          sourceKind: "manifest",
+          isDirect: true,
+          ...lineNumberInput(options.content, rawName)
+        })
+      );
+    }
+  }
+  return { references, warnings };
+}
+function parseJsonObject(content, sourceFile) {
+  try {
+    const parsed = JSON.parse(content);
+    if (!isRecord2(parsed)) {
+      throw new Error("expected a JSON object");
+    }
+    return parsed;
+  } catch (error2) {
+    const message = error2 instanceof Error ? error2.message : String(error2);
+    throw new Error(`Invalid JSON in ${sourceFile}: ${message}`);
+  }
+}
+function lineNumberForPackage(content, packageName) {
+  const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  return lineNumberForPattern(content, new RegExp(`"${escaped}"\\s*:`, "u"));
+}
+function lineNumberInput(content, packageName) {
+  const sourceLine = lineNumberForPackage(content, packageName);
+  return sourceLine === void 0 ? {} : { sourceLine };
+}
+
+// src/parsers/package-lock.ts
+function parsePackageLock(options) {
+  const parsed = parseJsonObject2(options.content, options.sourceFile);
+  const references = [
+    ...parsePackagesObject(parsed.packages, options.sourceFile),
+    ...parseDependenciesObject(parsed.dependencies, options.sourceFile)
+  ];
+  return {
+    references: dedupeReferences(references),
+    warnings: []
+  };
+}
+function parsePackagesObject(packages, sourceFile) {
+  if (!isRecord2(packages)) {
+    return [];
+  }
+  const references = [];
+  for (const [packagePath, metadata] of Object.entries(packages)) {
+    if (packagePath === "" || !isRecord2(metadata)) {
+      continue;
+    }
+    const packageName = packageNameFromNodeModulesPath(packagePath);
+    if (packageName === void 0) {
+      continue;
+    }
+    if (typeof metadata.resolved === "string" && !isRegistryLockfileSpecifier(metadata.resolved)) {
+      continue;
+    }
+    references.push(
+      makeNpmReference({
+        name: packageName,
+        sourceFile,
+        sourceKind: "lockfile",
+        isDirect: false
+      })
+    );
+  }
+  return references;
+}
+function parseDependenciesObject(dependencies, sourceFile) {
+  if (!isRecord2(dependencies)) {
+    return [];
+  }
+  const references = [];
+  for (const [rawName, metadata] of Object.entries(dependencies)) {
+    if (!isPackageLockDependencyRegistryEntry(metadata)) {
+      if (isRecord2(metadata)) {
+        references.push(...parseDependenciesObject(metadata.dependencies, sourceFile));
+      }
+      continue;
+    }
+    const packageName = normalizeNpmPackageName(rawName);
+    if (packageName !== void 0) {
+      references.push(
+        makeNpmReference({
+          name: packageName,
+          sourceFile,
+          sourceKind: "lockfile",
+          isDirect: false
+        })
+      );
+    }
+    if (isRecord2(metadata)) {
+      references.push(...parseDependenciesObject(metadata.dependencies, sourceFile));
+    }
+  }
+  return references;
+}
+function isPackageLockDependencyRegistryEntry(metadata) {
+  if (!isRecord2(metadata)) {
+    return true;
+  }
+  for (const field of ["version", "resolved"]) {
+    const specifier = metadata[field];
+    if (typeof specifier === "string" && !isRegistryLockfileSpecifier(specifier)) {
+      return false;
+    }
+  }
+  return true;
+}
+function packageNameFromNodeModulesPath(packagePath) {
+  const parts = packagePath.split("node_modules/");
+  const last = parts.at(-1);
+  if (last === void 0 || last.length === 0) {
+    return void 0;
+  }
+  const [first, second] = last.split("/");
+  const name = first?.startsWith("@") === true && second !== void 0 ? `${first}/${second}` : first;
+  return name === void 0 ? void 0 : normalizeNpmPackageName(name);
+}
+function parseJsonObject2(content, sourceFile) {
+  try {
+    const parsed = JSON.parse(content);
+    if (!isRecord2(parsed)) {
+      throw new Error("expected a JSON object");
+    }
+    return parsed;
+  } catch (error2) {
+    const message = error2 instanceof Error ? error2.message : String(error2);
+    throw new Error(`Invalid JSON in ${sourceFile}: ${message}`);
+  }
+}
+function dedupeReferences(references) {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
+
+// src/parsers/pnpm-lock.ts
+var import_yaml2 = __toESM(require_dist2(), 1);
+function parsePnpmLock(options) {
+  const parsed = parseYamlObject(options.content, options.sourceFile);
+  const references = [
+    ...parseImporters(parsed.importers, options.sourceFile),
+    ...parsePackages(parsed.packages, options.sourceFile)
+  ];
+  return {
+    references: dedupeReferences2(references),
+    warnings: []
+  };
+}
+function parseImporters(importers, sourceFile) {
+  if (!isRecord2(importers)) {
+    return [];
+  }
+  const references = [];
+  for (const importer of Object.values(importers)) {
+    if (!isRecord2(importer)) {
+      continue;
+    }
+    for (const field of ["dependencies", "devDependencies", "optionalDependencies"]) {
+      const dependencies = importer[field];
+      if (!isRecord2(dependencies)) {
+        continue;
+      }
+      for (const [rawName, rawMetadata] of Object.entries(dependencies)) {
+        const packageName = packageNameFromPnpmDependency(rawName, rawMetadata);
+        if (packageName === void 0) {
+          continue;
+        }
+        references.push(
+          makeNpmReference({
+            name: packageName,
+            sourceFile,
+            sourceKind: "lockfile",
+            isDirect: true
+          })
+        );
+      }
+    }
+  }
+  return references;
+}
+function parsePackages(packages, sourceFile) {
+  if (!isRecord2(packages)) {
+    return [];
+  }
+  const references = [];
+  for (const packageKey of Object.keys(packages)) {
+    const packageName = packageNameFromPnpmPackageKey(packageKey);
+    if (packageName === void 0) {
+      continue;
+    }
+    references.push(
+      makeNpmReference({
+        name: packageName,
+        sourceFile,
+        sourceKind: "lockfile",
+        isDirect: false
+      })
+    );
+  }
+  return references;
+}
+function packageNameFromPnpmDependency(rawName, metadata) {
+  if (isRecord2(metadata)) {
+    const version = metadata.version;
+    if (typeof version === "string") {
+      if (isNonRegistryPnpmSpecifier(version)) {
+        return void 0;
+      }
+      const aliasPackage = packageNameFromNpmAlias(version);
+      if (aliasPackage !== void 0) {
+        return aliasPackage;
+      }
+    }
+    const specifier = metadata.specifier;
+    if (typeof specifier === "string" && isNonRegistryPnpmSpecifier(specifier)) {
+      return void 0;
+    }
+  }
+  if (typeof metadata === "string") {
+    if (isNonRegistryPnpmSpecifier(metadata)) {
+      return void 0;
+    }
+    const aliasPackage = packageNameFromNpmAlias(metadata);
+    if (aliasPackage !== void 0) {
+      return aliasPackage;
+    }
+  }
+  return normalizeNpmPackageName(rawName);
+}
+function packageNameFromPnpmPackageKey(packageKey) {
+  const key = packageKey.startsWith("/") ? packageKey.slice(1) : packageKey;
+  if (isNonRegistryPnpmPackageKey(key)) {
+    return void 0;
+  }
+  if (key.startsWith("@")) {
+    const slashParts = key.split("/");
+    const scope = slashParts[0];
+    const packageName = slashParts[1];
+    if (scope !== void 0 && packageName !== void 0 && slashParts.length >= 3) {
+      return normalizeNpmPackageName(`${scope}/${packageName}`);
+    }
+    return normalizeNpmPackageName(key.match(/^(@[^/]+\/[^@/]+)@/u)?.[1] ?? "");
+  }
+  const slashName = key.match(/^([^/]+)\//u)?.[1];
+  if (slashName !== void 0) {
+    return normalizeNpmPackageName(slashName);
+  }
+  return normalizeNpmPackageName(key.match(/^([^@]+)@/u)?.[1] ?? "");
+}
+function isNonRegistryPnpmSpecifier(specifier) {
+  if (hasNonRegistryProtocol(specifier)) {
+    return true;
+  }
+  if (specifier.startsWith("http:") || specifier.startsWith("https:")) {
+    return !isPublicNpmRegistryUrl(specifier);
+  }
+  return false;
+}
+function isNonRegistryPnpmPackageKey(packageKey) {
+  if (hasNonRegistryProtocol(packageKey)) {
+    return true;
+  }
+  return /(?:^|@)(?:file|link|workspace|portal|patch|git|github):/u.test(
+    packageKey
+  );
+}
+function parseYamlObject(content, sourceFile) {
+  try {
+    const parsed = (0, import_yaml2.parse)(content) ?? {};
+    if (!isRecord2(parsed)) {
+      throw new Error("expected a YAML mapping");
+    }
+    return parsed;
+  } catch (error2) {
+    const message = error2 instanceof Error ? error2.message : String(error2);
+    throw new Error(`Invalid YAML in ${sourceFile}: ${message}`);
+  }
+}
+function dedupeReferences2(references) {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
+
+// src/parsers/yarn-lock.ts
+function parseYarnLock(options) {
+  const references = [];
+  const lines = options.content.split(/\r?\n/u);
+  for (const [index, line] of lines.entries()) {
+    if (!isDescriptorLine(line)) {
+      continue;
+    }
+    for (const descriptor of splitDescriptors(line)) {
+      const packageName = packageNameFromYarnDescriptor(descriptor);
+      if (packageName === void 0) {
+        continue;
+      }
+      references.push(
+        makeNpmReference({
+          name: packageName,
+          sourceFile: options.sourceFile,
+          sourceLine: index + 1,
+          sourceKind: "lockfile",
+          isDirect: false
+        })
+      );
+    }
+  }
+  return {
+    references: dedupeReferences3(references),
+    warnings: []
+  };
+}
+function isDescriptorLine(line) {
+  return line.trimEnd().endsWith(":") && !line.startsWith(" ") && !line.startsWith("	");
+}
+function splitDescriptors(line) {
+  const trimmed = line.trim().replace(/:$/u, "");
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1).split(/",\s*"/u).map((descriptor) => descriptor.trim()).filter(Boolean);
+  }
+  return trimmed.split(/,\s*/u).map((descriptor) => descriptor.replace(/^"|"$/gu, "").trim()).filter(Boolean);
+}
+function packageNameFromYarnDescriptor(descriptor) {
+  if (isNonRegistryYarnDescriptor(descriptor)) {
+    return void 0;
+  }
+  if (descriptor.includes("@npm:")) {
+    const [rawBeforeNpm, rawAfterNpm] = descriptor.split("@npm:", 2);
+    if (rawBeforeNpm === void 0 || rawAfterNpm === void 0) {
+      return void 0;
+    }
+    const aliasTarget = packageNameFromPossibleAliasTarget(rawAfterNpm);
+    if (aliasTarget !== void 0) {
+      return aliasTarget;
+    }
+    return normalizeNpmPackageName(rawBeforeNpm);
+  }
+  if (descriptor.startsWith("@")) {
+    return normalizeNpmPackageName(
+      descriptor.match(/^(@[^/]+\/[^@/]+)/u)?.[1] ?? ""
+    );
+  }
+  return normalizeNpmPackageName(descriptor.match(/^([^@]+)/u)?.[1] ?? "");
+}
+function isNonRegistryYarnDescriptor(descriptor) {
+  const descriptorProtocol = descriptor.match(
+    /(?:^|@)(file|link|workspace|portal|patch|git|github|https?):/u
+  );
+  if (descriptorProtocol === null) {
+    return false;
+  }
+  const protocol = descriptorProtocol[1];
+  if (protocol === "http" || protocol === "https") {
+    const urlStart = descriptor.indexOf(`${protocol}:`);
+    return !isPublicNpmRegistryUrl(descriptor.slice(urlStart));
+  }
+  return hasNonRegistryProtocol(`${protocol}:`);
+}
+function packageNameFromPossibleAliasTarget(value) {
+  if (value.startsWith("@")) {
+    const match2 = value.match(/^(@[^/]+\/[^@/]+)@/u);
+    return match2?.[1] === void 0 ? void 0 : normalizeNpmPackageName(match2[1]);
+  }
+  const match = value.match(/^([a-z0-9][a-z0-9._-]*)@/iu);
+  return match?.[1] === void 0 ? void 0 : normalizeNpmPackageName(match[1]);
+}
+function dedupeReferences3(references) {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
+
+// src/parsers/index.ts
+var supportedFileNames = /* @__PURE__ */ new Set([
+  "package.json",
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock"
+]);
+function isSupportedDependencyFile(filePath) {
+  return supportedFileNames.has(import_node_path2.default.basename(filePath));
+}
+function parseDependencyFile(input) {
+  const fileName = import_node_path2.default.basename(input.sourceFile);
+  const parsed = parseByFileName(fileName, input.sourceFile, input.content);
+  return {
+    references: parsed.references,
+    warnings: parsed.warnings.map((message) => ({
+      file: input.sourceFile,
+      message
+    }))
+  };
+}
+function parseByFileName(fileName, sourceFile, content) {
+  switch (fileName) {
+    case "package.json":
+      return parsePackageJson({ sourceFile, content });
+    case "package-lock.json":
+      return parsePackageLock({ sourceFile, content });
+    case "pnpm-lock.yaml":
+      return parsePnpmLock({ sourceFile, content });
+    case "yarn.lock":
+      return parseYarnLock({ sourceFile, content });
+    default:
+      return { references: [], warnings: [] };
+  }
+}
+
+// src/discovery/find-files.ts
+var ignoredDirectories = /* @__PURE__ */ new Set([
+  ".git",
+  "node_modules",
+  "dist",
+  "coverage",
+  ".next",
+  ".turbo"
+]);
+async function discoverDependencyFiles(rootDir) {
+  const files = [];
+  await walk(rootDir, rootDir, files);
+  return files.sort();
+}
+async function parseWorkspaceFiles(input) {
+  const references = [];
+  const warnings = [];
+  for (const relativeFile of input.files) {
+    const absoluteFile = import_node_path3.default.join(input.rootDir, relativeFile);
+    const parsed = parseDependencyFile({
+      sourceFile: relativeFile,
+      content: await (0, import_promises2.readFile)(absoluteFile, "utf8")
+    });
+    references.push(...parsed.references);
+    warnings.push(...parsed.warnings);
+  }
+  return { references, warnings };
+}
+async function walk(rootDir, currentDir, files) {
+  const entries = await (0, import_promises2.readdir)(currentDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      if (!ignoredDirectories.has(entry.name)) {
+        await walk(rootDir, import_node_path3.default.join(currentDir, entry.name), files);
+      }
+      continue;
+    }
+    if (!entry.isFile()) {
+      continue;
+    }
+    const absolutePath = import_node_path3.default.join(currentDir, entry.name);
+    const relativePath = toPosixPath2(import_node_path3.default.relative(rootDir, absolutePath));
+    if (isSupportedDependencyFile(relativePath)) {
+      files.push(relativePath);
+    }
+  }
+}
+
+// src/discovery/git.ts
+var import_node_child_process = require("node:child_process");
+var import_node_util = require("node:util");
+var execFileAsync = (0, import_node_util.promisify)(import_node_child_process.execFile);
+async function parseChangedDependencyReferences(input) {
+  const baseRef = input.baseRef ?? "origin/main";
+  if (!await isGitRepository(input.rootDir)) {
+    throw new UsageError("--changed-only requires a git repository.");
+  }
+  const mergeBase = await getMergeBase(input.rootDir, baseRef);
+  const changedFiles = await getChangedSupportedFiles(input.rootDir, mergeBase);
+  if (changedFiles.length === 0) {
+    return { references: [], warnings: [] };
+  }
+  const head = await parseWorkspaceFiles({
+    rootDir: input.rootDir,
+    files: changedFiles
+  });
+  const base = await parseBaseFiles({
+    rootDir: input.rootDir,
+    baseRef: mergeBase,
+    files: changedFiles
+  });
+  return {
+    references: diffDependencyReferences(base.references, head.references),
+    warnings: [...head.warnings, ...base.warnings]
+  };
+}
+function diffDependencyReferences(baseReferences, headReferences) {
+  const basePackages = new Set(baseReferences.map((reference) => reference.name));
+  return headReferences.filter((reference) => !basePackages.has(reference.name));
+}
+async function parseBaseFiles(input) {
+  const references = [];
+  const warnings = [];
+  for (const file of input.files) {
+    const content = await readGitFile(input.rootDir, input.baseRef, file);
+    if (content === void 0) {
+      continue;
+    }
+    const parsed = parseDependencyFile({ sourceFile: file, content });
+    references.push(...parsed.references);
+    warnings.push(...parsed.warnings);
+  }
+  return { references, warnings };
+}
+async function isGitRepository(rootDir) {
+  try {
+    await execGit(rootDir, ["rev-parse", "--is-inside-work-tree"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function getMergeBase(rootDir, baseRef) {
+  try {
+    const output = await execGit(rootDir, ["merge-base", baseRef, "HEAD"]);
+    return output.trim();
+  } catch {
+    return baseRef;
+  }
+}
+async function getChangedSupportedFiles(rootDir, baseRef) {
+  try {
+    const output = await execGit(rootDir, [
+      "diff",
+      "--name-only",
+      "--diff-filter=AMRT",
+      `${baseRef}...HEAD`
+    ]);
+    return output.split(/\r?\n/u).map((file) => file.trim()).filter((file) => file.length > 0 && isSupportedDependencyFile(file)).sort();
+  } catch {
+    const files = await discoverDependencyFiles(rootDir);
+    if (files.length === 0) {
+      return [];
+    }
+    throw new UsageError(
+      `Unable to compute changed files against ${baseRef}. Pass --base, fetch git history with actions/checkout fetch-depth: 0, or run a full scan.`
+    );
+  }
+}
+async function readGitFile(rootDir, ref, file) {
+  try {
+    return await execGit(rootDir, ["show", `${ref}:${file}`]);
+  } catch {
+    return void 0;
+  }
+}
+async function execGit(rootDir, args) {
+  const { stdout } = await execFileAsync("git", [...args], {
+    cwd: rootDir,
+    maxBuffer: 10 * 1024 * 1024
+  });
+  return stdout;
+}
+
+// src/registries/npm.ts
+var npmRegistryUrl = "https://registry.npmjs.org";
+var defaultTimeoutMs = 8e3;
+var defaultRetries = 2;
+var NpmRegistryClient = class {
+  timeoutMs;
+  retries;
+  userAgent;
+  fetchImpl;
+  cache = /* @__PURE__ */ new Map();
+  constructor(options = {}) {
+    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
+    this.retries = options.retries ?? defaultRetries;
+    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+  async getPackage(name) {
+    const cached = this.cache.get(name);
+    if (cached !== void 0) {
+      return cached;
+    }
+    const request2 = this.getPackageUncached(name);
+    this.cache.set(name, request2);
+    return request2;
+  }
+  async getPackageUncached(name) {
+    let lastFailure;
+    for (let attempt = 0; attempt <= this.retries; attempt += 1) {
+      const result = await this.fetchPackage(name);
+      if (result.status === "found" || result.status === "not_found") {
+        return result;
+      }
+      lastFailure = result;
+      if (!result.retryable || attempt === this.retries) {
+        return result;
+      }
+      await sleep(100 * (attempt + 1));
+    }
+    return lastFailure ?? {
+      status: "network_error",
+      ecosystem: "npm",
+      name,
+      message: "npm registry request failed without a response.",
+      retryable: true
+    };
+  }
+  async fetchPackage(name) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, this.timeoutMs);
+    try {
+      const response = await this.fetchImpl(registryPackageUrl(name), {
+        headers: {
+          accept: "application/json",
+          "user-agent": this.userAgent
+        },
+        signal: controller.signal
+      });
+      if (response.status === 404) {
+        return { status: "not_found", ecosystem: "npm", name };
+      }
+      if (response.status === 429) {
+        return failure(name, "rate_limited", "npm registry rate limit exceeded.", true);
+      }
+      if (response.status >= 500) {
+        return failure(
+          name,
+          "server_error",
+          `npm registry returned HTTP ${response.status}.`,
+          true
+        );
+      }
+      if (!response.ok) {
+        return failure(
+          name,
+          "network_error",
+          `npm registry returned HTTP ${response.status}.`,
+          false
+        );
+      }
+      const metadata = await response.json();
+      return parseMetadata(name, metadata);
+    } catch (error2) {
+      const message = error2 instanceof Error && error2.name === "AbortError" ? "npm registry request timed out." : error2 instanceof Error ? error2.message : String(error2);
+      return failure(name, "network_error", message, true);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+};
+function parseMetadata(name, metadata) {
+  if (!isNpmMetadata(metadata)) {
+    return failure(
+      name,
+      "invalid_response",
+      "npm registry returned invalid package metadata.",
+      false
+    );
+  }
+  const firstPublishedAt = firstPublishedDate(metadata);
+  const found = {
+    status: "found",
+    ecosystem: "npm",
+    name,
+    registryUrl: registryPackageUrl(name)
+  };
+  return firstPublishedAt === void 0 ? found : { ...found, firstPublishedAt };
+}
+function firstPublishedDate(metadata) {
+  const time = metadata.time;
+  if (time === void 0) {
+    return void 0;
+  }
+  const created = dateFromString(time.created);
+  if (created !== void 0) {
+    return created;
+  }
+  const publishTimes = Object.entries(time).filter(([key]) => key !== "modified").map(([, value]) => dateFromString(value)).filter((date) => date !== void 0).sort((left, right) => left.getTime() - right.getTime());
+  return publishTimes[0];
+}
+function dateFromString(input) {
+  if (input === void 0) {
+    return void 0;
+  }
+  const date = new Date(input);
+  return Number.isNaN(date.getTime()) ? void 0 : date;
+}
+function registryPackageUrl(name) {
+  return `${npmRegistryUrl}/${encodeURIComponent(name)}`;
+}
+function failure(name, status, message, retryable) {
+  return {
+    status,
+    ecosystem: "npm",
+    name,
+    message,
+    retryable
+  };
+}
+function isNpmMetadata(input) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+  const metadata = input;
+  if (metadata.time === void 0) {
+    return true;
+  }
+  if (typeof metadata.time !== "object" || metadata.time === null || Array.isArray(metadata.time)) {
+    return false;
+  }
+  return Object.values(metadata.time).every((value) => typeof value === "string");
+}
+function sleep(milliseconds) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, milliseconds);
+  });
+}
+
+// src/core/policy.ts
+var millisecondsPerDay = 24 * 60 * 60 * 1e3;
+function buildPackageNotFoundFinding(reference) {
+  const source = reference.sourceLine === void 0 ? { file: reference.sourceFile } : { file: reference.sourceFile, line: reference.sourceLine };
+  return {
+    rule: "package_not_found",
+    severity: reference.sourceKind === "docs" || reference.sourceKind === "shell" ? "medium" : "high",
+    ecosystem: "npm",
+    package: reference.name,
+    source,
+    evidence: "Package does not exist in the npm registry.",
+    recommendation: "Verify the intended package name before installing or merging."
+  };
+}
+function buildPackageTooNewFinding(reference, registryPackage, config, now) {
+  if (registryPackage.firstPublishedAt === void 0) {
+    return void 0;
+  }
+  const ageDays = Math.floor(
+    (now.getTime() - registryPackage.firstPublishedAt.getTime()) / millisecondsPerDay
+  );
+  if (ageDays < 0) {
+    return void 0;
+  }
+  const severity = ageDays <= config.cooldown.highDays ? "high" : ageDays <= config.cooldown.mediumDays ? "medium" : void 0;
+  if (severity === void 0) {
+    return void 0;
+  }
+  const cappedSeverity = reference.sourceKind === "docs" || reference.sourceKind === "shell" ? "medium" : severity;
+  const source = reference.sourceLine === void 0 ? { file: reference.sourceFile } : { file: reference.sourceFile, line: reference.sourceLine };
+  return {
+    rule: "package_too_new",
+    severity: cappedSeverity,
+    ecosystem: "npm",
+    package: reference.name,
+    source,
+    evidence: `Package was first published ${ageDays} days ago. Cooldown policy is ${config.cooldown.mediumDays} days.`,
+    recommendation: "Wait for cooldown or add an explicit temporary allow rule."
+  };
+}
+function applySuppressions(findings, config) {
+  return findings.filter((finding) => {
+    if (matchesAllow(finding.package, config.allow)) {
+      return false;
+    }
+    return !matchesIgnore(finding.package, finding.rule, config.ignore);
+  });
+}
+function matchesAllow(packageName, rules) {
+  const normalized = normalizeNpmPackageName(packageName);
+  return rules.some(
+    (rule) => normalized !== void 0 && rule.package === normalized
+  );
+}
+function matchesIgnore(packageName, ruleId, rules) {
+  const normalized = normalizeNpmPackageName(packageName);
+  return rules.some(
+    (rule) => normalized !== void 0 && rule.package === normalized && rule.rule === ruleId
+  );
+}
+
+// src/core/scan.ts
+var defaultRegistryConcurrency = 8;
+async function scan(options) {
+  const rootDir = import_node_path4.default.resolve(options.rootDir);
+  const now = options.now ?? /* @__PURE__ */ new Date();
+  const loadedConfig = await loadConfig({
+    rootDir,
+    ...options.configPath === void 0 ? {} : { configPath: options.configPath },
+    ...options.failOn === void 0 ? {} : { failOn: options.failOn },
+    now,
+    ...options.isCi === void 0 ? {} : { isCi: options.isCi }
+  });
+  const parsed = await parseReferences({
+    rootDir,
+    changedOnly: options.changedOnly ?? false,
+    ...options.baseRef === void 0 ? {} : { baseRef: options.baseRef }
+  });
+  const warnings = [
+    ...loadedConfig.warnings,
+    ...parsed.warnings
+  ];
+  const bestReferences = selectBestReferences(parsed.references);
+  const registryClient = options.registryClient ?? new NpmRegistryClient();
+  const findings = [];
+  const registryFailures = [];
+  const registryEvaluations = await mapWithConcurrency(
+    bestReferences,
+    normalizedConcurrency(options.registryConcurrency),
+    async (reference) => evaluateReference({
+      reference,
+      registryClient,
+      now,
+      config: loadedConfig.config
+    })
+  );
+  for (const evaluation of registryEvaluations) {
+    findings.push(...evaluation.findings);
+    warnings.push(...evaluation.warnings);
+    registryFailures.push(...evaluation.registryFailures);
+  }
+  return {
+    findings: applySuppressions(findings, loadedConfig.config),
+    warnings,
+    registryFailures,
+    scannedDependencies: bestReferences.length,
+    failOn: loadedConfig.config.failOn
+  };
+}
+async function evaluateReference(input) {
+  const registryPackage = await input.registryClient.getPackage(input.reference.name);
+  switch (registryPackage.status) {
+    case "found": {
+      const finding = buildPackageTooNewFinding(
+        input.reference,
+        registryPackage,
+        input.config,
+        input.now
+      );
+      const warnings = registryPackage.firstPublishedAt === void 0 ? [
+        {
+          message: `Package ${input.reference.name} returned no first publish timestamp; cooldown skipped.`
+        }
+      ] : [];
+      return {
+        findings: finding === void 0 ? [] : [finding],
+        warnings,
+        registryFailures: []
+      };
+    }
+    case "not_found":
+      return {
+        findings: [buildPackageNotFoundFinding(input.reference)],
+        warnings: [],
+        registryFailures: []
+      };
+    default:
+      return {
+        findings: [],
+        warnings: [
+          {
+            message: `Registry check failed for ${input.reference.name}: ${registryPackage.message}`
+          }
+        ],
+        registryFailures: [registryPackage]
+      };
+  }
+}
+async function parseReferences(input) {
+  if (input.changedOnly) {
+    return parseChangedDependencyReferences({
+      rootDir: input.rootDir,
+      ...input.baseRef === void 0 ? {} : { baseRef: input.baseRef }
+    });
+  }
+  const files = await discoverDependencyFiles(input.rootDir);
+  return parseWorkspaceFiles({ rootDir: input.rootDir, files });
+}
+function selectBestReferences(references) {
+  const byPackage = /* @__PURE__ */ new Map();
+  for (const reference of references) {
+    const existing = byPackage.get(reference.name);
+    if (existing === void 0 || referenceScore(reference) < referenceScore(existing)) {
+      byPackage.set(reference.name, reference);
+    }
+  }
+  return [...byPackage.values()].sort(
+    (left, right) => left.name.localeCompare(right.name)
+  );
+}
+function referenceScore(reference) {
+  const sourceKindScore = {
+    manifest: 0,
+    lockfile: reference.isDirect ? 1 : 2,
+    shell: 3,
+    docs: 4
+  };
+  return sourceKindScore[reference.sourceKind];
+}
+async function mapWithConcurrency(inputs, concurrency, mapper) {
+  const outputs = new Array(inputs.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < inputs.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      const input = inputs[currentIndex];
+      if (input !== void 0) {
+        outputs[currentIndex] = await mapper(input);
+      }
+    }
+  }
+  const workerCount = Math.min(concurrency, inputs.length);
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      await worker();
+    })
+  );
+  return outputs;
+}
+function normalizedConcurrency(input) {
+  if (input === void 0 || !Number.isFinite(input)) {
+    return defaultRegistryConcurrency;
+  }
+  return Math.max(1, Math.floor(input));
+}
+
+// src/reporting/markdown.ts
+var stickyCommentMarker = "<!-- sloplock-comment -->";
+function renderMarkdown(result) {
+  const lines = [stickyCommentMarker, "", `SlopLock found ${result.findings.length} findings.`];
+  if (result.warnings.length > 0) {
+    lines.push("", "Warnings:");
+    for (const warning2 of result.warnings) {
+      lines.push(`- ${escapeMarkdown(formatWarning(warning2))}`);
+    }
+  }
+  if (result.findings.length === 0) {
+    return lines.join("\n");
+  }
+  lines.push(
+    "",
+    "| Severity | Ecosystem | Package | Rule | Evidence | Source |",
+    "| --- | --- | --- | --- | --- | --- |"
+  );
+  for (const finding of result.findings) {
+    lines.push(
+      `| ${escapeMarkdown(finding.severity.toUpperCase())} | ${escapeMarkdown(
+        finding.ecosystem
+      )} | ${escapeMarkdown(finding.package)} | ${escapeMarkdown(
+        finding.rule
+      )} | ${escapeMarkdown(finding.evidence)} | ${escapeMarkdown(
+        formatSource(finding)
+      )} |`
+    );
+  }
+  return lines.join("\n");
+}
+function renderStepSummary(result) {
+  return renderMarkdown(result).replace(`${stickyCommentMarker}
+
+`, "");
+}
+function formatSource(finding) {
+  return finding.source.line === void 0 ? finding.source.file : `${finding.source.file}:${finding.source.line}`;
+}
+function formatWarning(warning2) {
+  return warning2.file === void 0 ? warning2.message : `${warning2.file}: ${warning2.message}`;
+}
+function escapeMarkdown(input) {
+  return input.replace(/\|/gu, "\\|").replace(/\r?\n/gu, " ");
+}
+
+// src/core/severity.ts
+var severityRank = {
+  low: 0,
+  medium: 1,
+  high: 2
+};
+function isAtOrAboveSeverity(severity, threshold) {
+  return severityRank[severity] >= severityRank[threshold];
+}
+
+// src/reporting/summary.ts
+function hasFailingFindings(result, threshold) {
+  return result.findings.some(
+    (finding) => isAtOrAboveSeverity(finding.severity, threshold)
+  );
+}
+
+// src/action/base-ref.ts
+function resolveChangedOnlyBaseRef(input) {
+  if (input.inputBase !== void 0) {
+    const trimmed = input.inputBase.trim();
+    if (trimmed.length > 0) {
+      return trimmed;
+    }
+  }
+  const base = readRecordProperty(input.pullRequest, "base");
+  const sha = readStringProperty(base, "sha");
+  if (sha !== void 0 && sha.trim().length > 0) {
+    return sha.trim();
+  }
+  const ref = readStringProperty(base, "ref");
+  if (ref !== void 0 && ref.trim().length > 0) {
+    return `origin/${ref.trim()}`;
+  }
+  return void 0;
+}
+function readRecordProperty(input, key) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return void 0;
+  }
+  const value = input[key];
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+}
+function readStringProperty(input, key) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return void 0;
+  }
+  const value = input[key];
+  return typeof value === "string" ? value : void 0;
+}
+
 // src/action/comments.ts
 async function upsertStickyComment(input) {
   const pullRequest = context2.payload.pull_request;
@@ -32619,13 +32704,17 @@ function readFailOn(input) {
 // src/action/index.ts
 async function run() {
   const inputs = readActionInputs();
+  const baseRef = resolveChangedOnlyBaseRef({
+    ...inputs.base === void 0 ? {} : { inputBase: inputs.base },
+    pullRequest: context2.payload.pull_request
+  });
   const result = await scan({
     rootDir: inputs.path,
     changedOnly: inputs.changedOnly,
     failOn: inputs.failOn,
     failClosed: inputs.failClosed,
     isCi: true,
-    ...inputs.base === void 0 ? {} : { baseRef: inputs.base },
+    ...baseRef === void 0 ? {} : { baseRef },
     ...inputs.config === void 0 ? {} : { configPath: inputs.config }
   });
   annotateFindings(result.findings);
