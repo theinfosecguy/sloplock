@@ -11,7 +11,7 @@ inputs:
     required: false
     default: high
   ecosystem:
-    description: Ecosystem to scan. One of all, npm, or pypi.
+    description: Ecosystem to scan. One of all, crates, npm, or pypi.
     required: false
     default: all
   changed-only:

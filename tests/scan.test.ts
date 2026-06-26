@@ -117,6 +117,47 @@ old-python-package~=1.0
     ]);
   });
 
+  it("reports missing and too-new Rust crates", async () => {
+    const rootDir = await tempProject({
+      "Cargo.toml": `
+[dependencies]
+missing-crate = "1"
+fresh-crate = "1"
+old-crate = "1"
+`
+    });
+    const result = await scan({
+      rootDir,
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "crates:missing-crate": {
+          status: "not_found",
+          ecosystem: "crates",
+          name: "missing-crate"
+        },
+        "crates:fresh-crate": found(
+          "fresh-crate",
+          "2026-06-22T00:00:00.000Z",
+          "crates"
+        ),
+        "crates:old-crate": found(
+          "old-crate",
+          "2020-01-01T00:00:00.000Z",
+          "crates"
+        )
+      })
+    });
+
+    expect(result.findings.map((finding) => finding.ecosystem)).toEqual([
+      "crates",
+      "crates"
+    ]);
+    expect(result.findings.map((finding) => finding.rule).sort()).toEqual([
+      "package_not_found",
+      "package_too_new"
+    ]);
+  });
+
   it("discovers common Python requirements files", async () => {
     const rootDir = await tempProject({
       "requirements-dev.txt": "missing-python-package==1.0.0\n"
@@ -367,6 +408,10 @@ reference = "private"
 
   it("filters scans to a selected ecosystem", async () => {
     const rootDir = await tempProject({
+      "Cargo.toml": `
+[dependencies]
+missing-crate = "1"
+`,
       "package.json": JSON.stringify({
         dependencies: {
           "missing-npm-package": "^1.0.0"
@@ -393,6 +438,64 @@ reference = "private"
     expect(result.scannedDependencies).toBe(1);
     expect(calls).toEqual(["pypi:missing-python-package"]);
     expect(result.findings[0]?.ecosystem).toBe("pypi");
+  });
+
+  it("scans Rust crates from Cargo.lock", async () => {
+    const rootDir = await tempProject({
+      "Cargo.lock": `
+version = 3
+
+[[package]]
+name = "missing-crate"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "fresh-crate"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "old-crate"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "local-crate"
+version = "0.1.0"
+`
+    });
+    const result = await scan({
+      rootDir,
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "crates:missing-crate": {
+          status: "not_found",
+          ecosystem: "crates",
+          name: "missing-crate"
+        },
+        "crates:fresh-crate": found(
+          "fresh-crate",
+          "2026-06-22T00:00:00.000Z",
+          "crates"
+        ),
+        "crates:old-crate": found(
+          "old-crate",
+          "2020-01-01T00:00:00.000Z",
+          "crates"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(3);
+    expect(result.findings.map((finding) => finding.package).sort()).toEqual([
+      "fresh-crate",
+      "missing-crate"
+    ]);
+    expect(result.findings.map((finding) => finding.source.file)).toEqual([
+      "Cargo.lock",
+      "Cargo.lock"
+    ]);
   });
 
   it("changed-only scans only packages introduced after the base ref", async () => {
@@ -586,6 +689,109 @@ reference = "private"
     expect(result.scannedDependencies).toBe(1);
     expect(result.findings[0]?.ecosystem).toBe("pypi");
     expect(result.findings[0]?.package).toBe("new-python-package");
+  });
+
+  it("changed-only scans crates introduced in Cargo.toml", async () => {
+    const rootDir = await tempProject({
+      "Cargo.toml": `
+[dependencies]
+old-crate = "1"
+`
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "Cargo.toml"),
+      `
+[dependencies]
+old-crate = "1"
+new-crate = "1"
+local-crate = { path = "../local-crate" }
+`
+    );
+    await commitAll(rootDir, "update cargo manifest");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "crates:new-crate": {
+          status: "not_found",
+          ecosystem: "crates",
+          name: "new-crate"
+        },
+        "crates:old-crate": found(
+          "old-crate",
+          "2020-01-01T00:00:00.000Z",
+          "crates"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("crates");
+    expect(result.findings[0]?.package).toBe("new-crate");
+    expect(result.findings[0]?.source.file).toBe("Cargo.toml");
+  });
+
+  it("changed-only scans crates introduced in Cargo.lock", async () => {
+    const rootDir = await tempProject({
+      "Cargo.lock": `
+version = 3
+
+[[package]]
+name = "old-crate"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+`
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "Cargo.lock"),
+      `
+version = 3
+
+[[package]]
+name = "old-crate"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "new-crate"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "local-crate"
+version = "0.1.0"
+`
+    );
+    await commitAll(rootDir, "update cargo lock");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "crates:new-crate": {
+          status: "not_found",
+          ecosystem: "crates",
+          name: "new-crate"
+        },
+        "crates:old-crate": found(
+          "old-crate",
+          "2020-01-01T00:00:00.000Z",
+          "crates"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("crates");
+    expect(result.findings[0]?.package).toBe("new-crate");
+    expect(result.findings[0]?.source.file).toBe("Cargo.lock");
   });
 
   it("changed-only scans packages introduced in pdm.lock", async () => {

@@ -61,3 +61,49 @@ jobs:
 
       - name: Verify failing fixture failed
         run: test "${{ steps.failing-scan.outcome }}" = "failure"
+
+      - name: Prepare passing Rust fixture
+        run: |
+          mkdir -p "${RUNNER_TEMP}/sloplock-action-rust-pass"
+          cat > "${RUNNER_TEMP}/sloplock-action-rust-pass/Cargo.toml" <<'EOF'
+          [package]
+          name = "sloplock-action-rust-pass"
+          version = "0.1.0"
+
+          [dependencies]
+          serde = "1"
+          EOF
+
+      - name: Run local action on passing Rust fixture
+        uses: ./
+        with:
+          path: ${{ runner.temp }}/sloplock-action-rust-pass
+          ecosystem: crates
+          changed-only: "false"
+          comment: "false"
+
+      - name: Prepare failing Rust fixture
+        run: |
+          mkdir -p "${RUNNER_TEMP}/sloplock-action-rust-fail"
+          name="sloplock-smoke-crate-missing-$(date +%s)-${RANDOM}"
+          cat > "${RUNNER_TEMP}/sloplock-action-rust-fail/Cargo.toml" <<EOF
+          [package]
+          name = "sloplock-action-rust-fail"
+          version = "0.1.0"
+
+          [dependencies]
+          ${name} = "1"
+          EOF
+
+      - name: Run local action on failing Rust fixture
+        id: failing-rust-scan
+        uses: ./
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/sloplock-action-rust-fail
+          ecosystem: crates
+          changed-only: "false"
+          comment: "false"
+
+      - name: Verify failing Rust fixture failed
+        run: test "${{ steps.failing-rust-scan.outcome }}" = "failure"
