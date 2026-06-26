@@ -1,7 +1,9 @@
 import { execFile } from "node:child_process";
+import path from "node:path";
 import { promisify } from "node:util";
 import { UsageError } from "../core/errors.js";
 import { isSupportedDependencyFile, parseDependencyFile } from "../parsers/index.js";
+import { toPosixPath } from "../parsers/common.js";
 import { discoverDependencyFiles, parseWorkspaceFiles } from "./find-files.js";
 const execFileAsync = promisify(execFile);
 export async function parseChangedDependencyReferences(input) {
@@ -38,16 +40,58 @@ function referenceKey(reference) {
 async function parseBaseFiles(input) {
     const references = [];
     const warnings = [];
-    for (const file of input.files) {
+    const pendingFiles = [...new Set(input.files)];
+    const parsedFiles = new Set();
+    const includedRequirementFiles = new Set();
+    while (pendingFiles.length > 0) {
+        const file = pendingFiles.shift();
+        if (file === undefined || parsedFiles.has(file)) {
+            continue;
+        }
+        parsedFiles.add(file);
         const content = await readGitFile(input.rootDir, input.baseRef, file);
         if (content === undefined) {
             continue;
         }
-        const parsed = parseDependencyFile({ sourceFile: file, content });
+        const parsed = parseDependencyFile({
+            sourceFile: file,
+            content,
+            ...(includedRequirementFiles.has(file)
+                ? { format: "python-requirements" }
+                : {})
+        });
         references.push(...parsed.references);
         warnings.push(...parsed.warnings);
+        for (const includedFile of parsed.includedFiles ?? []) {
+            const resolvedFile = resolveIncludedFile({
+                rootDir: input.rootDir,
+                sourceFile: file,
+                includedFile
+            });
+            if (resolvedFile === undefined) {
+                warnings.push({
+                    file,
+                    message: `Skipped requirement include outside scan root: ${includedFile}.`
+                });
+                continue;
+            }
+            if (!parsedFiles.has(resolvedFile)) {
+                includedRequirementFiles.add(resolvedFile);
+                pendingFiles.push(resolvedFile);
+            }
+        }
     }
     return { references, warnings };
+}
+function resolveIncludedFile(input) {
+    if (path.isAbsolute(input.includedFile)) {
+        return undefined;
+    }
+    const absoluteFile = path.resolve(input.rootDir, path.dirname(input.sourceFile), input.includedFile);
+    const relativeFile = toPosixPath(path.relative(input.rootDir, absoluteFile));
+    return relativeFile.startsWith("../") || relativeFile === ".."
+        ? undefined
+        : relativeFile;
 }
 async function isGitRepository(rootDir) {
     try {

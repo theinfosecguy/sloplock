@@ -117,6 +117,69 @@ old-python-package~=1.0
     ]);
   });
 
+  it("discovers common Python requirements files", async () => {
+    const rootDir = await tempProject({
+      "requirements-dev.txt": "missing-python-package==1.0.0\n"
+    });
+    const result = await scan({
+      rootDir,
+      registryClient: fakeRegistry({
+        "pypi:missing-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "missing-python-package"
+        }
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("pypi");
+    expect(result.findings[0]?.package).toBe("missing-python-package");
+    expect(result.findings[0]?.source.file).toBe("requirements-dev.txt");
+  });
+
+  it("follows requirements includes", async () => {
+    const rootDir = await tempProject({
+      "requirements.txt": "-r requirements-dev.txt\n",
+      "requirements-dev.txt": "missing-python-package==1.0.0\n"
+    });
+    const result = await scan({
+      rootDir,
+      registryClient: fakeRegistry({
+        "pypi:missing-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "missing-python-package"
+        }
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.package).toBe("missing-python-package");
+    expect(result.findings[0]?.source.file).toBe("requirements-dev.txt");
+  });
+
+  it("follows requirements includes with nonstandard file names", async () => {
+    const rootDir = await tempProject({
+      "requirements.txt": "-r dev.txt\n",
+      "dev.txt": "missing-python-package==1.0.0\n"
+    });
+    const result = await scan({
+      rootDir,
+      registryClient: fakeRegistry({
+        "pypi:missing-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "missing-python-package"
+        }
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.package).toBe("missing-python-package");
+    expect(result.findings[0]?.source.file).toBe("dev.txt");
+  });
+
   it("filters scans to a selected ecosystem", async () => {
     const rootDir = await tempProject({
       "package.json": JSON.stringify({

@@ -14,20 +14,29 @@ const supportedFileNames = new Set([
     "yarn.lock"
 ]);
 export function isSupportedDependencyFile(filePath) {
-    return supportedFileNames.has(path.basename(filePath));
+    const fileName = path.basename(filePath);
+    return supportedFileNames.has(fileName) || isPythonRequirementsFile(fileName);
 }
 export function parseDependencyFile(input) {
-    const fileName = path.basename(input.sourceFile);
-    const parsed = parseByFileName(fileName, input.sourceFile, input.content);
+    const parsed = input.format === "python-requirements"
+        ? parsePythonRequirements({
+            sourceFile: input.sourceFile,
+            content: input.content
+        })
+        : parseByFileName(path.basename(input.sourceFile), input.sourceFile, input.content);
     return {
         references: parsed.references,
         warnings: parsed.warnings.map((message) => ({
             file: input.sourceFile,
             message
-        }))
+        })),
+        ...(parsed.includedFiles === undefined ? {} : { includedFiles: parsed.includedFiles })
     };
 }
 function parseByFileName(fileName, sourceFile, content) {
+    if (isPythonRequirementsFile(fileName)) {
+        return parsePythonRequirements({ sourceFile, content });
+    }
     switch (fileName) {
         case "package.json":
             return parsePackageJson({ sourceFile, content });
@@ -37,12 +46,16 @@ function parseByFileName(fileName, sourceFile, content) {
             return parsePnpmLock({ sourceFile, content });
         case "pyproject.toml":
             return parsePyproject({ sourceFile, content });
-        case "requirements.txt":
-            return parsePythonRequirements({ sourceFile, content });
         case "yarn.lock":
             return parseYarnLock({ sourceFile, content });
         default:
             return { references: [], warnings: [] };
     }
+}
+function isPythonRequirementsFile(fileName) {
+    return (/^requirements(?:[-_.][A-Za-z0-9_.-]+)?\.txt$/u.test(fileName) ||
+        /^[A-Za-z0-9_.-]+[-_.]requirements\.txt$/u.test(fileName) ||
+        /^constraints(?:[-_.][A-Za-z0-9_.-]+)?\.txt$/u.test(fileName) ||
+        /^[A-Za-z0-9_.-]+[-_.]constraints\.txt$/u.test(fileName));
 }
 //# sourceMappingURL=index.js.map

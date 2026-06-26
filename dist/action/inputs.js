@@ -2,10 +2,12 @@ import * as core from "@actions/core";
 export function readActionInputs() {
     const base = core.getInput("base");
     const config = core.getInput("config");
+    const ecosystem = core.getInput("ecosystem");
     const githubToken = core.getInput("github-token");
     return {
         path: core.getInput("path") || ".",
         failOn: readFailOn(core.getInput("fail-on") || "high"),
+        ...ecosystemsInput(ecosystem),
         changedOnly: core.getBooleanInput("changed-only"),
         ...(base.trim().length === 0 ? {} : { base }),
         ...(config.trim().length === 0 ? {} : { config }),
@@ -13,6 +15,16 @@ export function readActionInputs() {
         ...(githubToken.trim().length === 0 ? {} : { githubToken }),
         failClosed: core.getBooleanInput("fail-closed")
     };
+}
+function ecosystemsInput(input) {
+    const trimmed = input.trim();
+    if (trimmed.length === 0 || trimmed === "all") {
+        return {};
+    }
+    if (trimmed === "npm" || trimmed === "pypi") {
+        return { ecosystems: [trimmed] };
+    }
+    throw new Error("Action input ecosystem must be all, npm, or pypi.");
 }
 function readFailOn(input) {
     if (input === "medium" || input === "high") {

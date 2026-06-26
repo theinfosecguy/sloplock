@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parsePackageJson } from "../src/parsers/package-json.js";
 import { parsePackageLock } from "../src/parsers/package-lock.js";
 import { parsePnpmLock } from "../src/parsers/pnpm-lock.js";
+import { parseDependencyFile, isSupportedDependencyFile } from "../src/parsers/index.js";
 import { parsePyproject } from "../src/parsers/pyproject.js";
 import { parsePythonRequirements } from "../src/parsers/python-requirements.js";
 import { parseYarnLock } from "../src/parsers/yarn-lock.js";
@@ -208,6 +209,41 @@ git+https://github.com/example/pkg.git
       "pypi",
       "pypi",
       "pypi"
+    ]);
+  });
+
+  it("recognizes common Python requirements file names", () => {
+    expect(isSupportedDependencyFile("requirements-dev.txt")).toBe(true);
+    expect(isSupportedDependencyFile("dev-requirements.txt")).toBe(true);
+    expect(isSupportedDependencyFile("constraints.txt")).toBe(true);
+    expect(isSupportedDependencyFile("prod-constraints.txt")).toBe(true);
+  });
+
+  it("extracts includes from requirements files", () => {
+    const parsed = parsePythonRequirements({
+      sourceFile: "requirements.txt",
+      content: `
+-r requirements-dev.txt
+--requirement=requirements-test.txt
+-c constraints.txt
+`
+    });
+
+    expect(parsed.includedFiles).toEqual([
+      "requirements-dev.txt",
+      "requirements-test.txt",
+      "constraints.txt"
+    ]);
+  });
+
+  it("parses common requirements file names as PyPI requirements", () => {
+    const parsed = parseDependencyFile({
+      sourceFile: "requirements-dev.txt",
+      content: "missing-python-package==1.0.0\n"
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "missing-python-package"
     ]);
   });
 

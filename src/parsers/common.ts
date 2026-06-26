@@ -8,6 +8,7 @@ export type ParseDependencyFileOptions = {
 export type ParsedDependencyFile = {
   references: DependencyReference[];
   warnings: string[];
+  includedFiles?: string[];
 };
 
 export function lineNumberForPattern(

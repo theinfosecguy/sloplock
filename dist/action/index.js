@@ -19,6 +19,7 @@ async function run() {
         failClosed: inputs.failClosed,
         isCi: true,
         ...(baseRef === undefined ? {} : { baseRef }),
+        ...(inputs.ecosystems === undefined ? {} : { ecosystems: inputs.ecosystems }),
         ...(inputs.config === undefined ? {} : { configPath: inputs.config })
     });
     annotateFindings(result.findings);

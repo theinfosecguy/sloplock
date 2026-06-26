@@ -6,6 +6,7 @@ export type ParseDependencyFileOptions = {
 export type ParsedDependencyFile = {
     references: DependencyReference[];
     warnings: string[];
+    includedFiles?: string[];
 };
 export declare function lineNumberForPattern(content: string, pattern: RegExp): number | undefined;
 export declare function makeNpmReference(input: {

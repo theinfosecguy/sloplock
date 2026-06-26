@@ -3,14 +3,25 @@ import { makePypiReference } from "./common.js";
 const packageRequirementPattern = /^\s*([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)(.*)$/u;
 const directReferencePattern = /\s@\s/u;
 export function parsePythonRequirements(options) {
-    const references = options.content
-        .split(/\r?\n/u)
-        .flatMap((line, index) => referenceFromRequirementLine({
-        line,
-        sourceFile: options.sourceFile,
-        sourceLine: index + 1
-    }));
-    return { references, warnings: [] };
+    const references = [];
+    const includedFiles = [];
+    for (const [index, line] of options.content.split(/\r?\n/u).entries()) {
+        const include = includedFileFromRequirementLine(line);
+        if (include !== undefined) {
+            includedFiles.push(include);
+            continue;
+        }
+        references.push(...referenceFromRequirementLine({
+            line,
+            sourceFile: options.sourceFile,
+            sourceLine: index + 1
+        }));
+    }
+    return {
+        references,
+        warnings: [],
+        ...(includedFiles.length === 0 ? {} : { includedFiles })
+    };
 }
 export function parsePythonRequirementString(input) {
     const reference = referenceFromRequirementLine({
@@ -68,6 +79,18 @@ function stripComment(line) {
 }
 function isRequirementOption(line) {
     return line.startsWith("-") || line.startsWith("--");
+}
+function includedFileFromRequirementLine(line) {
+    const withoutComment = stripComment(line).trim();
+    const includeMatch = /^(?:-r|--requirement|-c|--constraint)(?:=|\s+)(\S+)/u.exec(withoutComment);
+    const includePath = includeMatch?.[1];
+    if (includePath === undefined ||
+        includePath.length === 0 ||
+        includePath.startsWith("-") ||
+        /^[a-z]+:\/\//iu.test(includePath)) {
+        return undefined;
+    }
+    return includePath;
 }
 function isDirectOrLocalRequirement(line) {
     const lower = line.toLowerCase();

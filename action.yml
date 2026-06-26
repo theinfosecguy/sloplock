@@ -1,5 +1,5 @@
 name: SlopLock
-description: Block nonexistent and too-new npm packages before they enter your repo.
+description: Block nonexistent and too-new package dependencies before they enter your repo.
 author: SlopLock
 inputs:
   path:
@@ -10,6 +10,10 @@ inputs:
     description: Minimum severity that fails the job. One of medium or high.
     required: false
     default: high
+  ecosystem:
+    description: Ecosystem to scan. One of all, npm, or pypi.
+    required: false
+    default: all
   changed-only:
     description: Scan only dependencies introduced by the pull request.
     required: false
