@@ -1,0 +1,468 @@
+import { execFileSync, spawnSync } from "node:child_process";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  ".."
+);
+const cliPath = path.join(repoRoot, "dist", "cli", "index.js");
+const actionPath = path.join(repoRoot, "dist", "action", "index.cjs");
+const unique = `${Date.now()}-${process.pid}`;
+const tempDir = mkdtempSync(path.join(tmpdir(), "sloplock-ecosystem-smoke-"));
+const smokeResults = [];
+
+try {
+  const passFixture = createPassFixture(path.join(tempDir, "pass"));
+  const missingFixture = createMissingFixture(path.join(tempDir, "missing"));
+  const privateFixture = createPrivateFixture(path.join(tempDir, "private"));
+  const changedFixture = createChangedOnlyFixture(path.join(tempDir, "changed"));
+
+  const passReport = runCliJson(passFixture, []);
+  assertSummary("CLI pass fixture", passReport, {
+    findings: 0,
+    scannedDependencies: 4
+  });
+  smokeResults.push(["CLI pass", passReport.summary]);
+
+  const missingResult = runCliJson(missingFixture, [], 1);
+  assertSummary("CLI missing fixture", missingResult.report, {
+    findings: 4,
+    scannedDependencies: 4,
+    highestSeverity: "high"
+  });
+  assertFindingRules("CLI missing fixture", missingResult.report, [
+    "package_not_found",
+    "package_not_found",
+    "package_not_found",
+    "package_not_found"
+  ]);
+  smokeResults.push(["CLI missing", missingResult.report.summary]);
+
+  const privateReport = runCliJson(privateFixture, []);
+  assertSummary("CLI private/local fixture", privateReport, {
+    findings: 0,
+    scannedDependencies: 0
+  });
+  smokeResults.push(["CLI private/local", privateReport.summary]);
+
+  const changedResult = runCliJson(
+    changedFixture,
+    ["--changed-only", "--base", "main"],
+    1
+  );
+  assertSummary("CLI changed-only fixture", changedResult.report, {
+    findings: 4,
+    scannedDependencies: 4,
+    highestSeverity: "high"
+  });
+  assertFindingRules("CLI changed-only fixture", changedResult.report, [
+    "package_not_found",
+    "package_not_found",
+    "package_not_found",
+    "package_not_found"
+  ]);
+  smokeResults.push(["CLI changed-only", changedResult.report.summary]);
+
+  const actionPass = runAction(passFixture, 0);
+  assertActionOutputs("Action pass fixture", actionPass.outputs, {
+    findings: "0",
+    highestSeverity: ""
+  });
+  smokeResults.push(["Action pass", actionPass.outputs]);
+
+  const actionMissing = runAction(missingFixture, 1);
+  assertActionOutputs("Action missing fixture", actionMissing.outputs, {
+    findings: "4",
+    highestSeverity: "high"
+  });
+  smokeResults.push(["Action missing", actionMissing.outputs]);
+
+  const actionPrivate = runAction(privateFixture, 0);
+  assertActionOutputs("Action private/local fixture", actionPrivate.outputs, {
+    findings: "0",
+    highestSeverity: ""
+  });
+  smokeResults.push(["Action private/local", actionPrivate.outputs]);
+
+  for (const [name, summary] of smokeResults) {
+    process.stdout.write(`${name}: ${JSON.stringify(summary)}\n`);
+  }
+} finally {
+  rmSync(tempDir, { recursive: true, force: true });
+}
+
+function createPassFixture(rootDir) {
+  mkdirSync(rootDir, { recursive: true });
+  writeJson(path.join(rootDir, "package.json"), {
+    dependencies: {
+      react: "^18.2.0"
+    }
+  });
+  writeFileSync(path.join(rootDir, "requirements.txt"), "requests==2.32.0\n");
+  writeFileSync(
+    path.join(rootDir, "go.mod"),
+    `module github.com/sloplock-smoke/pass
+
+go 1.23
+
+require github.com/stretchr/testify v1.10.0
+`
+  );
+  writeFileSync(
+    path.join(rootDir, "Cargo.toml"),
+    `[package]
+name = "sloplock-smoke-pass"
+version = "0.1.0"
+
+[dependencies]
+serde = "1"
+`
+  );
+
+  return rootDir;
+}
+
+function createMissingFixture(rootDir) {
+  mkdirSync(rootDir, { recursive: true });
+  const packages = missingPackages();
+  writeJson(path.join(rootDir, "package.json"), {
+    dependencies: {
+      [packages.npm]: "^1.0.0"
+    }
+  });
+  writeFileSync(path.join(rootDir, "requirements.txt"), `${packages.pypi}==1.0.0\n`);
+  writeFileSync(
+    path.join(rootDir, "go.mod"),
+    `module github.com/sloplock-smoke/missing
+
+go 1.23
+
+require ${packages.go} v1.0.0
+`
+  );
+  writeFileSync(
+    path.join(rootDir, "Cargo.toml"),
+    `[package]
+name = "sloplock-smoke-missing"
+version = "0.1.0"
+
+[dependencies]
+${packages.crates} = "1"
+`
+  );
+
+  return rootDir;
+}
+
+function createPrivateFixture(rootDir) {
+  mkdirSync(rootDir, { recursive: true });
+  writeJson(path.join(rootDir, "package.json"), {
+    dependencies: {
+      "local-npm-package": "file:../local-npm-package"
+    }
+  });
+  writeFileSync(
+    path.join(rootDir, "requirements.txt"),
+    [
+      "local-python-package @ file:///tmp/local-python-package",
+      "git+https://github.com/example/python-package.git",
+      "./local-python-package"
+    ].join("\n") + "\n"
+  );
+  writeFileSync(
+    path.join(rootDir, "sloplock.yml"),
+    `go:
+  privateModules:
+    - github.com/private-org/*
+`
+  );
+  writeFileSync(
+    path.join(rootDir, "go.mod"),
+    `module github.com/sloplock-smoke/private
+
+go 1.23
+
+require github.com/private-org/internal-module v1.0.0
+`
+  );
+  writeFileSync(
+    path.join(rootDir, "Cargo.toml"),
+    `[package]
+name = "sloplock-smoke-private"
+version = "0.1.0"
+
+[dependencies]
+path-crate = { path = "../path-crate" }
+git-crate = { git = "https://github.com/example/git-crate" }
+private-crate = { version = "1", registry = "private" }
+workspace-crate = { workspace = true }
+`
+  );
+
+  return rootDir;
+}
+
+function createChangedOnlyFixture(rootDir) {
+  mkdirSync(rootDir, { recursive: true });
+  writeJson(path.join(rootDir, "package.json"), {
+    dependencies: {
+      react: "^18.2.0"
+    }
+  });
+  writeFileSync(path.join(rootDir, "requirements.txt"), "requests==2.32.0\n");
+  writeFileSync(
+    path.join(rootDir, "go.mod"),
+    `module github.com/sloplock-smoke/changed
+
+go 1.23
+
+require github.com/stretchr/testify v1.10.0
+`
+  );
+  writeFileSync(
+    path.join(rootDir, "Cargo.toml"),
+    `[package]
+name = "sloplock-smoke-changed"
+version = "0.1.0"
+
+[dependencies]
+serde = "1"
+`
+  );
+
+  run("git", ["init", "-q", "-b", "main"], { cwd: rootDir });
+  run("git", ["add", "."], { cwd: rootDir });
+  run(
+    "git",
+    [
+      "-c",
+      "commit.gpgsign=false",
+      "-c",
+      "user.email=sloplock@example.test",
+      "-c",
+      "user.name=SlopLock",
+      "commit",
+      "-q",
+      "-m",
+      "base"
+    ],
+    { cwd: rootDir }
+  );
+  run("git", ["checkout", "-q", "-b", "feature/smoke"], { cwd: rootDir });
+
+  const packages = missingPackages("changed");
+  writeJson(path.join(rootDir, "package.json"), {
+    dependencies: {
+      react: "^18.2.0",
+      [packages.npm]: "^1.0.0"
+    }
+  });
+  writeFileSync(
+    path.join(rootDir, "requirements.txt"),
+    `requests==2.32.0\n${packages.pypi}==1.0.0\n`
+  );
+  writeFileSync(
+    path.join(rootDir, "go.mod"),
+    `module github.com/sloplock-smoke/changed
+
+go 1.23
+
+require (
+  github.com/stretchr/testify v1.10.0
+  ${packages.go} v1.0.0
+)
+`
+  );
+  writeFileSync(
+    path.join(rootDir, "Cargo.toml"),
+    `[package]
+name = "sloplock-smoke-changed"
+version = "0.1.0"
+
+[dependencies]
+serde = "1"
+${packages.crates} = "1"
+`
+  );
+  run("git", ["add", "."], { cwd: rootDir });
+  run(
+    "git",
+    [
+      "-c",
+      "commit.gpgsign=false",
+      "-c",
+      "user.email=sloplock@example.test",
+      "-c",
+      "user.name=SlopLock",
+      "commit",
+      "-q",
+      "-m",
+      "add missing dependencies"
+    ],
+    { cwd: rootDir }
+  );
+
+  return rootDir;
+}
+
+function runCliJson(rootDir, extraArgs, expectedStatus = 0) {
+  const result = spawnSync(
+    process.execPath,
+    [cliPath, rootDir, "--format", "json", ...extraArgs],
+    {
+      cwd: repoRoot,
+      encoding: "utf8"
+    }
+  );
+
+  if (result.status !== expectedStatus) {
+    throw new Error(
+      `Expected CLI exit ${expectedStatus}, got ${String(result.status)}.\n` +
+        `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`
+    );
+  }
+
+  const report = JSON.parse(result.stdout);
+  return expectedStatus === 0 ? report : { report, status: result.status };
+}
+
+function runAction(rootDir, expectedStatus) {
+  const outputFile = path.join(tempDir, `action-output-${safeName(rootDir)}`);
+  const summaryFile = path.join(tempDir, `action-summary-${safeName(rootDir)}`);
+  writeFileSync(outputFile, "");
+  writeFileSync(summaryFile, "");
+
+  const result = spawnSync(process.execPath, [actionPath], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      INPUT_PATH: rootDir,
+      INPUT_ECOSYSTEM: "all",
+      INPUT_COMMENT: "false",
+      "INPUT_CHANGED-ONLY": "false",
+      "INPUT_FAIL-CLOSED": "false",
+      GITHUB_OUTPUT: outputFile,
+      GITHUB_STEP_SUMMARY: summaryFile
+    }
+  });
+
+  if (result.status !== expectedStatus) {
+    throw new Error(
+      `Expected action exit ${expectedStatus}, got ${String(result.status)}.\n` +
+        `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`
+    );
+  }
+
+  return {
+    outputs: readActionOutputs(outputFile),
+    summary: readFileSync(summaryFile, "utf8")
+  };
+}
+
+function readActionOutputs(outputFile) {
+  const outputs = {};
+  const lines = readFileSync(outputFile, "utf8").split(/\r?\n/u);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line.length === 0) {
+      continue;
+    }
+
+    const heredoc = /^(.*?)<<(.*)$/u.exec(line);
+    if (heredoc !== null) {
+      const [, key, delimiter] = heredoc;
+      const valueLines = [];
+      index += 1;
+      while (index < lines.length && lines[index] !== delimiter) {
+        valueLines.push(lines[index]);
+        index += 1;
+      }
+      outputs[key] = valueLines.join("\n");
+      continue;
+    }
+
+    const equalsIndex = line.indexOf("=");
+    if (equalsIndex !== -1) {
+      outputs[line.slice(0, equalsIndex)] = line.slice(equalsIndex + 1);
+    }
+  }
+
+  return outputs;
+}
+
+function assertSummary(name, report, expected) {
+  for (const [key, value] of Object.entries(expected)) {
+    if (report.summary?.[key] !== value) {
+      throw new Error(
+        `${name}: expected summary.${key}=${String(value)}, ` +
+          `got ${String(report.summary?.[key])} in ${JSON.stringify(report.summary)}`
+      );
+    }
+  }
+}
+
+function assertFindingRules(name, report, rules) {
+  const actualRules = report.findings
+    .map((finding) => finding.rule)
+    .sort();
+  const expectedRules = [...rules].sort();
+  if (JSON.stringify(actualRules) !== JSON.stringify(expectedRules)) {
+    throw new Error(
+      `${name}: expected finding rules ${JSON.stringify(expectedRules)}, ` +
+        `got ${JSON.stringify(actualRules)}`
+    );
+  }
+}
+
+function assertActionOutputs(name, outputs, expected) {
+  const actualHighest = outputs["highest-severity"] ?? "";
+  if (outputs.findings !== expected.findings) {
+    throw new Error(
+      `${name}: expected action findings=${expected.findings}, ` +
+        `got ${String(outputs.findings)}`
+    );
+  }
+
+  if (actualHighest !== expected.highestSeverity) {
+    throw new Error(
+      `${name}: expected action highest-severity=${expected.highestSeverity}, ` +
+        `got ${actualHighest}`
+    );
+  }
+}
+
+function missingPackages(label = "missing") {
+  const suffix = `${label}-${unique}`.toLowerCase();
+  return {
+    npm: `sloplock-smoke-npm-${suffix}`,
+    pypi: `sloplock-smoke-pypi-${suffix}`,
+    go: `github.com/sloplock-smoke/missing-go-${suffix}`,
+    crates: `sloplock_smoke_crate_${suffix.replaceAll("-", "_")}`.slice(0, 64)
+  };
+}
+
+function safeName(input) {
+  return path.basename(input).replace(/[^a-z0-9_-]/giu, "_");
+}
+
+function writeJson(filePath, value) {
+  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function run(command, args, options) {
+  execFileSync(command, args, {
+    stdio: "ignore",
+    ...options
+  });
+}

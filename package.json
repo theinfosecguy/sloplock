@@ -28,7 +28,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "pack:dry-run": "npm pack --dry-run",
-    "smoke:package": "node scripts/smoke-package.mjs"
+    "smoke:package": "node scripts/smoke-package.mjs",
+    "smoke:ecosystems": "node scripts/smoke-ecosystems.mjs"
   },
   "keywords": [
     "supply-chain",

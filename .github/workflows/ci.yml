@@ -51,6 +51,10 @@ jobs:
       - name: Verify generated artifacts are current
         run: git diff --exit-code -- dist
 
+      - name: Verify multi-ecosystem smoke
+        if: matrix.node-version == 24
+        run: npm run smoke:ecosystems
+
       - name: Check package contents
         run: npm run pack:dry-run
 
