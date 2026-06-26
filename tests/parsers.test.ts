@@ -4,8 +4,10 @@ import { parsePackageLock } from "../src/parsers/package-lock.js";
 import { parsePdmLock } from "../src/parsers/pdm-lock.js";
 import { parsePnpmLock } from "../src/parsers/pnpm-lock.js";
 import { parseDependencyFile, isSupportedDependencyFile } from "../src/parsers/index.js";
+import { parsePoetryLock } from "../src/parsers/poetry-lock.js";
 import { parsePyproject } from "../src/parsers/pyproject.js";
 import { parsePythonRequirements } from "../src/parsers/python-requirements.js";
+import { parseUvLock } from "../src/parsers/uv-lock.js";
 import { parseYarnLock } from "../src/parsers/yarn-lock.js";
 
 describe("npm dependency parsers", () => {
@@ -249,6 +251,91 @@ git+https://github.com/example/pkg.git
     ]);
   });
 
+  it("extracts registry dependencies from poetry.lock", () => {
+    const parsed = parsePoetryLock({
+      sourceFile: "poetry.lock",
+      content: `
+[[package]]
+name = "Django"
+version = "5.0.1"
+description = "A high-level Python web framework."
+optional = false
+python-versions = ">=3.10"
+files = []
+
+[[package]]
+name = "zope.interface"
+version = "6.0"
+description = "Interfaces for Python."
+optional = false
+python-versions = ">=3.7"
+files = []
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "django",
+      "zope-interface"
+    ]);
+    expect(parsed.references.map((reference) => reference.sourceKind)).toEqual([
+      "lockfile",
+      "lockfile"
+    ]);
+  });
+
+  it("skips non-public poetry.lock package sources", () => {
+    const parsed = parsePoetryLock({
+      sourceFile: "poetry.lock",
+      content: `
+[[package]]
+name = "requests"
+version = "2.32.0"
+
+[[package]]
+name = "local-pkg"
+version = "0.1.0"
+[package.source]
+type = "directory"
+url = "../local-pkg"
+
+[[package]]
+name = "git-pkg"
+version = "0.1.0"
+[package.source]
+type = "git"
+url = "https://github.com/example/pkg.git"
+
+[[package]]
+name = "url-pkg"
+version = "0.1.0"
+[package.source]
+type = "url"
+url = "https://example.com/pkg.whl"
+
+[[package]]
+name = "private-index-pkg"
+version = "1.0.0"
+[package.source]
+type = "legacy"
+url = "https://packages.example.invalid/simple"
+reference = "private"
+
+[[package]]
+name = "public-source-pkg"
+version = "1.0.0"
+[package.source]
+type = "legacy"
+url = "https://pypi.org/simple/"
+reference = "pypi"
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "requests",
+      "public-source-pkg"
+    ]);
+  });
+
   it("extracts dependencies from pyproject project metadata", () => {
     const parsed = parsePyproject({
       sourceFile: "pyproject.toml",
@@ -403,12 +490,114 @@ source = { editable = "../source-editable-package" }
   });
 
   it("parses pdm.lock through dependency file discovery", () => {
+    expect(isSupportedDependencyFile("pdm.lock")).toBe(true);
+
     const parsed = parseDependencyFile({
       sourceFile: "pdm.lock",
       content: `
 [[package]]
 name = "missing-python-package"
 version = "1.0.0"
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "missing-python-package"
+    ]);
+    expect(parsed.references[0]?.ecosystem).toBe("pypi");
+  });
+
+  it("extracts PyPI registry packages from uv.lock and skips non-registry sources", () => {
+    const parsed = parseUvLock({
+      sourceFile: "uv.lock",
+      content: `
+version = 1
+revision = 2
+requires-python = ">=3.12"
+
+[[package]]
+name = "Requests"
+version = "2.34.2"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "zope.interface"
+version = "6.0.0"
+source = { registry = "https://pypi.org/simple/" }
+
+[[package]]
+name = "private-package"
+version = "1.0.0"
+source = { registry = "https://packages.example.test/simple" }
+
+[[package]]
+name = "path-package"
+version = "1.0.0"
+source = { path = "../path-package" }
+
+[[package]]
+name = "directory-package"
+version = "1.0.0"
+source = { directory = "../directory-package" }
+
+[[package]]
+name = "editable-package"
+version = "1.0.0"
+source = { editable = "../editable-package" }
+
+[[package]]
+name = "git-package"
+version = "1.0.0"
+source = { git = "https://github.com/example/git-package" }
+
+[[package]]
+name = "url-package"
+version = "1.0.0"
+source = { url = "https://example.test/url-package-1.0.0.tar.gz" }
+
+[[package]]
+name = "workspace-package"
+version = "1.0.0"
+source = { workspace = true }
+
+[[package]]
+name = "member-package"
+version = "1.0.0"
+source = { member = "packages/member-package" }
+
+[[package]]
+name = "project"
+version = "0.1.0"
+source = { virtual = "." }
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "requests",
+      "zope-interface"
+    ]);
+    expect(parsed.references.map((reference) => reference.sourceKind)).toEqual([
+      "lockfile",
+      "lockfile"
+    ]);
+    expect(parsed.references.map((reference) => reference.isDirect)).toEqual([
+      false,
+      false
+    ]);
+  });
+
+  it("parses uv.lock through dependency file discovery", () => {
+    expect(isSupportedDependencyFile("uv.lock")).toBe(true);
+
+    const parsed = parseDependencyFile({
+      sourceFile: "uv.lock",
+      content: `
+version = 1
+
+[[package]]
+name = "missing-python-package"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
 `
     });
 

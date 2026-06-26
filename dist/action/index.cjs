@@ -31333,6 +31333,14 @@ function normalizePypiPackageName(name) {
   }
   return trimmed.toLowerCase().replace(/[-_.]+/gu, "-");
 }
+function isPublicPypiRegistryUrl(specifier) {
+  try {
+    const url = new URL(specifier);
+    return url.hostname === "pypi.org" && url.pathname.replace(/\/+$/u, "") === "/simple";
+  } catch {
+    return false;
+  }
+}
 
 // src/core/packages.ts
 function normalizePackageName(ecosystem, packageName) {
@@ -32597,6 +32605,74 @@ function dedupeReferences2(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
+// src/parsers/poetry-lock.ts
+function parsePoetryLock(options) {
+  const parsed = parseTomlObject2(options.content, options.sourceFile);
+  const packages = parsed.package;
+  if (!Array.isArray(packages)) {
+    return { references: [], warnings: [] };
+  }
+  const references = packages.flatMap(
+    (entry) => referenceFromPackageEntry(entry, options.sourceFile)
+  );
+  return { references, warnings: [] };
+}
+function referenceFromPackageEntry(entry, sourceFile) {
+  if (!isRecord2(entry) || !isPublicPypiSource(readRecord(entry, "source"))) {
+    return [];
+  }
+  const rawName = entry.name;
+  if (typeof rawName !== "string") {
+    return [];
+  }
+  const packageName = normalizePypiPackageName(rawName);
+  if (packageName === void 0) {
+    return [];
+  }
+  return [
+    makePypiReference({
+      name: packageName,
+      ...versionRangeInput(entry.version),
+      sourceFile,
+      sourceKind: "lockfile",
+      isDirect: false
+    })
+  ];
+}
+function isPublicPypiSource(source) {
+  if (source === void 0) {
+    return true;
+  }
+  const sourceUrl = readString(source, "url");
+  if (sourceUrl !== void 0) {
+    return isPublicPypiRegistryUrl(sourceUrl);
+  }
+  return readString(source, "type")?.toLowerCase() === "pypi";
+}
+function versionRangeInput(version) {
+  return typeof version === "string" && version.trim().length > 0 ? { versionRange: version.trim() } : {};
+}
+function readRecord(input, key) {
+  const value = input[key];
+  return isRecord2(value) ? value : void 0;
+}
+function readString(input, key) {
+  const value = input[key];
+  return typeof value === "string" ? value : void 0;
+}
+function parseTomlObject2(content, sourceFile) {
+  try {
+    const parsed = parse3(content);
+    if (!isRecord2(parsed)) {
+      throw new Error("expected a TOML table");
+    }
+    return parsed;
+  } catch (error2) {
+    const message = error2 instanceof Error ? error2.message : String(error2);
+    throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
+  }
+}
+
 // src/parsers/pnpm-lock.ts
 var import_yaml2 = __toESM(require_dist2(), 1);
 function parsePnpmLock(options) {
@@ -32837,7 +32913,7 @@ function isDirectOrLocalRequirement(line) {
 
 // src/parsers/pyproject.ts
 function parsePyproject(options) {
-  const parsed = parseTomlObject2(options.content, options.sourceFile);
+  const parsed = parseTomlObject3(options.content, options.sourceFile);
   const references = [
     ...parseProjectDependencies(parsed, options),
     ...parsePoetryDependencies(parsed, options)
@@ -32845,14 +32921,14 @@ function parsePyproject(options) {
   return { references, warnings: [] };
 }
 function parseProjectDependencies(parsed, options) {
-  const project = readRecord(parsed, "project");
+  const project = readRecord2(parsed, "project");
   if (project === void 0) {
     return [];
   }
   return [
     ...parseRequirementArray(project.dependencies, options),
     ...parseOptionalDependencyGroups(
-      readRecord(project, "optional-dependencies"),
+      readRecord2(project, "optional-dependencies"),
       options
     )
   ];
@@ -32866,13 +32942,13 @@ function parseOptionalDependencyGroups(groups, options) {
   );
 }
 function parsePoetryDependencies(parsed, options) {
-  const poetry = readRecord(readRecord(parsed, "tool"), "poetry");
+  const poetry = readRecord2(readRecord2(parsed, "tool"), "poetry");
   if (poetry === void 0) {
     return [];
   }
   return [
-    ...parsePoetryDependencyTable(readRecord(poetry, "dependencies"), options),
-    ...parsePoetryDependencyGroups(readRecord(poetry, "group"), options)
+    ...parsePoetryDependencyTable(readRecord2(poetry, "dependencies"), options),
+    ...parsePoetryDependencyGroups(readRecord2(poetry, "group"), options)
   ];
 }
 function parsePoetryDependencyGroups(groups, options) {
@@ -32881,7 +32957,7 @@ function parsePoetryDependencyGroups(groups, options) {
   }
   return Object.values(groups).flatMap(
     (group) => parsePoetryDependencyTable(
-      readRecord(isRecord2(group) ? group : void 0, "dependencies"),
+      readRecord2(isRecord2(group) ? group : void 0, "dependencies"),
       options
     )
   );
@@ -32916,7 +32992,7 @@ function parsePoetryDependencyTable(table, options) {
     return [
       makePypiReference({
         name: packageName,
-        ...versionRangeInput(specifier),
+        ...versionRangeInput2(specifier),
         sourceFile: options.sourceFile,
         sourceKind: "manifest",
         isDirect: true,
@@ -32925,7 +33001,7 @@ function parsePoetryDependencyTable(table, options) {
     ];
   });
 }
-function versionRangeInput(specifier) {
+function versionRangeInput2(specifier) {
   if (typeof specifier === "string" && specifier.trim().length > 0) {
     return { versionRange: specifier.trim() };
   }
@@ -32940,11 +33016,11 @@ function isLocalPoetrySpecifier(specifier) {
   }
   return ["path", "git", "url"].some((field) => specifier[field] !== void 0);
 }
-function readRecord(input, key) {
+function readRecord2(input, key) {
   const value = key === void 0 ? input : input?.[key];
   return isRecord2(value) ? value : void 0;
 }
-function parseTomlObject2(content, sourceFile) {
+function parseTomlObject3(content, sourceFile) {
   try {
     const parsed = parse3(content);
     if (!isRecord2(parsed)) {
@@ -32960,6 +33036,69 @@ function lineNumberInput3(content, pattern) {
   const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(content, new RegExp(escaped, "u"));
   return sourceLine === void 0 ? {} : { sourceLine };
+}
+
+// src/parsers/uv-lock.ts
+function parseUvLock(options) {
+  const parsed = parseTomlObject4(options.content, options.sourceFile);
+  return {
+    references: dedupeReferences4(parsePackages3(parsed.package, options)),
+    warnings: []
+  };
+}
+function parsePackages3(packages, options) {
+  if (!Array.isArray(packages)) {
+    return [];
+  }
+  return packages.flatMap((metadata) => {
+    if (!isPublicPypiPackage(metadata)) {
+      return [];
+    }
+    const packageName = normalizePypiPackageName(metadata.name);
+    if (packageName === void 0) {
+      return [];
+    }
+    return [
+      makePypiReference({
+        name: packageName,
+        ...typeof metadata.version === "string" ? { versionRange: metadata.version } : {},
+        sourceFile: options.sourceFile,
+        sourceKind: "lockfile",
+        isDirect: false,
+        ...lineNumberInput4(options.content, metadata.name)
+      })
+    ];
+  });
+}
+function isPublicPypiPackage(metadata) {
+  if (!isRecord2(metadata) || typeof metadata.name !== "string") {
+    return false;
+  }
+  const source = metadata.source;
+  return isRecord2(source) && typeof source.registry === "string" && isPublicPypiRegistryUrl(source.registry);
+}
+function parseTomlObject4(content, sourceFile) {
+  try {
+    const parsed = parse3(content);
+    if (!isRecord2(parsed)) {
+      throw new Error("expected a TOML table");
+    }
+    return parsed;
+  } catch (error2) {
+    const message = error2 instanceof Error ? error2.message : String(error2);
+    throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
+  }
+}
+function lineNumberInput4(content, packageName) {
+  const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const sourceLine = lineNumberForPattern(
+    content,
+    new RegExp(`^name\\s*=\\s*["']${escaped}["']`, "mu")
+  );
+  return sourceLine === void 0 ? {} : { sourceLine };
+}
+function dedupeReferences4(references) {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
 // src/parsers/yarn-lock.ts
@@ -32987,7 +33126,7 @@ function parseYarnLock(options) {
     }
   }
   return {
-    references: dedupeReferences4(references),
+    references: dedupeReferences5(references),
     warnings: []
   };
 }
@@ -33045,7 +33184,7 @@ function packageNameFromPossibleAliasTarget(value) {
   const match = value.match(/^([a-z0-9][a-z0-9._-]*)@/iu);
   return match?.[1] === void 0 ? void 0 : normalizeNpmPackageName(match[1]);
 }
-function dedupeReferences4(references) {
+function dedupeReferences5(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33054,9 +33193,11 @@ var supportedFileNames = /* @__PURE__ */ new Set([
   "package.json",
   "package-lock.json",
   "pdm.lock",
+  "poetry.lock",
   "pnpm-lock.yaml",
   "pyproject.toml",
   "requirements.txt",
+  "uv.lock",
   "yarn.lock"
 ]);
 function isSupportedDependencyFile(filePath) {
@@ -33092,10 +33233,14 @@ function parseByFileName(fileName, sourceFile, content) {
       return parsePackageLock({ sourceFile, content });
     case "pdm.lock":
       return parsePdmLock({ sourceFile, content });
+    case "poetry.lock":
+      return parsePoetryLock({ sourceFile, content });
     case "pnpm-lock.yaml":
       return parsePnpmLock({ sourceFile, content });
     case "pyproject.toml":
       return parsePyproject({ sourceFile, content });
+    case "uv.lock":
+      return parseUvLock({ sourceFile, content });
     case "yarn.lock":
       return parseYarnLock({ sourceFile, content });
     default:
