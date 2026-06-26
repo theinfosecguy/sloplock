@@ -1,4 +1,4 @@
-name: SlopLock Dependency Gate
+name: SlopLock
 description: Block AI-hallucinated, nonexistent, and too-new dependencies in pull requests.
 author: SlopLock
 inputs:
