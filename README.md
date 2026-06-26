@@ -202,9 +202,18 @@ npm run typecheck
 npm run lint
 npm test
 npm run build
+npm run check:dist-policy
 npm run smoke:ecosystems
 npm run pack:dry-run
 npm run smoke:package
 ```
 
 `npm run smoke:ecosystems` exercises the built CLI and bundled GitHub Action across npm, PyPI, Go, crates.io, Maven Central, NuGet.org, Packagist, and RubyGems.org fixtures. `npm run smoke:package` packs the package, installs the tarball into a temporary project, and verifies the published CLI entry point.
+
+`dist/` is committed because `action.yml` runs the bundled JavaScript Action
+from `dist/action/index.cjs`, but feature PRs should leave generated artifacts
+out. CI builds fresh artifacts for tests and smoke checks on every PR. After a
+batch of source changes lands on `main`, run `npm run build` from `main` and
+open a dedicated generated-artifact refresh PR that contains only `dist/`
+changes. Dist-only PRs and version-tag checks verify that committed `dist/` is
+current.
