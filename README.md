@@ -6,7 +6,7 @@ SlopLock blocks nonexistent and too-new npm and PyPI packages before they enter 
 npx sloplock .
 ```
 
-V1 is intentionally narrow: npm package names in `package.json` and npm lockfiles, plus PyPI package names in `requirements*.txt`, `*-requirements.txt`, `constraints*.txt`, `*-constraints.txt`, and `pyproject.toml`, checked for package existence and first-published cooldown.
+V1 is intentionally narrow: npm package names in `package.json`, `package-lock.json`, `pnpm-lock.yaml`, and `yarn.lock`, plus PyPI package names in `requirements*.txt`, `*-requirements.txt`, `constraints*.txt`, `*-constraints.txt`, `pyproject.toml`, `pdm.lock`, `poetry.lock`, and `uv.lock`, checked for package existence and first-published cooldown.
 
 ## GitHub Action
 

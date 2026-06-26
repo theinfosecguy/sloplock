@@ -221,6 +221,8 @@ git+https://github.com/example/pkg.git
     expect(isSupportedDependencyFile("constraints.txt")).toBe(true);
     expect(isSupportedDependencyFile("prod-constraints.txt")).toBe(true);
     expect(isSupportedDependencyFile("pdm.lock")).toBe(true);
+    expect(isSupportedDependencyFile("poetry.lock")).toBe(true);
+    expect(isSupportedDependencyFile("uv.lock")).toBe(true);
   });
 
   it("extracts includes from requirements files", () => {
@@ -277,9 +279,23 @@ files = []
       "django",
       "zope-interface"
     ]);
-    expect(parsed.references.map((reference) => reference.sourceKind)).toEqual([
-      "lockfile",
-      "lockfile"
+    expect(
+      parsed.references.map((reference) => ({
+        name: reference.name,
+        sourceKind: reference.sourceKind,
+        sourceLine: reference.sourceLine
+      }))
+    ).toEqual([
+      {
+        name: "django",
+        sourceKind: "lockfile",
+        sourceLine: 3
+      },
+      {
+        name: "zope-interface",
+        sourceKind: "lockfile",
+        sourceLine: 11
+      }
     ]);
   });
 
@@ -334,6 +350,25 @@ reference = "pypi"
       "requests",
       "public-source-pkg"
     ]);
+  });
+
+  it("parses poetry.lock through dependency file discovery", () => {
+    expect(isSupportedDependencyFile("poetry.lock")).toBe(true);
+
+    const parsed = parseDependencyFile({
+      sourceFile: "poetry.lock",
+      content: `
+[[package]]
+name = "missing-python-package"
+version = "1.0.0"
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "missing-python-package"
+    ]);
+    expect(parsed.references[0]?.ecosystem).toBe("pypi");
+    expect(parsed.references[0]?.sourceLine).toBe(3);
   });
 
   it("extracts dependencies from pyproject project metadata", () => {
@@ -481,6 +516,11 @@ source = { path = "../source-path-package" }
 name = "source-editable-package"
 version = "0.1.0"
 source = { editable = "../source-editable-package" }
+
+[[package]]
+name = "private-registry-package"
+version = "1.0.0"
+source = { registry = "https://packages.example.invalid/simple" }
 `
     });
 

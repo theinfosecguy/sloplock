@@ -5,6 +5,7 @@ import {
 } from "../core/pypi.js";
 import {
   isRecord,
+  lineNumberForPattern,
   makePypiReference,
   type ParsedDependencyFile,
   type ParseDependencyFileOptions
@@ -20,8 +21,8 @@ export function parsePoetryLock(
     return { references: [], warnings: [] };
   }
 
-  const references = packages.flatMap((entry) =>
-    referenceFromPackageEntry(entry, options.sourceFile)
+  const references = dedupeReferences(
+    packages.flatMap((entry) => referenceFromPackageEntry(entry, options))
   );
 
   return { references, warnings: [] };
@@ -29,7 +30,7 @@ export function parsePoetryLock(
 
 function referenceFromPackageEntry(
   entry: unknown,
-  sourceFile: string
+  options: ParseDependencyFileOptions
 ): ReturnType<typeof makePypiReference>[] {
   if (!isRecord(entry) || !isPublicPypiSource(readRecord(entry, "source"))) {
     return [];
@@ -49,9 +50,10 @@ function referenceFromPackageEntry(
     makePypiReference({
       name: packageName,
       ...versionRangeInput(entry.version),
-      sourceFile,
+      sourceFile: options.sourceFile,
       sourceKind: "lockfile",
-      isDirect: false
+      isDirect: false,
+      ...lineNumberInput(options.content, rawName)
     })
   ];
 }
@@ -106,4 +108,22 @@ function parseTomlObject(
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
+}
+
+function lineNumberInput(
+  content: string,
+  packageName: string
+): { sourceLine?: number } {
+  const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const sourceLine = lineNumberForPattern(
+    content,
+    new RegExp(`^name\\s*=\\s*["']${escaped}["']`, "mu")
+  );
+  return sourceLine === undefined ? {} : { sourceLine };
+}
+
+function dedupeReferences(
+  references: readonly ReturnType<typeof makePypiReference>[]
+): ReturnType<typeof makePypiReference>[] {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
