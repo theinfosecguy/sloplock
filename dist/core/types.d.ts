@@ -1,4 +1,4 @@
-export type Ecosystem = "npm" | "pypi";
+export type Ecosystem = "go" | "npm" | "pypi";
 export type Severity = "low" | "medium" | "high";
 export type RuleId = "package_not_found" | "package_too_new";
 export type SourceKind = "manifest" | "lockfile" | "docs" | "shell";
@@ -73,6 +73,9 @@ export type SlopLockConfig = {
     cooldown: {
         highDays: number;
         mediumDays: number;
+    };
+    go: {
+        privateModules: readonly string[];
     };
     allow: readonly AllowRule[];
     ignore: readonly IgnoreRule[];

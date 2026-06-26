@@ -1,14 +1,19 @@
+import { GoProxyRegistryClient } from "./go.js";
 import { NpmRegistryClient } from "./npm.js";
 import { PypiRegistryClient } from "./pypi.js";
 export class DefaultRegistryClient {
+    go;
     npm;
     pypi;
     constructor(input = {}) {
+        this.go = input.go ?? new GoProxyRegistryClient();
         this.npm = input.npm ?? new NpmRegistryClient();
         this.pypi = input.pypi ?? new PypiRegistryClient();
     }
     getPackage(reference) {
         switch (reference.ecosystem) {
+            case "go":
+                return this.go.getPackage(reference);
             case "npm":
                 return this.npm.getPackage(reference);
             case "pypi":

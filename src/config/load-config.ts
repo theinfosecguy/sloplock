@@ -14,10 +14,13 @@ import type {
 
 const defaultConfig: SlopLockConfig = {
   failOn: "high",
-  ecosystems: ["npm", "pypi"],
+  ecosystems: ["go", "npm", "pypi"],
   cooldown: {
     highDays: 7,
     mediumDays: 30
+  },
+  go: {
+    privateModules: []
   },
   allow: [],
   ignore: []
@@ -106,11 +109,13 @@ function mergeConfig(input: unknown, failOnOverride: "medium" | "high" | undefin
   const failOn = parseFailOn(input.failOn, failOnOverride);
   const cooldown = parseCooldown(input.cooldown);
   const ecosystems = parseEcosystems(input.ecosystems);
+  const go = parseGoConfig(input.go);
 
   return {
     failOn,
     ecosystems,
     cooldown,
+    go,
     allow: parseAllowRules(input.allow),
     ignore: parseIgnoreRules(input.ignore)
   };
@@ -269,11 +274,11 @@ function filterExpiredIgnoreRules(
 }
 
 function parseEcosystem(input: unknown, field: string): Ecosystem {
-  if (input === "npm" || input === "pypi") {
+  if (input === "go" || input === "npm" || input === "pypi") {
     return input;
   }
 
-  throw new UsageError(`Config ${field} must be npm or pypi.`);
+  throw new UsageError(`Config ${field} must be go, npm, or pypi.`);
 }
 
 function parseRule(input: unknown, field: string): RuleId {
@@ -332,6 +337,46 @@ function parsePositiveInteger(input: unknown, field: string): number {
   }
 
   return input;
+}
+
+function parseGoConfig(input: unknown): SlopLockConfig["go"] {
+  if (input === undefined) {
+    return defaultConfig.go;
+  }
+
+  if (!isRecord(input)) {
+    throw new UsageError("Config go must contain privateModules.");
+  }
+
+  return {
+    privateModules: parseStringArray(
+      input.privateModules,
+      "go.privateModules",
+      defaultConfig.go.privateModules
+    )
+  };
+}
+
+function parseStringArray(
+  input: unknown,
+  field: string,
+  defaultValue: readonly string[]
+): string[] {
+  if (input === undefined) {
+    return [...defaultValue];
+  }
+
+  if (!Array.isArray(input)) {
+    throw new UsageError(`Config ${field} must be an array.`);
+  }
+
+  return input.map((entry, index) => {
+    if (typeof entry !== "string" || entry.trim().length === 0) {
+      throw new UsageError(`Config ${field}[${index}] must be a non-empty string.`);
+    }
+
+    return entry.trim();
+  });
 }
 
 function isRecord(input: unknown): input is Record<string, unknown> {

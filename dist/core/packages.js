@@ -1,7 +1,10 @@
+import { normalizeGoModulePath } from "./go.js";
 import { normalizeNpmPackageName } from "./npm.js";
 import { normalizePypiPackageName } from "./pypi.js";
 export function normalizePackageName(ecosystem, packageName) {
     switch (ecosystem) {
+        case "go":
+            return normalizeGoModulePath(packageName);
         case "npm":
             return normalizeNpmPackageName(packageName);
         case "pypi":
@@ -10,6 +13,8 @@ export function normalizePackageName(ecosystem, packageName) {
 }
 export function registryDisplayName(ecosystem) {
     switch (ecosystem) {
+        case "go":
+            return "Go module proxy";
         case "npm":
             return "npm";
         case "pypi":

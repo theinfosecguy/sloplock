@@ -106,7 +106,7 @@ function buildProgram(): Command<[string], ProgramOptions> {
     )
     .option(
       "--ecosystem <ecosystem>",
-      "ecosystem to scan: npm or pypi",
+      "ecosystem to scan: go, npm, or pypi",
       parseEcosystem
     )
     .option(
@@ -136,11 +136,11 @@ function parseFailOn(value: string): "medium" | "high" {
 }
 
 function parseEcosystem(value: string): Ecosystem {
-  if (value === "npm" || value === "pypi") {
+  if (value === "go" || value === "npm" || value === "pypi") {
     return value;
   }
 
-  throw new InvalidArgumentError("must be npm or pypi.");
+  throw new InvalidArgumentError("must be go, npm, or pypi.");
 }
 
 function hasFlag(

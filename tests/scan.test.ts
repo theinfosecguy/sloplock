@@ -117,6 +117,107 @@ old-python-package~=1.0
     ]);
   });
 
+  it("reports missing and too-new Go modules from go.mod", async () => {
+    const rootDir = await tempProject({
+      "go.mod": `
+module example.com/service
+
+go 1.24
+
+require (
+  github.com/example/missing-module v1.0.0
+  github.com/example/fresh-module v1.0.0
+  github.com/example/old-module v1.0.0
+  github.com/example/local-module v1.0.0
+)
+
+replace github.com/example/local-module => ../local-module
+`
+    });
+    const result = await scan({
+      rootDir,
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "go:github.com/example/missing-module": {
+          status: "not_found",
+          ecosystem: "go",
+          name: "github.com/example/missing-module"
+        },
+        "go:github.com/example/fresh-module": found(
+          "github.com/example/fresh-module",
+          "2026-06-22T00:00:00.000Z",
+          "go"
+        ),
+        "go:github.com/example/old-module": found(
+          "github.com/example/old-module",
+          "2020-01-01T00:00:00.000Z",
+          "go"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(3);
+    expect(result.findings.map((finding) => finding.ecosystem)).toEqual([
+      "go",
+      "go"
+    ]);
+    expect(result.findings.map((finding) => finding.package).sort()).toEqual([
+      "github.com/example/fresh-module",
+      "github.com/example/missing-module"
+    ]);
+  });
+
+  it("skips Go private modules from config and environment patterns", async () => {
+    const previousGoPrivate = process.env.GOPRIVATE;
+    process.env.GOPRIVATE = "gitlab.example.com/private/*";
+
+    const rootDir = await tempProject({
+      "sloplock.yml": `
+go:
+  privateModules:
+    - corp.example.com
+    - github.com/acme/*
+`,
+      "go.mod": `
+module example.com/service
+
+go 1.24
+
+require (
+  corp.example.com/internal/module v1.0.0
+  github.com/acme/private-module v1.0.0
+  gitlab.example.com/private/module v1.0.0
+  github.com/public/module v1.0.0
+)
+`
+    });
+    const calls: string[] = [];
+
+    try {
+      const result = await scan({
+        rootDir,
+        registryClient: {
+          getPackage(reference) {
+            calls.push(`${reference.ecosystem}:${reference.name}`);
+            return Promise.resolve(
+              found(reference.name, "2020-01-01T00:00:00.000Z", reference.ecosystem)
+            );
+          }
+        }
+      });
+
+      expect(result.scannedDependencies).toBe(1);
+      expect(result.findings).toEqual([]);
+      expect(calls).toEqual(["go:github.com/public/module"]);
+    } finally {
+      if (previousGoPrivate === undefined) {
+        delete process.env.GOPRIVATE;
+      } else {
+        process.env.GOPRIVATE = previousGoPrivate;
+      }
+    }
+  });
+
   it("discovers common Python requirements files", async () => {
     const rootDir = await tempProject({
       "requirements-dev.txt": "missing-python-package==1.0.0\n"
@@ -586,6 +687,60 @@ reference = "private"
     expect(result.scannedDependencies).toBe(1);
     expect(result.findings[0]?.ecosystem).toBe("pypi");
     expect(result.findings[0]?.package).toBe("new-python-package");
+  });
+
+  it("changed-only scans packages introduced in go.mod", async () => {
+    const rootDir = await tempProject({
+      "go.mod": `
+module example.com/service
+
+go 1.24
+
+require github.com/example/old-module v1.0.0
+`
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "go.mod"),
+      `
+module example.com/service
+
+go 1.24
+
+require (
+  github.com/example/old-module v1.0.0
+  github.com/example/new-module v1.0.0
+  github.com/example/local-module v1.0.0
+)
+
+replace github.com/example/local-module => ../local-module
+`
+    );
+    await commitAll(rootDir, "update go mod");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "go:github.com/example/new-module": {
+          status: "not_found",
+          ecosystem: "go",
+          name: "github.com/example/new-module"
+        },
+        "go:github.com/example/old-module": found(
+          "github.com/example/old-module",
+          "2020-01-01T00:00:00.000Z",
+          "go"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("go");
+    expect(result.findings[0]?.package).toBe("github.com/example/new-module");
+    expect(result.findings[0]?.source.file).toBe("go.mod");
   });
 
   it("changed-only scans packages introduced in pdm.lock", async () => {

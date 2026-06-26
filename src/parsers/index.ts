@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { ConfigWarning, DependencyReference } from "../core/types.js";
 import type { ParsedDependencyFile } from "./common.js";
+import { parseGoMod } from "./go-mod.js";
 import { parsePackageJson } from "./package-json.js";
 import { parsePackageLock } from "./package-lock.js";
 import { parsePdmLock } from "./pdm-lock.js";
@@ -12,6 +13,7 @@ import { parseUvLock } from "./uv-lock.js";
 import { parseYarnLock } from "./yarn-lock.js";
 
 const supportedFileNames = new Set([
+  "go.mod",
   "package.json",
   "package-lock.json",
   "pdm.lock",
@@ -69,6 +71,8 @@ function parseByFileName(
   }
 
   switch (fileName) {
+    case "go.mod":
+      return parseGoMod({ sourceFile, content });
     case "package.json":
       return parsePackageJson({ sourceFile, content });
     case "package-lock.json":
