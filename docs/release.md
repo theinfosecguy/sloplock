@@ -33,14 +33,15 @@ should optimize for `theinfosecguy/sloplock@v1`.
 Create an immutable version tag and update the moving major tag:
 
 ```bash
-git tag -a v1.0.0 -m "Release v1.0.0"
-git push origin v1.0.0
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
 
-git tag -fa v1 v1.0.0 -m "Move v1 to v1.0.0"
+git tag -fa v1 vX.Y.Z -m "Move v1 to vX.Y.Z"
 git push origin refs/tags/v1 --force
 ```
 
-Use `v1.0.0` for exact pinning and `v1` for normal Action installation.
+Use the immutable version tag for exact pinning and `v1` for normal Action
+installation.
 
 ## GitHub Release And Marketplace
 
@@ -48,9 +49,9 @@ GitHub Marketplace publishing for an Action is driven from the release flow and
 the root `action.yml` metadata file.
 
 1. Open `action.yml` in GitHub and use the Marketplace banner to draft a release,
-   or create a GitHub release for `v1.0.0` and select the option to publish the
+   or create a GitHub release for the version tag and select the option to publish the
    Action to GitHub Marketplace.
-2. Use `docs/releases/v1.0.0.md` as the release notes.
+2. Use the matching file under `docs/releases/` as the release notes.
 3. Confirm the Marketplace listing shows:
    - action name: `SlopLock`
    - install ref: `theinfosecguy/sloplock@v1`
