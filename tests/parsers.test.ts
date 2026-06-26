@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parsePackageJson } from "../src/parsers/package-json.js";
 import { parsePackageLock } from "../src/parsers/package-lock.js";
+import { parsePdmLock } from "../src/parsers/pdm-lock.js";
 import { parsePnpmLock } from "../src/parsers/pnpm-lock.js";
 import { parseDependencyFile, isSupportedDependencyFile } from "../src/parsers/index.js";
 import { parsePoetryLock } from "../src/parsers/poetry-lock.js";
@@ -219,6 +220,7 @@ git+https://github.com/example/pkg.git
     expect(isSupportedDependencyFile("dev-requirements.txt")).toBe(true);
     expect(isSupportedDependencyFile("constraints.txt")).toBe(true);
     expect(isSupportedDependencyFile("prod-constraints.txt")).toBe(true);
+    expect(isSupportedDependencyFile("pdm.lock")).toBe(true);
   });
 
   it("extracts includes from requirements files", () => {
@@ -374,6 +376,135 @@ pytest = { version = "^8.0" }
       "requests",
       "pytest"
     ]);
+  });
+
+  it("extracts package entries from pdm.lock", () => {
+    const parsed = parsePdmLock({
+      sourceFile: "pdm.lock",
+      content: `
+[metadata]
+groups = ["default"]
+lock_version = "4.5.0"
+
+[[package]]
+name = "Django"
+version = "5.0.1"
+summary = "A web framework"
+groups = ["default"]
+dependencies = [
+  "asgiref>=3.7.0",
+]
+files = [
+  {file = "Django-5.0.1-py3-none-any.whl", hash = "sha256:test"},
+]
+
+[[package]]
+name = "zope.interface"
+version = "6.1"
+groups = ["default"]
+files = [
+  {file = "zope.interface-6.1.tar.gz", hash = "sha256:test"},
+]
+`
+    });
+
+    expect(
+      parsed.references.map((reference) => ({
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        versionRange: reference.versionRange,
+        sourceKind: reference.sourceKind,
+        isDirect: reference.isDirect,
+        sourceLine: reference.sourceLine
+      }))
+    ).toEqual([
+      {
+        ecosystem: "pypi",
+        name: "django",
+        versionRange: "5.0.1",
+        sourceKind: "lockfile",
+        isDirect: false,
+        sourceLine: 7
+      },
+      {
+        ecosystem: "pypi",
+        name: "zope-interface",
+        versionRange: "6.1",
+        sourceKind: "lockfile",
+        isDirect: false,
+        sourceLine: 19
+      }
+    ]);
+  });
+
+  it("skips local and static URL pdm.lock package entries", () => {
+    const parsed = parsePdmLock({
+      sourceFile: "pdm.lock",
+      content: `
+[[package]]
+name = "requests"
+version = "2.32.0"
+groups = ["default"]
+
+[[package]]
+name = "local-path"
+version = "0.1.0"
+editable = true
+path = "../local-path"
+
+[[package]]
+name = "local-directory"
+version = "0.1.0"
+directory = "../local-directory"
+
+[[package]]
+name = "git-package"
+version = "0.1.0"
+git = "https://github.com/example/git-package.git"
+
+[[package]]
+name = "url-package"
+version = "0.1.0"
+url = "https://example.invalid/url-package-0.1.0.whl"
+
+[[package]]
+name = "source-url-package"
+version = "0.1.0"
+source = { type = "url", url = "https://example.invalid/source-url-package-0.1.0.whl" }
+
+[[package]]
+name = "source-path-package"
+version = "0.1.0"
+source = { path = "../source-path-package" }
+
+[[package]]
+name = "source-editable-package"
+version = "0.1.0"
+source = { editable = "../source-editable-package" }
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "requests"
+    ]);
+  });
+
+  it("parses pdm.lock through dependency file discovery", () => {
+    expect(isSupportedDependencyFile("pdm.lock")).toBe(true);
+
+    const parsed = parseDependencyFile({
+      sourceFile: "pdm.lock",
+      content: `
+[[package]]
+name = "missing-python-package"
+version = "1.0.0"
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "missing-python-package"
+    ]);
+    expect(parsed.references[0]?.ecosystem).toBe("pypi");
   });
 
   it("extracts PyPI registry packages from uv.lock and skips non-registry sources", () => {

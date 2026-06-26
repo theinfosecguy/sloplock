@@ -3,6 +3,7 @@ import type { ConfigWarning, DependencyReference } from "../core/types.js";
 import type { ParsedDependencyFile } from "./common.js";
 import { parsePackageJson } from "./package-json.js";
 import { parsePackageLock } from "./package-lock.js";
+import { parsePdmLock } from "./pdm-lock.js";
 import { parsePoetryLock } from "./poetry-lock.js";
 import { parsePnpmLock } from "./pnpm-lock.js";
 import { parsePyproject } from "./pyproject.js";
@@ -13,6 +14,7 @@ import { parseYarnLock } from "./yarn-lock.js";
 const supportedFileNames = new Set([
   "package.json",
   "package-lock.json",
+  "pdm.lock",
   "poetry.lock",
   "pnpm-lock.yaml",
   "pyproject.toml",
@@ -71,6 +73,8 @@ function parseByFileName(
       return parsePackageJson({ sourceFile, content });
     case "package-lock.json":
       return parsePackageLock({ sourceFile, content });
+    case "pdm.lock":
+      return parsePdmLock({ sourceFile, content });
     case "poetry.lock":
       return parsePoetryLock({ sourceFile, content });
     case "pnpm-lock.yaml":
