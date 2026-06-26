@@ -3592,8 +3592,8 @@ var require_webidl = __commonJS({
       return new TypeError(`${message.header}: ${message.message}`);
     };
     webidl.errors.conversionFailed = function(context3) {
-      const plural = context3.types.length === 1 ? "" : " one of";
-      const message = `${context3.argument} could not be converted to${plural}: ${context3.types.join(", ")}.`;
+      const plural2 = context3.types.length === 1 ? "" : " one of";
+      const message = `${context3.argument} could not be converted to${plural2}: ${context3.types.join(", ")}.`;
       return webidl.errors.exception({
         header: context3.prefix,
         message
@@ -11054,9 +11054,9 @@ var require_pluralizer = __commonJS({
       this: "these"
     };
     module2.exports = class Pluralizer {
-      constructor(singular, plural) {
+      constructor(singular, plural2) {
         this.singular = singular;
-        this.plural = plural;
+        this.plural = plural2;
       }
       pluralize(count) {
         const one = count === 1;
@@ -39359,23 +39359,79 @@ function normalizedConcurrency(input) {
 
 // src/reporting/markdown.ts
 var stickyCommentMarker = "<!-- sloplock-comment -->";
-function renderMarkdown(result) {
-  const lines = [stickyCommentMarker, "", `SlopLock found ${result.findings.length} findings.`];
-  if (result.warnings.length > 0) {
-    lines.push("", "Warnings:");
-    for (const warning2 of result.warnings) {
-      lines.push(`- ${escapeMarkdown(formatWarning(warning2))}`);
-    }
+function renderPullRequestComment(result) {
+  const lines = [
+    stickyCommentMarker,
+    "",
+    "## SlopLock dependency review",
+    "",
+    summarySentence(result)
+  ];
+  if (result.findings.length > 0) {
+    lines.push("", "### Findings");
+    result.findings.forEach((finding, index) => {
+      lines.push(
+        "",
+        `${index + 1}. **${finding.severity.toUpperCase()}** ${escapeMarkdownText(
+          finding.ecosystem
+        )} package ${formatInlineCode(finding.package)}`,
+        `   - Source: ${formatInlineCode(formatSource(finding))}`,
+        `   - Why blocked: ${escapeMarkdownText(finding.evidence)}`,
+        `   - Fix: ${escapeMarkdownText(finding.recommendation)}`,
+        "   - If this is private or internal, add an allow entry with an expiry:",
+        "",
+        "```yaml",
+        "allow:",
+        `  - ecosystem: ${finding.ecosystem}`,
+        `    package: ${finding.package}`,
+        "    reason: private package confirmed by the owning team",
+        "    expires: YYYY-MM-DD",
+        "```"
+      );
+    });
   }
-  if (result.findings.length === 0) {
-    return lines.join("\n");
+  appendRegistryFailureSection(lines, result.registryFailures);
+  appendWarningSection(lines, result.warnings);
+  if (result.findings.length > 0) {
+    lines.push(
+      "",
+      "SlopLock only checks package existence and first-published cooldown. It is not an SCA or vulnerability scanner."
+    );
+  }
+  return lines.join("\n");
+}
+function renderStepSummary(result) {
+  const lines = [
+    "# SlopLock dependency review",
+    "",
+    summarySentence(result),
+    "",
+    "| Metric | Value |",
+    "| --- | --- |",
+    `| Findings | ${result.findings.length} |`,
+    `| Scanned dependencies | ${result.scannedDependencies} |`,
+    `| Fail threshold | ${result.failOn.toUpperCase()} |`,
+    `| Warnings | ${result.warnings.length} |`,
+    `| Registry failures | ${result.registryFailures.length} |`
+  ];
+  appendFindingTable(lines, result.findings);
+  appendRegistryFailureSection(lines, result.registryFailures);
+  appendWarningSection(lines, result.warnings);
+  return lines.join("\n");
+}
+function appendFindingTable(lines, findings) {
+  if (findings.length === 0) {
+    lines.push("", "No blocked dependency names were found.");
+    return;
   }
   lines.push(
+    "",
+    "## Findings",
     "",
     "| Severity | Ecosystem | Package | Rule | Evidence | Source |",
     "| --- | --- | --- | --- | --- | --- |"
   );
-  for (const finding of result.findings) {
+  for (const finding of findings) {
     lines.push(
       `| ${escapeMarkdown(finding.severity.toUpperCase())} | ${escapeMarkdown(
         finding.ecosystem
@@ -39386,12 +39442,43 @@ function renderMarkdown(result) {
       )} |`
     );
   }
-  return lines.join("\n");
 }
-function renderStepSummary(result) {
-  return renderMarkdown(result).replace(`${stickyCommentMarker}
-
-`, "");
+function appendRegistryFailureSection(lines, failures) {
+  if (failures.length === 0) {
+    return;
+  }
+  lines.push(
+    "",
+    "## Registry checks that did not complete",
+    "",
+    "| Ecosystem | Package | Status | Retryable | Message |",
+    "| --- | --- | --- | --- | --- |"
+  );
+  for (const failure9 of failures) {
+    lines.push(
+      `| ${escapeMarkdown(failure9.ecosystem)} | ${escapeMarkdown(
+        failure9.name
+      )} | ${escapeMarkdown(formatStatus(failure9.status))} | ${failure9.retryable ? "yes" : "no"} | ${escapeMarkdown(failure9.message)} |`
+    );
+  }
+}
+function appendWarningSection(lines, warnings) {
+  if (warnings.length === 0) {
+    return;
+  }
+  lines.push("", "## Warnings");
+  for (const warning2 of warnings) {
+    lines.push(`- ${escapeMarkdownText(formatWarning(warning2))}`);
+  }
+}
+function summarySentence(result) {
+  if (result.findings.length === 0) {
+    return "No SlopLock findings were found for this pull request.";
+  }
+  return `SlopLock found ${result.findings.length} dependency ${plural(
+    result.findings.length,
+    "name"
+  )} that need review before merge.`;
 }
 function formatSource(finding) {
   return finding.source.line === void 0 ? finding.source.file : `${finding.source.file}:${finding.source.line}`;
@@ -39399,8 +39486,20 @@ function formatSource(finding) {
 function formatWarning(warning2) {
   return warning2.file === void 0 ? warning2.message : `${warning2.file}: ${warning2.message}`;
 }
+function formatStatus(status) {
+  return status.replace(/_/gu, " ");
+}
 function escapeMarkdown(input) {
   return input.replace(/\|/gu, "\\|").replace(/\r?\n/gu, " ");
+}
+function escapeMarkdownText(input) {
+  return input.replace(/([\\`*_{}[\]()#+\-.!|>])/gu, "\\$1").replace(/\r?\n/gu, " ");
+}
+function formatInlineCode(input) {
+  return `\`${input.replace(/`/gu, "'")}\``;
+}
+function plural(count, singular) {
+  return count === 1 ? singular : `${singular}s`;
 }
 
 // src/core/severity.ts
@@ -39545,6 +39644,7 @@ async function run() {
     ...inputs.config === void 0 ? {} : { configPath: inputs.config }
   });
   annotateFindings(result.findings);
+  annotateRegistryFailures(result.registryFailures);
   await summary.addRaw(renderStepSummary(result)).write();
   setOutput("findings", String(result.findings.length));
   setOutput("highest-severity", highestSeverityOutput(result.findings));
@@ -39552,7 +39652,7 @@ async function run() {
     try {
       await upsertStickyComment({
         token: inputs.githubToken,
-        body: renderMarkdown(result)
+        body: renderPullRequestComment(result)
       });
     } catch (error2) {
       const message = error2 instanceof Error ? error2.message : String(error2);
@@ -39569,13 +39669,20 @@ async function run() {
 }
 function annotateFindings(findings) {
   for (const finding of findings) {
-    const message = `${finding.rule}: ${finding.evidence} ${finding.recommendation}`;
+    const message = `${finding.ecosystem} ${finding.package}: ${finding.evidence}`;
     const properties = finding.source.line === void 0 ? { file: finding.source.file } : { file: finding.source.file, startLine: finding.source.line };
     if (finding.severity === "high") {
       error(message, properties);
     } else {
       warning(message, properties);
     }
+  }
+}
+function annotateRegistryFailures(failures) {
+  for (const failure9 of failures) {
+    warning(
+      `Registry check did not complete for ${failure9.ecosystem} ${failure9.name}: ${failure9.message}`
+    );
   }
 }
 function highestSeverityOutput(findings) {
