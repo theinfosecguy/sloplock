@@ -31811,153 +31811,6 @@ function dedupeReferences(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
-// src/parsers/pnpm-lock.ts
-var import_yaml2 = __toESM(require_dist2(), 1);
-function parsePnpmLock(options) {
-  const parsed = parseYamlObject(options.content, options.sourceFile);
-  const references = [
-    ...parseImporters(parsed.importers, options.sourceFile),
-    ...parsePackages(parsed.packages, options.sourceFile)
-  ];
-  return {
-    references: dedupeReferences2(references),
-    warnings: []
-  };
-}
-function parseImporters(importers, sourceFile) {
-  if (!isRecord2(importers)) {
-    return [];
-  }
-  const references = [];
-  for (const importer of Object.values(importers)) {
-    if (!isRecord2(importer)) {
-      continue;
-    }
-    for (const field of ["dependencies", "devDependencies", "optionalDependencies"]) {
-      const dependencies = importer[field];
-      if (!isRecord2(dependencies)) {
-        continue;
-      }
-      for (const [rawName, rawMetadata] of Object.entries(dependencies)) {
-        const packageName = packageNameFromPnpmDependency(rawName, rawMetadata);
-        if (packageName === void 0) {
-          continue;
-        }
-        references.push(
-          makeNpmReference({
-            name: packageName,
-            sourceFile,
-            sourceKind: "lockfile",
-            isDirect: true
-          })
-        );
-      }
-    }
-  }
-  return references;
-}
-function parsePackages(packages, sourceFile) {
-  if (!isRecord2(packages)) {
-    return [];
-  }
-  const references = [];
-  for (const packageKey of Object.keys(packages)) {
-    const packageName = packageNameFromPnpmPackageKey(packageKey);
-    if (packageName === void 0) {
-      continue;
-    }
-    references.push(
-      makeNpmReference({
-        name: packageName,
-        sourceFile,
-        sourceKind: "lockfile",
-        isDirect: false
-      })
-    );
-  }
-  return references;
-}
-function packageNameFromPnpmDependency(rawName, metadata) {
-  if (isRecord2(metadata)) {
-    const version = metadata.version;
-    if (typeof version === "string") {
-      if (isNonRegistryPnpmSpecifier(version)) {
-        return void 0;
-      }
-      const aliasPackage = packageNameFromNpmAlias(version);
-      if (aliasPackage !== void 0) {
-        return aliasPackage;
-      }
-    }
-    const specifier = metadata.specifier;
-    if (typeof specifier === "string" && isNonRegistryPnpmSpecifier(specifier)) {
-      return void 0;
-    }
-  }
-  if (typeof metadata === "string") {
-    if (isNonRegistryPnpmSpecifier(metadata)) {
-      return void 0;
-    }
-    const aliasPackage = packageNameFromNpmAlias(metadata);
-    if (aliasPackage !== void 0) {
-      return aliasPackage;
-    }
-  }
-  return normalizeNpmPackageName(rawName);
-}
-function packageNameFromPnpmPackageKey(packageKey) {
-  const key = packageKey.startsWith("/") ? packageKey.slice(1) : packageKey;
-  if (isNonRegistryPnpmPackageKey(key)) {
-    return void 0;
-  }
-  if (key.startsWith("@")) {
-    const slashParts = key.split("/");
-    const scope = slashParts[0];
-    const packageName = slashParts[1];
-    if (scope !== void 0 && packageName !== void 0 && slashParts.length >= 3) {
-      return normalizeNpmPackageName(`${scope}/${packageName}`);
-    }
-    return normalizeNpmPackageName(key.match(/^(@[^/]+\/[^@/]+)@/u)?.[1] ?? "");
-  }
-  const slashName = key.match(/^([^/]+)\//u)?.[1];
-  if (slashName !== void 0) {
-    return normalizeNpmPackageName(slashName);
-  }
-  return normalizeNpmPackageName(key.match(/^([^@]+)@/u)?.[1] ?? "");
-}
-function isNonRegistryPnpmSpecifier(specifier) {
-  if (hasNonRegistryProtocol(specifier)) {
-    return true;
-  }
-  if (specifier.startsWith("http:") || specifier.startsWith("https:")) {
-    return !isPublicNpmRegistryUrl(specifier);
-  }
-  return false;
-}
-function isNonRegistryPnpmPackageKey(packageKey) {
-  if (hasNonRegistryProtocol(packageKey)) {
-    return true;
-  }
-  return /(?:^|@)(?:file|link|workspace|portal|patch|git|github):/u.test(
-    packageKey
-  );
-}
-function parseYamlObject(content, sourceFile) {
-  try {
-    const parsed = (0, import_yaml2.parse)(content) ?? {};
-    if (!isRecord2(parsed)) {
-      throw new Error("expected a YAML mapping");
-    }
-    return parsed;
-  } catch (error2) {
-    const message = error2 instanceof Error ? error2.message : String(error2);
-    throw new Error(`Invalid YAML in ${sourceFile}: ${message}`);
-  }
-}
-function dedupeReferences2(references) {
-  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
-}
-
 // node_modules/smol-toml/dist/date.js
 var DATE_TIME_RE = /^(\d{4}-\d{2}-\d{2})?[T ]?(?:(\d{2}):\d{2}(?::\d{2}(?:\.\d+)?)?)?(Z|[-+]\d{2}:\d{2})?$/i;
 var TomlDate = class _TomlDate extends Date {
@@ -32638,6 +32491,259 @@ function parse3(toml, { maxDepth = 1e3, integersAsBigInt } = {}) {
   return res;
 }
 
+// src/parsers/pdm-lock.ts
+var nonRegistrySourceTypes = /* @__PURE__ */ new Set([
+  "directory",
+  "editable",
+  "file",
+  "git",
+  "path",
+  "url",
+  "virtual"
+]);
+var nonRegistrySourceFields = [
+  "directory",
+  "editable",
+  "file",
+  "git",
+  "member",
+  "path",
+  "url",
+  "virtual",
+  "workspace"
+];
+function parsePdmLock(options) {
+  const parsed = parseTomlObject(options.content, options.sourceFile);
+  return {
+    references: dedupeReferences2(parsePackages(parsed.package, options)),
+    warnings: []
+  };
+}
+function parsePackages(packages, options) {
+  if (!Array.isArray(packages)) {
+    return [];
+  }
+  return packages.flatMap((metadata) => {
+    if (!isRegistryPackage(metadata)) {
+      return [];
+    }
+    const packageName = normalizePypiPackageName(metadata.name);
+    if (packageName === void 0) {
+      return [];
+    }
+    return [
+      makePypiReference({
+        name: packageName,
+        ...typeof metadata.version === "string" ? { versionRange: metadata.version } : {},
+        sourceFile: options.sourceFile,
+        sourceKind: "lockfile",
+        isDirect: false,
+        ...lineNumberInput2(options.content, metadata.name)
+      })
+    ];
+  });
+}
+function isRegistryPackage(metadata) {
+  if (!isRecord2(metadata) || typeof metadata.name !== "string") {
+    return false;
+  }
+  if (metadata.editable === true) {
+    return false;
+  }
+  for (const field of nonRegistrySourceFields) {
+    if (typeof metadata[field] === "string") {
+      return false;
+    }
+    if (metadata[field] === true) {
+      return false;
+    }
+  }
+  const source = metadata.source;
+  if (!isRecord2(source)) {
+    return true;
+  }
+  for (const field of nonRegistrySourceFields) {
+    if (typeof source[field] === "string") {
+      return false;
+    }
+    if (source[field] === true) {
+      return false;
+    }
+  }
+  const type = source.type;
+  return !(typeof type === "string" && nonRegistrySourceTypes.has(type.trim().toLowerCase()));
+}
+function parseTomlObject(content, sourceFile) {
+  try {
+    const parsed = parse3(content);
+    if (!isRecord2(parsed)) {
+      throw new Error("expected a TOML table");
+    }
+    return parsed;
+  } catch (error2) {
+    const message = error2 instanceof Error ? error2.message : String(error2);
+    throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
+  }
+}
+function lineNumberInput2(content, packageName) {
+  const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const sourceLine = lineNumberForPattern(
+    content,
+    new RegExp(`^name\\s*=\\s*["']${escaped}["']`, "mu")
+  );
+  return sourceLine === void 0 ? {} : { sourceLine };
+}
+function dedupeReferences2(references) {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
+
+// src/parsers/pnpm-lock.ts
+var import_yaml2 = __toESM(require_dist2(), 1);
+function parsePnpmLock(options) {
+  const parsed = parseYamlObject(options.content, options.sourceFile);
+  const references = [
+    ...parseImporters(parsed.importers, options.sourceFile),
+    ...parsePackages2(parsed.packages, options.sourceFile)
+  ];
+  return {
+    references: dedupeReferences3(references),
+    warnings: []
+  };
+}
+function parseImporters(importers, sourceFile) {
+  if (!isRecord2(importers)) {
+    return [];
+  }
+  const references = [];
+  for (const importer of Object.values(importers)) {
+    if (!isRecord2(importer)) {
+      continue;
+    }
+    for (const field of ["dependencies", "devDependencies", "optionalDependencies"]) {
+      const dependencies = importer[field];
+      if (!isRecord2(dependencies)) {
+        continue;
+      }
+      for (const [rawName, rawMetadata] of Object.entries(dependencies)) {
+        const packageName = packageNameFromPnpmDependency(rawName, rawMetadata);
+        if (packageName === void 0) {
+          continue;
+        }
+        references.push(
+          makeNpmReference({
+            name: packageName,
+            sourceFile,
+            sourceKind: "lockfile",
+            isDirect: true
+          })
+        );
+      }
+    }
+  }
+  return references;
+}
+function parsePackages2(packages, sourceFile) {
+  if (!isRecord2(packages)) {
+    return [];
+  }
+  const references = [];
+  for (const packageKey of Object.keys(packages)) {
+    const packageName = packageNameFromPnpmPackageKey(packageKey);
+    if (packageName === void 0) {
+      continue;
+    }
+    references.push(
+      makeNpmReference({
+        name: packageName,
+        sourceFile,
+        sourceKind: "lockfile",
+        isDirect: false
+      })
+    );
+  }
+  return references;
+}
+function packageNameFromPnpmDependency(rawName, metadata) {
+  if (isRecord2(metadata)) {
+    const version = metadata.version;
+    if (typeof version === "string") {
+      if (isNonRegistryPnpmSpecifier(version)) {
+        return void 0;
+      }
+      const aliasPackage = packageNameFromNpmAlias(version);
+      if (aliasPackage !== void 0) {
+        return aliasPackage;
+      }
+    }
+    const specifier = metadata.specifier;
+    if (typeof specifier === "string" && isNonRegistryPnpmSpecifier(specifier)) {
+      return void 0;
+    }
+  }
+  if (typeof metadata === "string") {
+    if (isNonRegistryPnpmSpecifier(metadata)) {
+      return void 0;
+    }
+    const aliasPackage = packageNameFromNpmAlias(metadata);
+    if (aliasPackage !== void 0) {
+      return aliasPackage;
+    }
+  }
+  return normalizeNpmPackageName(rawName);
+}
+function packageNameFromPnpmPackageKey(packageKey) {
+  const key = packageKey.startsWith("/") ? packageKey.slice(1) : packageKey;
+  if (isNonRegistryPnpmPackageKey(key)) {
+    return void 0;
+  }
+  if (key.startsWith("@")) {
+    const slashParts = key.split("/");
+    const scope = slashParts[0];
+    const packageName = slashParts[1];
+    if (scope !== void 0 && packageName !== void 0 && slashParts.length >= 3) {
+      return normalizeNpmPackageName(`${scope}/${packageName}`);
+    }
+    return normalizeNpmPackageName(key.match(/^(@[^/]+\/[^@/]+)@/u)?.[1] ?? "");
+  }
+  const slashName = key.match(/^([^/]+)\//u)?.[1];
+  if (slashName !== void 0) {
+    return normalizeNpmPackageName(slashName);
+  }
+  return normalizeNpmPackageName(key.match(/^([^@]+)@/u)?.[1] ?? "");
+}
+function isNonRegistryPnpmSpecifier(specifier) {
+  if (hasNonRegistryProtocol(specifier)) {
+    return true;
+  }
+  if (specifier.startsWith("http:") || specifier.startsWith("https:")) {
+    return !isPublicNpmRegistryUrl(specifier);
+  }
+  return false;
+}
+function isNonRegistryPnpmPackageKey(packageKey) {
+  if (hasNonRegistryProtocol(packageKey)) {
+    return true;
+  }
+  return /(?:^|@)(?:file|link|workspace|portal|patch|git|github):/u.test(
+    packageKey
+  );
+}
+function parseYamlObject(content, sourceFile) {
+  try {
+    const parsed = (0, import_yaml2.parse)(content) ?? {};
+    if (!isRecord2(parsed)) {
+      throw new Error("expected a YAML mapping");
+    }
+    return parsed;
+  } catch (error2) {
+    const message = error2 instanceof Error ? error2.message : String(error2);
+    throw new Error(`Invalid YAML in ${sourceFile}: ${message}`);
+  }
+}
+function dedupeReferences3(references) {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
+
 // src/parsers/python-requirements.ts
 var packageRequirementPattern = /^\s*([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)(.*)$/u;
 var directReferencePattern = /\s@\s/u;
@@ -32731,7 +32837,7 @@ function isDirectOrLocalRequirement(line) {
 
 // src/parsers/pyproject.ts
 function parsePyproject(options) {
-  const parsed = parseTomlObject(options.content, options.sourceFile);
+  const parsed = parseTomlObject2(options.content, options.sourceFile);
   const references = [
     ...parseProjectDependencies(parsed, options),
     ...parsePoetryDependencies(parsed, options)
@@ -32791,7 +32897,7 @@ function parseRequirementArray(input, options) {
     return parsePythonRequirementString({
       requirement,
       sourceFile: options.sourceFile,
-      ...lineNumberInput2(options.content, requirement)
+      ...lineNumberInput3(options.content, requirement)
     }).references;
   });
 }
@@ -32814,7 +32920,7 @@ function parsePoetryDependencyTable(table, options) {
         sourceFile: options.sourceFile,
         sourceKind: "manifest",
         isDirect: true,
-        ...lineNumberInput2(options.content, name)
+        ...lineNumberInput3(options.content, name)
       })
     ];
   });
@@ -32838,7 +32944,7 @@ function readRecord(input, key) {
   const value = key === void 0 ? input : input?.[key];
   return isRecord2(value) ? value : void 0;
 }
-function parseTomlObject(content, sourceFile) {
+function parseTomlObject2(content, sourceFile) {
   try {
     const parsed = parse3(content);
     if (!isRecord2(parsed)) {
@@ -32850,7 +32956,7 @@ function parseTomlObject(content, sourceFile) {
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
 }
-function lineNumberInput2(content, pattern) {
+function lineNumberInput3(content, pattern) {
   const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(content, new RegExp(escaped, "u"));
   return sourceLine === void 0 ? {} : { sourceLine };
@@ -32881,7 +32987,7 @@ function parseYarnLock(options) {
     }
   }
   return {
-    references: dedupeReferences3(references),
+    references: dedupeReferences4(references),
     warnings: []
   };
 }
@@ -32939,7 +33045,7 @@ function packageNameFromPossibleAliasTarget(value) {
   const match = value.match(/^([a-z0-9][a-z0-9._-]*)@/iu);
   return match?.[1] === void 0 ? void 0 : normalizeNpmPackageName(match[1]);
 }
-function dedupeReferences3(references) {
+function dedupeReferences4(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -32947,6 +33053,7 @@ function dedupeReferences3(references) {
 var supportedFileNames = /* @__PURE__ */ new Set([
   "package.json",
   "package-lock.json",
+  "pdm.lock",
   "pnpm-lock.yaml",
   "pyproject.toml",
   "requirements.txt",
@@ -32983,6 +33090,8 @@ function parseByFileName(fileName, sourceFile, content) {
       return parsePackageJson({ sourceFile, content });
     case "package-lock.json":
       return parsePackageLock({ sourceFile, content });
+    case "pdm.lock":
+      return parsePdmLock({ sourceFile, content });
     case "pnpm-lock.yaml":
       return parsePnpmLock({ sourceFile, content });
     case "pyproject.toml":

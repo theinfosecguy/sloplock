@@ -180,6 +180,68 @@ old-python-package~=1.0
     expect(result.findings[0]?.source.file).toBe("dev.txt");
   });
 
+  it("scans PyPI packages from pdm.lock", async () => {
+    const rootDir = await tempProject({
+      "pdm.lock": `
+[metadata]
+groups = ["default"]
+lock_version = "4.5.0"
+
+[[package]]
+name = "missing-python-package"
+version = "1.0.0"
+groups = ["default"]
+
+[[package]]
+name = "fresh-python-package"
+version = "1.0.0"
+groups = ["default"]
+
+[[package]]
+name = "old-python-package"
+version = "1.0.0"
+groups = ["default"]
+
+[[package]]
+name = "local-python-package"
+version = "1.0.0"
+editable = true
+path = "../local-python-package"
+`
+    });
+    const result = await scan({
+      rootDir,
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "pypi:missing-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "missing-python-package"
+        },
+        "pypi:fresh-python-package": found(
+          "fresh-python-package",
+          "2026-06-22T00:00:00.000Z",
+          "pypi"
+        ),
+        "pypi:old-python-package": found(
+          "old-python-package",
+          "2020-01-01T00:00:00.000Z",
+          "pypi"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(3);
+    expect(result.findings.map((finding) => finding.package).sort()).toEqual([
+      "fresh-python-package",
+      "missing-python-package"
+    ]);
+    expect(result.findings.map((finding) => finding.source.file)).toEqual([
+      "pdm.lock",
+      "pdm.lock"
+    ]);
+  });
+
   it("filters scans to a selected ecosystem", async () => {
     const rootDir = await tempProject({
       "package.json": JSON.stringify({
@@ -401,6 +463,62 @@ old-python-package~=1.0
     expect(result.scannedDependencies).toBe(1);
     expect(result.findings[0]?.ecosystem).toBe("pypi");
     expect(result.findings[0]?.package).toBe("new-python-package");
+  });
+
+  it("changed-only scans packages introduced in pdm.lock", async () => {
+    const rootDir = await tempProject({
+      "pdm.lock": `
+[[package]]
+name = "old-python-package"
+version = "1.0.0"
+groups = ["default"]
+`
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "pdm.lock"),
+      `
+[[package]]
+name = "old-python-package"
+version = "1.0.0"
+groups = ["default"]
+
+[[package]]
+name = "new-python-package"
+version = "1.0.0"
+groups = ["default"]
+
+[[package]]
+name = "local-python-package"
+version = "1.0.0"
+path = "../local-python-package"
+`
+    );
+    await commitAll(rootDir, "update pdm lock");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "pypi:new-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "new-python-package"
+        },
+        "pypi:old-python-package": found(
+          "old-python-package",
+          "2020-01-01T00:00:00.000Z",
+          "pypi"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("pypi");
+    expect(result.findings[0]?.package).toBe("new-python-package");
+    expect(result.findings[0]?.source.file).toBe("pdm.lock");
   });
 
   it("deduplicates package references before registry lookup", async () => {
