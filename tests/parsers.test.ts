@@ -3,6 +3,8 @@ import { parseCargoLock } from "../src/parsers/cargo-lock.js";
 import { parseCargoToml } from "../src/parsers/cargo-toml.js";
 import { parseComposerJson } from "../src/parsers/composer-json.js";
 import { parseComposerLock } from "../src/parsers/composer-lock.js";
+import { parseGemfile } from "../src/parsers/gemfile.js";
+import { parseGemfileLock } from "../src/parsers/gemfile-lock.js";
 import { parseGoMod } from "../src/parsers/go-mod.js";
 import { parsePackageJson } from "../src/parsers/package-json.js";
 import { parsePackageLock } from "../src/parsers/package-lock.js";
@@ -689,6 +691,179 @@ require github.com/missing/module v1.0.0
       "github.com/missing/module"
     ]);
     expect(parsed.references[0]?.ecosystem).toBe("go");
+  });
+});
+
+describe("RubyGems dependency parsers", () => {
+  it("extracts RubyGems packages from Gemfile.lock and skips nested dependency rows", () => {
+    const parsed = parseGemfileLock({
+      sourceFile: "Gemfile.lock",
+      content: `
+GEM
+  remote: https://rubygems.org/
+  specs:
+    actionpack (7.1.0)
+      rack (~> 3.0)
+    rake (13.0.6)
+
+GIT
+  remote: https://github.com/example/private-gem.git
+  specs:
+    private-gem (0.1.0)
+
+PATH
+  remote: ../local-gem
+  specs:
+    local-gem (0.1.0)
+`
+    });
+
+    expect(
+      parsed.references.map((reference) => ({
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        versionRange: reference.versionRange,
+        sourceKind: reference.sourceKind,
+        isDirect: reference.isDirect,
+        sourceLine: reference.sourceLine
+      }))
+    ).toEqual([
+      {
+        ecosystem: "rubygems",
+        name: "actionpack",
+        versionRange: "7.1.0",
+        sourceKind: "lockfile",
+        isDirect: false,
+        sourceLine: 5
+      },
+      {
+        ecosystem: "rubygems",
+        name: "rake",
+        versionRange: "13.0.6",
+        sourceKind: "lockfile",
+        isDirect: false,
+        sourceLine: 7
+      }
+    ]);
+  });
+
+  it("skips Gemfile.lock GEM sections with non-RubyGems remotes", () => {
+    const parsed = parseGemfileLock({
+      sourceFile: "Gemfile.lock",
+      content: `
+GEM
+  remote: https://gems.example.invalid/
+  specs:
+    private-gem (1.0.0)
+
+GEM
+  remote: https://rubygems.org/
+  remote: https://gems.example.invalid/
+  specs:
+    mixed-source-gem (1.0.0)
+`
+    });
+
+    expect(parsed.references).toEqual([]);
+  });
+
+  it("extracts conservative Gemfile gem lines from RubyGems source contexts", () => {
+    const parsed = parseGemfile({
+      sourceFile: "Gemfile",
+      content: `
+source "https://rubygems.org"
+
+gem "rails", "~> 7.1"
+gem 'rack'
+gem "local-gem", path: "../local-gem"
+gem "git-gem", git: "https://github.com/example/git-gem"
+
+source "https://gems.example.invalid" do
+  gem "private-gem"
+end
+
+source "https://rubygems.org" do
+  gem "public-block-gem", "1.0.0"
+end
+`
+    });
+
+    expect(
+      parsed.references.map((reference) => ({
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        versionRange: reference.versionRange,
+        sourceKind: reference.sourceKind,
+        isDirect: reference.isDirect,
+        sourceLine: reference.sourceLine
+      }))
+    ).toEqual([
+      {
+        ecosystem: "rubygems",
+        name: "rails",
+        versionRange: "~> 7.1",
+        sourceKind: "manifest",
+        isDirect: true,
+        sourceLine: 4
+      },
+      {
+        ecosystem: "rubygems",
+        name: "rack",
+        versionRange: undefined,
+        sourceKind: "manifest",
+        isDirect: true,
+        sourceLine: 5
+      },
+      {
+        ecosystem: "rubygems",
+        name: "public-block-gem",
+        versionRange: "1.0.0",
+        sourceKind: "manifest",
+        isDirect: true,
+        sourceLine: 14
+      }
+    ]);
+  });
+
+  it("skips Gemfile gem lines without a public RubyGems source context", () => {
+    const parsed = parseGemfile({
+      sourceFile: "Gemfile",
+      content: `
+gem "unknown-source-gem"
+
+source "https://gems.example.invalid"
+gem "private-default-gem"
+`
+    });
+
+    expect(parsed.references).toEqual([]);
+  });
+
+  it("parses Ruby files through dependency file discovery", () => {
+    expect(isSupportedDependencyFile("Gemfile")).toBe(true);
+    expect(isSupportedDependencyFile("Gemfile.lock")).toBe(true);
+
+    const manifest = parseDependencyFile({
+      sourceFile: "Gemfile",
+      content: `
+source "https://rubygems.org"
+gem "rails"
+`
+    });
+    const lockfile = parseDependencyFile({
+      sourceFile: "Gemfile.lock",
+      content: `
+GEM
+  remote: https://rubygems.org/
+  specs:
+    rake (13.0.6)
+`
+    });
+
+    expect(manifest.references[0]?.ecosystem).toBe("rubygems");
+    expect(manifest.references[0]?.name).toBe("rails");
+    expect(lockfile.references[0]?.ecosystem).toBe("rubygems");
+    expect(lockfile.references[0]?.name).toBe("rake");
   });
 });
 

@@ -11,12 +11,12 @@ Pre-1.0 releases may receive fixes as patch releases when the issue affects docu
 Please report security issues in SlopLock itself, including:
 
 - Incorrectly treating unavailable or malformed registry responses as package existence results.
-- False negatives that allow clearly nonexistent npm, PyPI, Go, crates.io, or Packagist packages through supported V1 inputs.
+- False negatives that allow clearly nonexistent npm, PyPI, Go, crates.io, Packagist, or RubyGems.org packages through supported V1 inputs.
 - Command injection, path traversal, or unsafe handling of untrusted package names, file paths, branch names, PR metadata, manifests, lockfiles, or config files.
 - GitHub Action behavior that exposes secrets, requires unsafe permissions, or mishandles pull request input.
 - npm package, action, or release workflow issues that could publish stale, tampered, or unexpected artifacts.
 
-V1 intentionally supports npm, PyPI, Go, crates.io, and Packagist package manifests and lockfiles only. Missing support for other ecosystems, package reputation scoring, typosquat detection, vulnerability scanning, install-script analysis, or private registry policy is not considered a vulnerability unless documented behavior says otherwise.
+V1 intentionally supports npm, PyPI, Go, crates.io, Packagist, and RubyGems.org package manifests and lockfiles only. Missing support for other ecosystems, package reputation scoring, typosquat detection, vulnerability scanning, install-script analysis, or private registry policy is not considered a vulnerability unless documented behavior says otherwise.
 
 ## Reporting
 

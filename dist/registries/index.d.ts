@@ -5,12 +5,14 @@ export declare class DefaultRegistryClient implements RegistryClient {
     private readonly npm;
     private readonly packagist;
     private readonly pypi;
+    private readonly rubygems;
     constructor(input?: {
         crates?: RegistryClient;
         go?: RegistryClient;
         npm?: RegistryClient;
         packagist?: RegistryClient;
         pypi?: RegistryClient;
+        rubygems?: RegistryClient;
     });
     getPackage(reference: {
         ecosystem: Ecosystem;

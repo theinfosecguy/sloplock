@@ -32,7 +32,7 @@ export function readActionInputs(): ActionInputs {
   };
 }
 
-function ecosystemsInput(input: string): { ecosystems?: readonly Ecosystem[] } {
+export function ecosystemsInput(input: string): { ecosystems?: readonly Ecosystem[] } {
   const trimmed = input.trim();
   if (trimmed.length === 0 || trimmed === "all") {
     return {};
@@ -43,13 +43,14 @@ function ecosystemsInput(input: string): { ecosystems?: readonly Ecosystem[] } {
     trimmed === "go" ||
     trimmed === "npm" ||
     trimmed === "packagist" ||
-    trimmed === "pypi"
+    trimmed === "pypi" ||
+    trimmed === "rubygems"
   ) {
     return { ecosystems: [trimmed] };
   }
 
   throw new Error(
-    "Action input ecosystem must be all, crates, go, npm, packagist, or pypi."
+    "Action input ecosystem must be all, crates, go, npm, packagist, pypi, or rubygems."
   );
 }
 

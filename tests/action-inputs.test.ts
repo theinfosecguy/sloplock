@@ -27,6 +27,19 @@ describe("readActionInputs", () => {
     });
   });
 
+  it("accepts RubyGems ecosystem scans", () => {
+    inputValues.set("ecosystem", "rubygems");
+
+    expect(readActionInputs()).toMatchObject({
+      path: ".",
+      failOn: "high",
+      ecosystems: ["rubygems"],
+      changedOnly: false,
+      comment: false,
+      failClosed: false
+    });
+  });
+
   it("keeps all ecosystems enabled by default", () => {
     expect(readActionInputs().ecosystems).toBeUndefined();
   });

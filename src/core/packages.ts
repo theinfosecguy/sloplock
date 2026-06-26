@@ -3,6 +3,7 @@ import { normalizeGoModulePath } from "./go.js";
 import { normalizeNpmPackageName } from "./npm.js";
 import { normalizePackagistPackageName } from "./packagist.js";
 import { normalizePypiPackageName } from "./pypi.js";
+import { normalizeRubygemsPackageName } from "./rubygems.js";
 import type { Ecosystem } from "./types.js";
 
 export function normalizePackageName(
@@ -20,6 +21,8 @@ export function normalizePackageName(
       return normalizePackagistPackageName(packageName);
     case "pypi":
       return normalizePypiPackageName(packageName);
+    case "rubygems":
+      return normalizeRubygemsPackageName(packageName);
   }
 }
 
@@ -35,5 +38,7 @@ export function registryDisplayName(ecosystem: Ecosystem): string {
       return "Packagist";
     case "pypi":
       return "PyPI";
+    case "rubygems":
+      return "RubyGems.org";
   }
 }

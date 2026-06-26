@@ -11,3 +11,6 @@ export type ActionInputs = {
     failClosed: boolean;
 };
 export declare function readActionInputs(): ActionInputs;
+export declare function ecosystemsInput(input: string): {
+    ecosystems?: readonly Ecosystem[];
+};

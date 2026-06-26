@@ -3,18 +3,21 @@ import { GoProxyRegistryClient } from "./go.js";
 import { NpmRegistryClient } from "./npm.js";
 import { PackagistRegistryClient } from "./packagist.js";
 import { PypiRegistryClient } from "./pypi.js";
+import { RubyGemsRegistryClient } from "./rubygems.js";
 export class DefaultRegistryClient {
     crates;
     go;
     npm;
     packagist;
     pypi;
+    rubygems;
     constructor(input = {}) {
         this.crates = input.crates ?? new CratesRegistryClient();
         this.go = input.go ?? new GoProxyRegistryClient();
         this.npm = input.npm ?? new NpmRegistryClient();
         this.packagist = input.packagist ?? new PackagistRegistryClient();
         this.pypi = input.pypi ?? new PypiRegistryClient();
+        this.rubygems = input.rubygems ?? new RubyGemsRegistryClient();
     }
     getPackage(reference) {
         switch (reference.ecosystem) {
@@ -28,6 +31,8 @@ export class DefaultRegistryClient {
                 return this.packagist.getPackage(reference);
             case "pypi":
                 return this.pypi.getPackage(reference);
+            case "rubygems":
+                return this.rubygems.getPackage(reference);
         }
     }
 }

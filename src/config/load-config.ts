@@ -14,7 +14,7 @@ import type {
 
 const defaultConfig: SlopLockConfig = {
   failOn: "high",
-  ecosystems: ["crates", "go", "npm", "packagist", "pypi"],
+  ecosystems: ["crates", "go", "npm", "packagist", "pypi", "rubygems"],
   cooldown: {
     highDays: 7,
     mediumDays: 30
@@ -279,13 +279,14 @@ function parseEcosystem(input: unknown, field: string): Ecosystem {
     input === "go" ||
     input === "npm" ||
     input === "packagist" ||
-    input === "pypi"
+    input === "pypi" ||
+    input === "rubygems"
   ) {
     return input;
   }
 
   throw new UsageError(
-    `Config ${field} must be crates, go, npm, packagist, or pypi.`
+    `Config ${field} must be crates, go, npm, packagist, pypi, or rubygems.`
   );
 }
 
