@@ -1,6 +1,7 @@
 PLAN.md
 SCOPE.md
 CODING_GUIDELINES.md
+AGENTS.md
 node_modules/
 coverage/
 *.tgz
