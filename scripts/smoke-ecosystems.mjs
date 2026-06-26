@@ -32,7 +32,7 @@ try {
   const passReport = runCliJson(passFixture, []);
   assertSummary("CLI pass fixture", passReport, {
     findings: 0,
-    scannedDependencies: 8
+    scannedDependencies: 9
   });
   smokeResults.push(["CLI pass", passReport.summary]);
 
@@ -82,7 +82,7 @@ try {
   );
   assertSummary("CLI changed-only fixture", changedResult.report, {
     findings: 8,
-    scannedDependencies: 8,
+    scannedDependencies: 9,
     highestSeverity: "high"
   });
   assertFindingEcosystems("CLI changed-only fixture", changedResult.report, [
@@ -181,6 +181,10 @@ serde = "1"
   </dependencies>
 </project>
 `
+  );
+  writeFileSync(
+    path.join(rootDir, "gradle.lockfile"),
+    "com.google.guava:guava:33.4.8-jre=runtimeClasspath\n"
   );
   writeJson(path.join(rootDir, "composer.json"), {
     require: {
@@ -544,6 +548,10 @@ ${packages.crates} = "1"
   </dependencies>
 </project>
 `
+  );
+  writeFileSync(
+    path.join(rootDir, "gradle.lockfile"),
+    "com.google.guava:guava:33.4.8-jre=runtimeClasspath\n"
   );
   writeFileSync(
     path.join(rootDir, "Gemfile"),

@@ -72,7 +72,7 @@ read-only repository permissions through logs, annotations, and the step summary
 | PyPI | PyPI JSON API | `requirements*.txt`, `*-requirements.txt`, `constraints*.txt`, `*-constraints.txt`, `pyproject.toml`, `pdm.lock`, `poetry.lock`, `uv.lock` |
 | Go | Go module proxy | `go.mod` |
 | Rust | crates.io | `Cargo.toml`, `Cargo.lock` |
-| Maven/JVM | Maven Central | `pom.xml` |
+| Maven/JVM | Maven Central | `pom.xml`, `gradle.lockfile`, `buildscript-gradle.lockfile` |
 | .NET | NuGet.org | `*.csproj`, `Directory.Packages.props`, `packages.config`, `packages.lock.json` |
 | PHP | Packagist | `composer.json`, `composer.lock` |
 | Ruby | RubyGems.org | `Gemfile`, `Gemfile.lock` |
@@ -85,14 +85,17 @@ Ruby source blocks are handled conservatively: dependencies that are tied to
 non-Packagist or non-RubyGems.org sources are skipped instead of being reported
 as public registry misses.
 
-For Maven, SlopLock reads raw `pom.xml` files only. It does not run Maven, read
-effective POMs, resolve parents, activate profiles, or parse Gradle files. It
-checks direct project dependencies and imported BOMs by `groupId:artifactId`.
+For Maven, SlopLock reads raw `pom.xml` files and Gradle dependency lockfiles
+only. It does not run Maven or Gradle, read effective POMs, resolve parents,
+activate profiles, or parse Gradle build scripts. It checks direct project
+dependencies, imported BOMs, and Gradle lockfile entries by `groupId:artifactId`.
 Unresolved property-backed coordinates, `system` scope dependencies, snapshots,
 profiles, plugin dependencies, and ordinary dependency-management entries are
-skipped. If a POM declares custom repositories, Maven Central `not found` results
-become warnings instead of findings unless Central proves the coordinate is
-public.
+skipped. If a POM declares custom repositories, or a coordinate comes from a
+Gradle lockfile that does not record repository source, Maven Central `not found`
+results become warnings instead of findings unless Central proves the coordinate
+is public. SlopLock does not parse `build.gradle`, `build.gradle.kts`, or Gradle
+version catalogs.
 
 ## What It Checks
 

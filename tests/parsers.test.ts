@@ -6,6 +6,7 @@ import { parseComposerLock } from "../src/parsers/composer-lock.js";
 import { parseGemfile } from "../src/parsers/gemfile.js";
 import { parseGemfileLock } from "../src/parsers/gemfile-lock.js";
 import { parseGoMod } from "../src/parsers/go-mod.js";
+import { parseGradleLockfile } from "../src/parsers/gradle-lockfile.js";
 import { parsePomXml } from "../src/parsers/maven.js";
 import {
   parseDirectoryPackagesProps,
@@ -353,6 +354,70 @@ describe("Maven dependency parsers", () => {
   </dependencies>
 </project>
 `
+    });
+
+    expect(parsed.references[0]?.ecosystem).toBe("maven");
+    expect(parsed.references[0]?.name).toBe("org.slf4j:slf4j-api");
+  });
+});
+
+describe("Gradle dependency lock parsers", () => {
+  it("extracts Maven coordinates from Gradle lockfiles", () => {
+    const parsed = parseGradleLockfile({
+      sourceFile: "gradle.lockfile",
+      content: `
+# This is a Gradle generated lockfile.
+empty=annotationProcessor
+org.slf4j:slf4j-api:2.0.17=compileClasspath,runtimeClasspath
+com.google.guava:guava:33.4.8-jre=runtimeClasspath
+com.acme:malformed=runtimeClasspath
+com.acme:snapshot-lib:1.0.0-SNAPSHOT=runtimeClasspath
+\${group}:unresolved:1.0.0=runtimeClasspath
+`
+    });
+
+    expect(
+      parsed.references.map((reference) => ({
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        versionRange: reference.versionRange,
+        sourceKind: reference.sourceKind,
+        isDirect: reference.isDirect,
+        registrySource: reference.registrySource,
+        sourceLine: reference.sourceLine
+      }))
+    ).toEqual([
+      {
+        ecosystem: "maven",
+        name: "org.slf4j:slf4j-api",
+        versionRange: "2.0.17",
+        sourceKind: "lockfile",
+        isDirect: false,
+        registrySource: "ambiguous-lockfile-source",
+        sourceLine: 4
+      },
+      {
+        ecosystem: "maven",
+        name: "com.google.guava:guava",
+        versionRange: "33.4.8-jre",
+        sourceKind: "lockfile",
+        isDirect: false,
+        registrySource: "ambiguous-lockfile-source",
+        sourceLine: 5
+      }
+    ]);
+  });
+
+  it("parses Gradle lockfiles through dependency file discovery", () => {
+    expect(isSupportedDependencyFile("gradle.lockfile")).toBe(true);
+    expect(isSupportedDependencyFile("services/api/gradle.lockfile")).toBe(true);
+    expect(isSupportedDependencyFile("buildscript-gradle.lockfile")).toBe(true);
+    expect(isSupportedDependencyFile("build.gradle")).toBe(false);
+    expect(isSupportedDependencyFile("build.gradle.kts")).toBe(false);
+
+    const parsed = parseDependencyFile({
+      sourceFile: "buildscript-gradle.lockfile",
+      content: "org.slf4j:slf4j-api:2.0.17=classpath\n"
     });
 
     expect(parsed.references[0]?.ecosystem).toBe("maven");

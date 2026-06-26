@@ -49,6 +49,7 @@
     "go",
     "maven",
     "jvm",
+    "gradle",
     "nuget",
     "npm",
     "composer",
