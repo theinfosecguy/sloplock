@@ -29,7 +29,7 @@ jobs:
 
       - name: Verify dist changes are isolated
         id: dist-policy
-        run: node scripts/check-dist-pr-policy.mjs --base origin/${{ github.base_ref }}
+        run: node scripts/ci/check-dist-pr-policy.mjs --base origin/${{ github.base_ref }}
 
       - name: Install dependencies
         if: steps.dist-policy.outputs.dist_changed == 'true'

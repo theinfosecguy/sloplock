@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 
-const usage = `Usage: node scripts/check-dist-pr-policy.mjs --base <git-ref>
+const usage = `Usage: node scripts/ci/check-dist-pr-policy.mjs --base <git-ref>
 
 Feature PRs should leave dist/ out. Commit dist/ only in a dedicated generated-artifact refresh PR after source changes land on main.`;
 
