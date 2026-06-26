@@ -37,6 +37,7 @@
     "npm",
     "pypi",
     "rust",
+    "python",
     "security",
     "dependencies"
   ],

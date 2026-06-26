@@ -107,3 +107,71 @@ jobs:
 
       - name: Verify failing Rust fixture failed
         run: test "${{ steps.failing-rust-scan.outcome }}" = "failure"
+
+      - name: Prepare passing Python lockfile fixture
+        run: |
+          mkdir -p "${RUNNER_TEMP}/sloplock-action-python-pass"
+          cat > "${RUNNER_TEMP}/sloplock-action-python-pass/pdm.lock" <<'EOF'
+          [[package]]
+          name = "requests"
+          version = "2.32.0"
+          EOF
+          cat > "${RUNNER_TEMP}/sloplock-action-python-pass/poetry.lock" <<'EOF'
+          [[package]]
+          name = "django"
+          version = "5.0.0"
+          EOF
+
+      - name: Run local action on passing Python lockfile fixture
+        uses: ./
+        with:
+          path: ${{ runner.temp }}/sloplock-action-python-pass
+          ecosystem: pypi
+          changed-only: "false"
+          comment: "false"
+
+      - name: Prepare failing PDM lockfile fixture
+        run: |
+          mkdir -p "${RUNNER_TEMP}/sloplock-action-pdm-fail"
+          name="sloplock-smoke-pdm-missing-$(date +%s)-${RANDOM}"
+          cat > "${RUNNER_TEMP}/sloplock-action-pdm-fail/pdm.lock" <<EOF
+          [[package]]
+          name = "${name}"
+          version = "1.0.0"
+          EOF
+
+      - name: Run local action on failing PDM lockfile fixture
+        id: failing-pdm-scan
+        uses: ./
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/sloplock-action-pdm-fail
+          ecosystem: pypi
+          changed-only: "false"
+          comment: "false"
+
+      - name: Verify failing PDM fixture failed
+        run: test "${{ steps.failing-pdm-scan.outcome }}" = "failure"
+
+      - name: Prepare failing Poetry lockfile fixture
+        run: |
+          mkdir -p "${RUNNER_TEMP}/sloplock-action-poetry-fail"
+          name="sloplock-smoke-poetry-missing-$(date +%s)-${RANDOM}"
+          cat > "${RUNNER_TEMP}/sloplock-action-poetry-fail/poetry.lock" <<EOF
+          [[package]]
+          name = "${name}"
+          version = "1.0.0"
+          EOF
+
+      - name: Run local action on failing Poetry lockfile fixture
+        id: failing-poetry-scan
+        uses: ./
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/sloplock-action-poetry-fail
+          ecosystem: pypi
+          changed-only: "false"
+          comment: "false"
+
+      - name: Verify failing Poetry fixture failed
+        run: test "${{ steps.failing-poetry-scan.outcome }}" = "failure"

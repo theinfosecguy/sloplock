@@ -1,5 +1,5 @@
 import { parse as parseToml } from "smol-toml";
-import { normalizePypiPackageName } from "../core/pypi.js";
+import { isPublicPypiRegistryUrl, normalizePypiPackageName } from "../core/pypi.js";
 import { isRecord, lineNumberForPattern, makePypiReference } from "./common.js";
 const nonRegistrySourceTypes = new Set([
     "directory",
@@ -72,6 +72,10 @@ function isRegistryPackage(metadata) {
     const source = metadata.source;
     if (!isRecord(source)) {
         return true;
+    }
+    if (typeof source.registry === "string" &&
+        !isPublicPypiRegistryUrl(source.registry)) {
+        return false;
     }
     for (const field of nonRegistrySourceFields) {
         if (typeof source[field] === "string") {
