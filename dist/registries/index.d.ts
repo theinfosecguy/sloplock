@@ -1,10 +1,12 @@
 import type { Ecosystem, RegistryClient, RegistryPackageFailure, RegistryResult } from "../core/types.js";
 export declare class DefaultRegistryClient implements RegistryClient {
     private readonly crates;
+    private readonly go;
     private readonly npm;
     private readonly pypi;
     constructor(input?: {
         crates?: RegistryClient;
+        go?: RegistryClient;
         npm?: RegistryClient;
         pypi?: RegistryClient;
     });

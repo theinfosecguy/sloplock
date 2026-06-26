@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseCargoLock } from "../src/parsers/cargo-lock.js";
 import { parseCargoToml } from "../src/parsers/cargo-toml.js";
+import { parseGoMod } from "../src/parsers/go-mod.js";
 import { parsePackageJson } from "../src/parsers/package-json.js";
 import { parsePackageLock } from "../src/parsers/package-lock.js";
 import { parsePdmLock } from "../src/parsers/pdm-lock.js";
@@ -353,6 +354,81 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
     expect(manifest.references[0]?.name).toBe("serde");
     expect(lockfile.references[0]?.ecosystem).toBe("crates");
     expect(lockfile.references[0]?.name).toBe("serde");
+  });
+});
+
+describe("Go dependency parsers", () => {
+  it("extracts go.mod require directives and skips replaced modules", () => {
+    const parsed = parseGoMod({
+      sourceFile: "go.mod",
+      content: `
+module example.com/service
+
+go 1.24
+
+require github.com/gin-gonic/gin v1.10.0
+
+require (
+  github.com/stretchr/testify v1.10.0
+  golang.org/x/mod v0.27.0 // indirect
+  example.local/internal v0.1.0
+)
+
+replace github.com/stretchr/testify => ../testify
+
+replace (
+  golang.org/x/mod => golang.org/x/mod v0.28.0
+)
+`
+    });
+
+    expect(
+      parsed.references.map((reference) => ({
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        versionRange: reference.versionRange,
+        sourceLine: reference.sourceLine,
+        sourceKind: reference.sourceKind,
+        isDirect: reference.isDirect
+      }))
+    ).toEqual([
+      {
+        ecosystem: "go",
+        name: "github.com/gin-gonic/gin",
+        versionRange: "v1.10.0",
+        sourceLine: 6,
+        sourceKind: "manifest",
+        isDirect: true
+      },
+      {
+        ecosystem: "go",
+        name: "golang.org/x/mod",
+        versionRange: "v0.28.0",
+        sourceLine: 17,
+        sourceKind: "manifest",
+        isDirect: true
+      }
+    ]);
+  });
+
+  it("parses go.mod through dependency file discovery", () => {
+    expect(isSupportedDependencyFile("go.mod")).toBe(true);
+
+    const parsed = parseDependencyFile({
+      sourceFile: "go.mod",
+      content: `
+module example.com/service
+
+go 1.24
+
+require github.com/missing/module v1.0.0
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "github.com/missing/module"
+    ]);
+    expect(parsed.references[0]?.ecosystem).toBe("go");
   });
 });
 

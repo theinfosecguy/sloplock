@@ -7,6 +7,11 @@ import {
 import { parseChangedDependencyReferences } from "../discovery/git.js";
 import { DefaultRegistryClient } from "../registries/index.js";
 import {
+  goPrivatePatternsFromEnvironment,
+  matchesGoPrivateModulePattern,
+  splitGoPrivatePatternList
+} from "./go.js";
+import {
   applySuppressions,
   buildPackageNotFoundFinding,
   buildPackageTooNewFinding
@@ -43,9 +48,15 @@ export async function scan(options: ScanOptions): Promise<ScanResult> {
     ...parsed.warnings
   ];
   const activeEcosystems = options.ecosystems ?? loadedConfig.config.ecosystems;
+  const goPrivatePatterns = [
+    ...loadedConfig.config.go.privateModules,
+    ...goPrivatePatternsFromEnvironment()
+  ];
   const bestReferences = selectBestReferences(
-    parsed.references.filter((reference) =>
-      activeEcosystems.includes(reference.ecosystem)
+    parsed.references.filter(
+      (reference) =>
+        activeEcosystems.includes(reference.ecosystem) &&
+        !isPrivateGoModuleReference(reference, goPrivatePatterns)
     )
   );
   const registryClient = options.registryClient ?? new DefaultRegistryClient();
@@ -152,6 +163,20 @@ async function parseReferences(input: {
 
   const files = await discoverDependencyFiles(input.rootDir);
   return parseWorkspaceFiles({ rootDir: input.rootDir, files });
+}
+
+function isPrivateGoModuleReference(
+  reference: DependencyReference,
+  patterns: readonly string[]
+): boolean {
+  return (
+    reference.ecosystem === "go" &&
+    patterns.some((pattern) =>
+      splitGoPrivatePatternList(pattern).some((splitPattern) =>
+        matchesGoPrivateModulePattern(reference.name, splitPattern)
+      )
+    )
+  );
 }
 
 function selectBestReferences(

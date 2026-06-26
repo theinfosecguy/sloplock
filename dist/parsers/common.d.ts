@@ -25,6 +25,14 @@ export declare function makePypiReference(input: {
     sourceKind: SourceKind;
     isDirect: boolean;
 }): DependencyReference;
+export declare function makeGoReference(input: {
+    name: string;
+    versionRange?: string;
+    sourceFile: string;
+    sourceLine?: number;
+    sourceKind: SourceKind;
+    isDirect: boolean;
+}): DependencyReference;
 export declare function makeCratesReference(input: {
     name: string;
     versionRange?: string;

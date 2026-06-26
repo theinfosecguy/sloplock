@@ -1,4 +1,4 @@
-export type Ecosystem = "crates" | "npm" | "pypi";
+export type Ecosystem = "crates" | "go" | "npm" | "pypi";
 
 export type Severity = "low" | "medium" | "high";
 
@@ -96,6 +96,9 @@ export type SlopLockConfig = {
   cooldown: {
     highDays: number;
     mediumDays: number;
+  };
+  go: {
+    privateModules: readonly string[];
   };
   allow: readonly AllowRule[];
   ignore: readonly IgnoreRule[];

@@ -1,0 +1,311 @@
+import { normalizeGoModulePath } from "../core/go.js";
+import type { DependencyReference } from "../core/types.js";
+import {
+  makeGoReference,
+  type ParsedDependencyFile,
+  type ParseDependencyFileOptions
+} from "./common.js";
+
+type DirectiveBlock = "require" | "replace";
+
+type RequiredModule = {
+  modulePath: string;
+  version: string;
+  sourceLine: number;
+  isDirect: boolean;
+};
+
+type TokenizedLine = {
+  tokens: string[];
+  comment: string;
+};
+
+export function parseGoMod(
+  options: ParseDependencyFileOptions
+): ParsedDependencyFile {
+  const requiredModules: RequiredModule[] = [];
+  const replacementModules: RequiredModule[] = [];
+  const replacedModules = new Set<string>();
+  let block: DirectiveBlock | undefined;
+
+  const lines = options.content.split(/\r?\n/u);
+  for (const [index, line] of lines.entries()) {
+    const { tokens, comment } = tokenizeGoModLine(line);
+    if (tokens.length === 0) {
+      continue;
+    }
+
+    if (tokens[0] === ")") {
+      block = undefined;
+      continue;
+    }
+
+    if (block !== undefined) {
+      if (block === "require") {
+        const requiredModule = parseRequireTokens(tokens, comment, index + 1);
+        if (requiredModule !== undefined) {
+          requiredModules.push(requiredModule);
+        }
+      } else {
+        addReplacement({
+          tokens,
+          sourceLine: index + 1,
+          replacedModules,
+          replacementModules
+        });
+      }
+      continue;
+    }
+
+    const directive = tokens[0];
+    const directiveTokens = tokens.slice(1);
+    if (directiveTokens[0] === "(") {
+      if (directive === "require" || directive === "replace") {
+        block = directive;
+      }
+      continue;
+    }
+
+    if (directive === "require") {
+      const requiredModule = parseRequireTokens(
+        directiveTokens,
+        comment,
+        index + 1
+      );
+      if (requiredModule !== undefined) {
+        requiredModules.push(requiredModule);
+      }
+      continue;
+    }
+
+    if (directive === "replace") {
+      addReplacement({
+        tokens: directiveTokens,
+        sourceLine: index + 1,
+        replacedModules,
+        replacementModules
+      });
+    }
+  }
+
+  return {
+    references: referencesFromRequiredModules(
+      requiredModules,
+      replacementModules,
+      replacedModules,
+      options.sourceFile
+    ),
+    warnings: []
+  };
+}
+
+function referencesFromRequiredModules(
+  requiredModules: readonly RequiredModule[],
+  replacementModules: readonly RequiredModule[],
+  replacedModules: ReadonlySet<string>,
+  sourceFile: string
+): DependencyReference[] {
+  const activeModules = [
+    ...requiredModules.filter(
+      (requiredModule) => !replacedModules.has(requiredModule.modulePath)
+    ),
+    ...replacementModules
+  ];
+  const references = activeModules
+    .map((requiredModule) =>
+      makeGoReference({
+        name: requiredModule.modulePath,
+        versionRange: requiredModule.version,
+        sourceFile,
+        sourceLine: requiredModule.sourceLine,
+        sourceKind: "manifest",
+        isDirect: requiredModule.isDirect
+      })
+    );
+
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
+
+function parseRequireTokens(
+  tokens: readonly string[],
+  comment: string,
+  sourceLine: number
+): RequiredModule | undefined {
+  const [rawModulePath, version] = tokens;
+  if (rawModulePath === undefined || version === undefined) {
+    return undefined;
+  }
+
+  const modulePath = normalizeGoModulePath(rawModulePath);
+  if (modulePath === undefined || !isGoVersion(version)) {
+    return undefined;
+  }
+
+  return {
+    modulePath,
+    version,
+    sourceLine,
+    isDirect: !/\bindirect\b/u.test(comment)
+  };
+}
+
+function addReplacement(input: {
+  tokens: readonly string[];
+  sourceLine: number;
+  replacedModules: Set<string>;
+  replacementModules: RequiredModule[];
+}): void {
+  const { tokens, sourceLine, replacedModules, replacementModules } = input;
+  const arrowIndex = tokens.indexOf("=>");
+  const rawModulePath = tokens[0];
+  if (arrowIndex < 0 || rawModulePath === undefined) {
+    return;
+  }
+
+  const modulePath = normalizeGoModulePath(rawModulePath);
+  if (modulePath !== undefined) {
+    replacedModules.add(modulePath);
+  }
+
+  const rawReplacementPath = tokens[arrowIndex + 1];
+  const replacementVersion = tokens[arrowIndex + 2];
+  if (rawReplacementPath === undefined || replacementVersion === undefined) {
+    return;
+  }
+
+  const replacementPath = normalizeGoModulePath(rawReplacementPath);
+  if (replacementPath === undefined || !isGoVersion(replacementVersion)) {
+    return;
+  }
+
+  replacementModules.push({
+    modulePath: replacementPath,
+    version: replacementVersion,
+    sourceLine,
+    isDirect: true
+  });
+}
+
+function tokenizeGoModLine(line: string): TokenizedLine {
+  const tokens: string[] = [];
+  let comment = "";
+  let current = "";
+  let index = 0;
+
+  function pushCurrent(): void {
+    if (current.length > 0) {
+      tokens.push(current);
+      current = "";
+    }
+  }
+
+  while (index < line.length) {
+    const character = line[index];
+    if (character === undefined) {
+      break;
+    }
+
+    const next = line[index + 1];
+
+    if (character === "/" && next === "/") {
+      pushCurrent();
+      comment = line.slice(index + 2);
+      break;
+    }
+
+    if (character === " " || character === "\t") {
+      pushCurrent();
+      index += 1;
+      continue;
+    }
+
+    if (character === "(" || character === ")") {
+      pushCurrent();
+      tokens.push(character);
+      index += 1;
+      continue;
+    }
+
+    if (character === "=" && next === ">") {
+      pushCurrent();
+      tokens.push("=>");
+      index += 2;
+      continue;
+    }
+
+    if (character === "\"") {
+      const parsed = readQuotedString(line, index);
+      current += parsed.value;
+      index = parsed.nextIndex;
+      continue;
+    }
+
+    if (character === "`") {
+      const parsed = readRawString(line, index);
+      current += parsed.value;
+      index = parsed.nextIndex;
+      continue;
+    }
+
+    current += character;
+    index += 1;
+  }
+
+  pushCurrent();
+  return { tokens, comment };
+}
+
+function readQuotedString(
+  line: string,
+  startIndex: number
+): { value: string; nextIndex: number } {
+  let value = "";
+  let index = startIndex + 1;
+
+  while (index < line.length) {
+    const character = line[index];
+    if (character === undefined) {
+      break;
+    }
+
+    if (character === "\\") {
+      const next = line[index + 1];
+      if (next !== undefined) {
+        value += next;
+        index += 2;
+        continue;
+      }
+    }
+
+    if (character === "\"") {
+      return { value, nextIndex: index + 1 };
+    }
+
+    value += character;
+    index += 1;
+  }
+
+  return { value, nextIndex: line.length };
+}
+
+function readRawString(
+  line: string,
+  startIndex: number
+): { value: string; nextIndex: number } {
+  const endIndex = line.indexOf("`", startIndex + 1);
+  if (endIndex === -1) {
+    return {
+      value: line.slice(startIndex + 1),
+      nextIndex: line.length
+    };
+  }
+
+  return {
+    value: line.slice(startIndex + 1, endIndex),
+    nextIndex: endIndex + 1
+  };
+}
+
+function isGoVersion(input: string): boolean {
+  return /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(input);
+}

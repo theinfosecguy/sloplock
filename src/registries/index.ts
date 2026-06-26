@@ -5,20 +5,24 @@ import type {
   RegistryResult
 } from "../core/types.js";
 import { CratesRegistryClient } from "./crates.js";
+import { GoProxyRegistryClient } from "./go.js";
 import { NpmRegistryClient } from "./npm.js";
 import { PypiRegistryClient } from "./pypi.js";
 
 export class DefaultRegistryClient implements RegistryClient {
   private readonly crates: RegistryClient;
+  private readonly go: RegistryClient;
   private readonly npm: RegistryClient;
   private readonly pypi: RegistryClient;
 
   constructor(input: {
     crates?: RegistryClient;
+    go?: RegistryClient;
     npm?: RegistryClient;
     pypi?: RegistryClient;
   } = {}) {
     this.crates = input.crates ?? new CratesRegistryClient();
+    this.go = input.go ?? new GoProxyRegistryClient();
     this.npm = input.npm ?? new NpmRegistryClient();
     this.pypi = input.pypi ?? new PypiRegistryClient();
   }
@@ -30,6 +34,8 @@ export class DefaultRegistryClient implements RegistryClient {
     switch (reference.ecosystem) {
       case "crates":
         return this.crates.getPackage(reference);
+      case "go":
+        return this.go.getPackage(reference);
       case "npm":
         return this.npm.getPackage(reference);
       case "pypi":

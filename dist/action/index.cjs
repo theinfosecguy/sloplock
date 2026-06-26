@@ -31263,6 +31263,77 @@ function isDefaultCratesRegistrySource(source) {
   return trimmed === "registry+https://github.com/rust-lang/crates.io-index" || trimmed === "registry+https://index.crates.io/";
 }
 
+// src/core/go.ts
+var goModuleFirstPathElementPattern = /^[a-z0-9][a-z0-9.-]*\.[a-z0-9.-]+$/iu;
+var goModulePathPattern = /^[A-Za-z0-9._~!$&'()*+,;=:@/-]+$/u;
+var localModulePathSuffixes = /* @__PURE__ */ new Set(["internal", "invalid", "local", "localhost", "test"]);
+function normalizeGoModulePath(input) {
+  const modulePath = input.trim();
+  if (modulePath.length === 0 || modulePath.includes("://") || modulePath.includes("\\") || modulePath.includes("@") || modulePath.startsWith(".") || modulePath.startsWith("/") || modulePath.endsWith("/") || modulePath.includes("//") || !goModulePathPattern.test(modulePath)) {
+    return void 0;
+  }
+  const firstPathElement = modulePath.split("/")[0];
+  if (firstPathElement === void 0 || !goModuleFirstPathElementPattern.test(firstPathElement) || localModulePathSuffixes.has(firstPathElement.split(".").at(-1)?.toLowerCase() ?? "")) {
+    return void 0;
+  }
+  return modulePath;
+}
+function escapeGoProxyPath(input) {
+  return input.split("/").map((segment) => encodeURIComponent(caseEncode(segment))).join("/");
+}
+function goPrivatePatternsFromEnvironment(env = process.env) {
+  return [
+    ...splitGoPrivatePatternList(env.GOPRIVATE),
+    ...splitGoPrivatePatternList(env.GONOPROXY)
+  ];
+}
+function splitGoPrivatePatternList(input) {
+  if (input === void 0) {
+    return [];
+  }
+  return input.split(",").map((pattern) => pattern.trim()).filter((pattern) => pattern.length > 0);
+}
+function matchesGoPrivateModulePattern(modulePath, pattern) {
+  const trimmed = pattern.trim();
+  if (trimmed.length === 0) {
+    return false;
+  }
+  if (!hasGlobSyntax(trimmed)) {
+    return modulePath === trimmed || modulePath.startsWith(`${trimmed}/`);
+  }
+  const matcher = globPatternToRegExp(trimmed);
+  return modulePrefixes(modulePath).some((prefix) => matcher.test(prefix));
+}
+function caseEncode(input) {
+  return input.replace(/[A-Z]/gu, (letter) => `!${letter.toLowerCase()}`);
+}
+function hasGlobSyntax(input) {
+  return /[*?[\]]/u.test(input);
+}
+function modulePrefixes(modulePath) {
+  const parts = modulePath.split("/");
+  return parts.map((_, index) => parts.slice(0, index + 1).join("/"));
+}
+function globPatternToRegExp(pattern) {
+  let source = "^";
+  for (const character of pattern) {
+    if (character === "*") {
+      source += "[^/]*";
+      continue;
+    }
+    if (character === "?") {
+      source += "[^/]";
+      continue;
+    }
+    source += escapeRegExp(character);
+  }
+  source += "$";
+  return new RegExp(source, "u");
+}
+function escapeRegExp(input) {
+  return input.replace(/[\\^$.*+?()[\]{}|]/gu, "\\$&");
+}
+
 // src/core/npm.ts
 var npmPackageNamePattern = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 function normalizeNpmPackageName(name) {
@@ -31361,6 +31432,8 @@ function normalizePackageName(ecosystem, packageName) {
   switch (ecosystem) {
     case "crates":
       return normalizeCratesPackageName(packageName);
+    case "go":
+      return normalizeGoModulePath(packageName);
     case "npm":
       return normalizeNpmPackageName(packageName);
     case "pypi":
@@ -31371,6 +31444,8 @@ function registryDisplayName(ecosystem) {
   switch (ecosystem) {
     case "crates":
       return "crates.io";
+    case "go":
+      return "Go module proxy";
     case "npm":
       return "npm";
     case "pypi":
@@ -31381,10 +31456,13 @@ function registryDisplayName(ecosystem) {
 // src/config/load-config.ts
 var defaultConfig = {
   failOn: "high",
-  ecosystems: ["crates", "npm", "pypi"],
+  ecosystems: ["crates", "go", "npm", "pypi"],
   cooldown: {
     highDays: 7,
     mediumDays: 30
+  },
+  go: {
+    privateModules: []
   },
   allow: [],
   ignore: []
@@ -31445,10 +31523,12 @@ function mergeConfig(input, failOnOverride) {
   const failOn = parseFailOn(input.failOn, failOnOverride);
   const cooldown = parseCooldown(input.cooldown);
   const ecosystems = parseEcosystems(input.ecosystems);
+  const go = parseGoConfig(input.go);
   return {
     failOn,
     ecosystems,
     cooldown,
+    go,
     allow: parseAllowRules(input.allow),
     ignore: parseIgnoreRules(input.ignore)
   };
@@ -31562,10 +31642,10 @@ function filterExpiredIgnoreRules(rules, warnings, sourceFile, now) {
   });
 }
 function parseEcosystem(input, field) {
-  if (input === "crates" || input === "npm" || input === "pypi") {
+  if (input === "crates" || input === "go" || input === "npm" || input === "pypi") {
     return input;
   }
-  throw new UsageError(`Config ${field} must be crates, npm, or pypi.`);
+  throw new UsageError(`Config ${field} must be crates, go, npm, or pypi.`);
 }
 function parseRule(input, field) {
   if (input === "package_not_found" || input === "package_too_new") {
@@ -31611,6 +31691,35 @@ function parsePositiveInteger(input, field) {
     throw new UsageError(`Config ${field} must be a non-negative integer.`);
   }
   return input;
+}
+function parseGoConfig(input) {
+  if (input === void 0) {
+    return defaultConfig.go;
+  }
+  if (!isRecord(input)) {
+    throw new UsageError("Config go must contain privateModules.");
+  }
+  return {
+    privateModules: parseStringArray(
+      input.privateModules,
+      "go.privateModules",
+      defaultConfig.go.privateModules
+    )
+  };
+}
+function parseStringArray(input, field, defaultValue) {
+  if (input === void 0) {
+    return [...defaultValue];
+  }
+  if (!Array.isArray(input)) {
+    throw new UsageError(`Config ${field} must be an array.`);
+  }
+  return input.map((entry, index) => {
+    if (typeof entry !== "string" || entry.trim().length === 0) {
+      throw new UsageError(`Config ${field}[${index}] must be a non-empty string.`);
+    }
+    return entry.trim();
+  });
 }
 function isRecord(input) {
   return typeof input === "object" && input !== null && !Array.isArray(input);
@@ -32344,6 +32453,17 @@ function makePypiReference(input) {
     isDirect: input.isDirect
   };
 }
+function makeGoReference(input) {
+  return {
+    ecosystem: "go",
+    name: input.name,
+    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
+    sourceFile: input.sourceFile,
+    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
+    sourceKind: input.sourceKind,
+    isDirect: input.isDirect
+  };
+}
 function makeCratesReference(input) {
   return {
     ecosystem: "crates",
@@ -32544,6 +32664,236 @@ function lineNumberInput2(content, packageName) {
 }
 function dedupeReferences2(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
+
+// src/parsers/go-mod.ts
+function parseGoMod(options) {
+  const requiredModules = [];
+  const replacementModules = [];
+  const replacedModules = /* @__PURE__ */ new Set();
+  let block;
+  const lines = options.content.split(/\r?\n/u);
+  for (const [index, line] of lines.entries()) {
+    const { tokens, comment } = tokenizeGoModLine(line);
+    if (tokens.length === 0) {
+      continue;
+    }
+    if (tokens[0] === ")") {
+      block = void 0;
+      continue;
+    }
+    if (block !== void 0) {
+      if (block === "require") {
+        const requiredModule = parseRequireTokens(tokens, comment, index + 1);
+        if (requiredModule !== void 0) {
+          requiredModules.push(requiredModule);
+        }
+      } else {
+        addReplacement({
+          tokens,
+          sourceLine: index + 1,
+          replacedModules,
+          replacementModules
+        });
+      }
+      continue;
+    }
+    const directive = tokens[0];
+    const directiveTokens = tokens.slice(1);
+    if (directiveTokens[0] === "(") {
+      if (directive === "require" || directive === "replace") {
+        block = directive;
+      }
+      continue;
+    }
+    if (directive === "require") {
+      const requiredModule = parseRequireTokens(
+        directiveTokens,
+        comment,
+        index + 1
+      );
+      if (requiredModule !== void 0) {
+        requiredModules.push(requiredModule);
+      }
+      continue;
+    }
+    if (directive === "replace") {
+      addReplacement({
+        tokens: directiveTokens,
+        sourceLine: index + 1,
+        replacedModules,
+        replacementModules
+      });
+    }
+  }
+  return {
+    references: referencesFromRequiredModules(
+      requiredModules,
+      replacementModules,
+      replacedModules,
+      options.sourceFile
+    ),
+    warnings: []
+  };
+}
+function referencesFromRequiredModules(requiredModules, replacementModules, replacedModules, sourceFile) {
+  const activeModules = [
+    ...requiredModules.filter(
+      (requiredModule) => !replacedModules.has(requiredModule.modulePath)
+    ),
+    ...replacementModules
+  ];
+  const references = activeModules.map(
+    (requiredModule) => makeGoReference({
+      name: requiredModule.modulePath,
+      versionRange: requiredModule.version,
+      sourceFile,
+      sourceLine: requiredModule.sourceLine,
+      sourceKind: "manifest",
+      isDirect: requiredModule.isDirect
+    })
+  );
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
+function parseRequireTokens(tokens, comment, sourceLine) {
+  const [rawModulePath, version] = tokens;
+  if (rawModulePath === void 0 || version === void 0) {
+    return void 0;
+  }
+  const modulePath = normalizeGoModulePath(rawModulePath);
+  if (modulePath === void 0 || !isGoVersion(version)) {
+    return void 0;
+  }
+  return {
+    modulePath,
+    version,
+    sourceLine,
+    isDirect: !/\bindirect\b/u.test(comment)
+  };
+}
+function addReplacement(input) {
+  const { tokens, sourceLine, replacedModules, replacementModules } = input;
+  const arrowIndex = tokens.indexOf("=>");
+  const rawModulePath = tokens[0];
+  if (arrowIndex < 0 || rawModulePath === void 0) {
+    return;
+  }
+  const modulePath = normalizeGoModulePath(rawModulePath);
+  if (modulePath !== void 0) {
+    replacedModules.add(modulePath);
+  }
+  const rawReplacementPath = tokens[arrowIndex + 1];
+  const replacementVersion = tokens[arrowIndex + 2];
+  if (rawReplacementPath === void 0 || replacementVersion === void 0) {
+    return;
+  }
+  const replacementPath = normalizeGoModulePath(rawReplacementPath);
+  if (replacementPath === void 0 || !isGoVersion(replacementVersion)) {
+    return;
+  }
+  replacementModules.push({
+    modulePath: replacementPath,
+    version: replacementVersion,
+    sourceLine,
+    isDirect: true
+  });
+}
+function tokenizeGoModLine(line) {
+  const tokens = [];
+  let comment = "";
+  let current = "";
+  let index = 0;
+  function pushCurrent() {
+    if (current.length > 0) {
+      tokens.push(current);
+      current = "";
+    }
+  }
+  while (index < line.length) {
+    const character = line[index];
+    if (character === void 0) {
+      break;
+    }
+    const next = line[index + 1];
+    if (character === "/" && next === "/") {
+      pushCurrent();
+      comment = line.slice(index + 2);
+      break;
+    }
+    if (character === " " || character === "	") {
+      pushCurrent();
+      index += 1;
+      continue;
+    }
+    if (character === "(" || character === ")") {
+      pushCurrent();
+      tokens.push(character);
+      index += 1;
+      continue;
+    }
+    if (character === "=" && next === ">") {
+      pushCurrent();
+      tokens.push("=>");
+      index += 2;
+      continue;
+    }
+    if (character === '"') {
+      const parsed = readQuotedString(line, index);
+      current += parsed.value;
+      index = parsed.nextIndex;
+      continue;
+    }
+    if (character === "`") {
+      const parsed = readRawString(line, index);
+      current += parsed.value;
+      index = parsed.nextIndex;
+      continue;
+    }
+    current += character;
+    index += 1;
+  }
+  pushCurrent();
+  return { tokens, comment };
+}
+function readQuotedString(line, startIndex) {
+  let value = "";
+  let index = startIndex + 1;
+  while (index < line.length) {
+    const character = line[index];
+    if (character === void 0) {
+      break;
+    }
+    if (character === "\\") {
+      const next = line[index + 1];
+      if (next !== void 0) {
+        value += next;
+        index += 2;
+        continue;
+      }
+    }
+    if (character === '"') {
+      return { value, nextIndex: index + 1 };
+    }
+    value += character;
+    index += 1;
+  }
+  return { value, nextIndex: line.length };
+}
+function readRawString(line, startIndex) {
+  const endIndex = line.indexOf("`", startIndex + 1);
+  if (endIndex === -1) {
+    return {
+      value: line.slice(startIndex + 1),
+      nextIndex: line.length
+    };
+  }
+  return {
+    value: line.slice(startIndex + 1, endIndex),
+    nextIndex: endIndex + 1
+  };
+}
+function isGoVersion(input) {
+  return /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(input);
 }
 
 // src/parsers/package-json.ts
@@ -33420,6 +33770,7 @@ function dedupeReferences8(references) {
 var supportedFileNames = /* @__PURE__ */ new Set([
   "Cargo.lock",
   "Cargo.toml",
+  "go.mod",
   "package.json",
   "package-lock.json",
   "pdm.lock",
@@ -33461,6 +33812,8 @@ function parseByFileName(fileName, sourceFile, content) {
       return parseCargoLock({ sourceFile, content });
     case "Cargo.toml":
       return parseCargoToml({ sourceFile, content });
+    case "go.mod":
+      return parseGoMod({ sourceFile, content });
     case "package.json":
       return parsePackageJson({ sourceFile, content });
     case "package-lock.json":
@@ -33904,10 +34257,298 @@ function sleep(milliseconds) {
   });
 }
 
-// src/registries/npm.ts
-var npmRegistryUrl = "https://registry.npmjs.org";
+// src/registries/go.ts
+var defaultProxyUrl = "https://proxy.golang.org";
 var defaultTimeoutMs2 = 8e3;
 var defaultRetries2 = 2;
+var defaultMaxVersionInfoRequests = 40;
+var GoProxyRegistryClient = class {
+  proxyUrl;
+  timeoutMs;
+  retries;
+  maxVersionInfoRequests;
+  userAgent;
+  fetchImpl;
+  cache = /* @__PURE__ */ new Map();
+  constructor(options = {}) {
+    this.proxyUrl = (options.proxyUrl ?? defaultProxyUrl).replace(/\/+$/u, "");
+    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs2;
+    this.retries = options.retries ?? defaultRetries2;
+    this.maxVersionInfoRequests = options.maxVersionInfoRequests ?? defaultMaxVersionInfoRequests;
+    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+  async getPackage(reference) {
+    if (reference.ecosystem !== "go") {
+      return {
+        status: "unsupported",
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        message: "Go proxy registry client only supports Go modules.",
+        retryable: false
+      };
+    }
+    const cached = this.cache.get(reference.name);
+    if (cached !== void 0) {
+      return cached;
+    }
+    const request2 = this.getPackageUncached(reference.name);
+    this.cache.set(reference.name, request2);
+    return request2;
+  }
+  async getPackageUncached(name) {
+    const versionsResult = await this.fetchVersionList(name);
+    if (versionsResult.status === "failure") {
+      return versionsResult.failure;
+    }
+    if (versionsResult.status === "success" && versionsResult.versions.length > 0) {
+      return this.foundFromVersionList(name, versionsResult.versions);
+    }
+    const latest = await this.fetchVersionInfo(name, "@latest");
+    if (latest.status === "not_found") {
+      return { status: "not_found", ecosystem: "go", name };
+    }
+    if (latest.status === "failure") {
+      return latest.failure;
+    }
+    return foundResult(name, this.moduleProxyUrl(name), latest.firstPublishedAt);
+  }
+  async foundFromVersionList(name, versions) {
+    const candidateVersions = [...versions].sort(compareGoVersions).slice(0, this.maxVersionInfoRequests);
+    const firstPublishedDates = [];
+    for (const version of candidateVersions) {
+      const result = await this.fetchVersionInfo(name, version);
+      if (result.status === "success" && result.firstPublishedAt !== void 0) {
+        firstPublishedDates.push(result.firstPublishedAt);
+      }
+    }
+    firstPublishedDates.sort((left, right) => left.getTime() - right.getTime());
+    return foundResult(name, this.moduleProxyUrl(name), firstPublishedDates[0]);
+  }
+  async fetchVersionList(name) {
+    const result = await this.fetchProxyPath(name, "@v/list");
+    if (result.status !== "success") {
+      return result;
+    }
+    const text = await result.response.text();
+    return {
+      status: "success",
+      versions: text.split(/\r?\n/u).map((version) => version.trim()).filter((version) => isGoVersion2(version))
+    };
+  }
+  async fetchVersionInfo(name, version) {
+    const result = await this.fetchProxyPath(
+      name,
+      version === "@latest" ? "@latest" : `@v/${escapeGoProxyPath(version)}.info`
+    );
+    if (result.status !== "success") {
+      return result;
+    }
+    try {
+      const metadata = await result.response.json();
+      if (!isGoVersionInfo(metadata)) {
+        return {
+          status: "failure",
+          failure: failure2(
+            name,
+            "invalid_response",
+            "Go module proxy returned invalid version metadata.",
+            false
+          )
+        };
+      }
+      const firstPublishedAt = dateFromString2(metadata.Time);
+      return firstPublishedAt === void 0 ? { status: "success" } : { status: "success", firstPublishedAt };
+    } catch (error2) {
+      const message = error2 instanceof Error ? error2.message : String(error2);
+      return {
+        status: "failure",
+        failure: failure2(
+          name,
+          "invalid_response",
+          `Go module proxy returned invalid JSON: ${message}`,
+          false
+        )
+      };
+    }
+  }
+  async fetchProxyPath(name, proxyPath) {
+    let lastFailure;
+    for (let attempt = 0; attempt <= this.retries; attempt += 1) {
+      const result = await this.fetchProxyPathOnce(name, proxyPath);
+      if (result.status === "success" || result.status === "not_found") {
+        return result;
+      }
+      lastFailure = result.failure;
+      if (!result.failure.retryable || attempt === this.retries) {
+        return result;
+      }
+      await sleep2(100 * (attempt + 1));
+    }
+    return {
+      status: "failure",
+      failure: lastFailure ?? failure2(
+        name,
+        "network_error",
+        "Go module proxy request failed without a response.",
+        true
+      )
+    };
+  }
+  async fetchProxyPathOnce(name, proxyPath) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, this.timeoutMs);
+    try {
+      const response = await this.fetchImpl(
+        `${this.moduleProxyUrl(name)}/${proxyPath}`,
+        {
+          headers: {
+            accept: "application/json,text/plain;q=0.9",
+            "user-agent": this.userAgent
+          },
+          signal: controller.signal
+        }
+      );
+      if (response.status === 404 || response.status === 410) {
+        return { status: "not_found" };
+      }
+      if (response.status === 429) {
+        return {
+          status: "failure",
+          failure: failure2(
+            name,
+            "rate_limited",
+            "Go module proxy rate limit exceeded.",
+            true
+          )
+        };
+      }
+      if (response.status >= 500) {
+        return {
+          status: "failure",
+          failure: failure2(
+            name,
+            "server_error",
+            `Go module proxy returned HTTP ${response.status}.`,
+            true
+          )
+        };
+      }
+      if (!response.ok) {
+        return {
+          status: "failure",
+          failure: failure2(
+            name,
+            "network_error",
+            `Go module proxy returned HTTP ${response.status}.`,
+            false
+          )
+        };
+      }
+      return { status: "success", response };
+    } catch (error2) {
+      const message = error2 instanceof Error && error2.name === "AbortError" ? "Go module proxy request timed out." : error2 instanceof Error ? error2.message : String(error2);
+      return {
+        status: "failure",
+        failure: failure2(name, "network_error", message, true)
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  moduleProxyUrl(name) {
+    return `${this.proxyUrl}/${escapeGoProxyPath(name)}`;
+  }
+};
+function foundResult(name, registryUrl, firstPublishedAt) {
+  const found = {
+    status: "found",
+    ecosystem: "go",
+    name,
+    registryUrl
+  };
+  return firstPublishedAt === void 0 ? found : { ...found, firstPublishedAt };
+}
+function failure2(name, status, message, retryable) {
+  return {
+    status,
+    ecosystem: "go",
+    name,
+    message,
+    retryable
+  };
+}
+function isGoVersionInfo(input) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+  const metadata = input;
+  return (metadata.Version === void 0 || typeof metadata.Version === "string") && (metadata.Time === void 0 || typeof metadata.Time === "string");
+}
+function dateFromString2(input) {
+  if (input === void 0) {
+    return void 0;
+  }
+  const date = new Date(input);
+  return Number.isNaN(date.getTime()) ? void 0 : date;
+}
+function compareGoVersions(left, right) {
+  const parsedLeft = parseGoVersion(left);
+  const parsedRight = parseGoVersion(right);
+  if (parsedLeft === void 0 || parsedRight === void 0) {
+    return left.localeCompare(right);
+  }
+  return parsedLeft.major - parsedRight.major || parsedLeft.minor - parsedRight.minor || parsedLeft.patch - parsedRight.patch || comparePrerelease(parsedLeft.prerelease, parsedRight.prerelease) || left.localeCompare(right);
+}
+function parseGoVersion(input) {
+  const match = /^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:-(?<prerelease>[0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u.exec(
+    input
+  );
+  if (match?.groups === void 0) {
+    return void 0;
+  }
+  const major = Number(match.groups.major);
+  const minor = Number(match.groups.minor);
+  const patch = Number(match.groups.patch);
+  if (!Number.isSafeInteger(major) || !Number.isSafeInteger(minor) || !Number.isSafeInteger(patch)) {
+    return void 0;
+  }
+  return {
+    major,
+    minor,
+    patch,
+    ...match.groups.prerelease === void 0 ? {} : { prerelease: match.groups.prerelease }
+  };
+}
+function comparePrerelease(left, right) {
+  if (left === void 0 && right === void 0) {
+    return 0;
+  }
+  if (left === void 0) {
+    return 1;
+  }
+  if (right === void 0) {
+    return -1;
+  }
+  return left.localeCompare(right);
+}
+function isGoVersion2(input) {
+  return parseGoVersion(input) !== void 0;
+}
+function sleep2(milliseconds) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, milliseconds);
+  });
+}
+
+// src/registries/npm.ts
+var npmRegistryUrl = "https://registry.npmjs.org";
+var defaultTimeoutMs3 = 8e3;
+var defaultRetries3 = 2;
 var NpmRegistryClient = class {
   timeoutMs;
   retries;
@@ -33915,8 +34556,8 @@ var NpmRegistryClient = class {
   fetchImpl;
   cache = /* @__PURE__ */ new Map();
   constructor(options = {}) {
-    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs2;
-    this.retries = options.retries ?? defaultRetries2;
+    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs3;
+    this.retries = options.retries ?? defaultRetries3;
     this.userAgent = options.userAgent ?? "sloplock/0.1.0";
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -33950,7 +34591,7 @@ var NpmRegistryClient = class {
       if (!result.retryable || attempt === this.retries) {
         return result;
       }
-      await sleep2(100 * (attempt + 1));
+      await sleep3(100 * (attempt + 1));
     }
     return lastFailure ?? {
       status: "network_error",
@@ -33977,10 +34618,10 @@ var NpmRegistryClient = class {
         return { status: "not_found", ecosystem: "npm", name };
       }
       if (response.status === 429) {
-        return failure2(name, "rate_limited", "npm registry rate limit exceeded.", true);
+        return failure3(name, "rate_limited", "npm registry rate limit exceeded.", true);
       }
       if (response.status >= 500) {
-        return failure2(
+        return failure3(
           name,
           "server_error",
           `npm registry returned HTTP ${response.status}.`,
@@ -33988,7 +34629,7 @@ var NpmRegistryClient = class {
         );
       }
       if (!response.ok) {
-        return failure2(
+        return failure3(
           name,
           "network_error",
           `npm registry returned HTTP ${response.status}.`,
@@ -33999,7 +34640,7 @@ var NpmRegistryClient = class {
       return parseMetadata2(name, metadata);
     } catch (error2) {
       const message = error2 instanceof Error && error2.name === "AbortError" ? "npm registry request timed out." : error2 instanceof Error ? error2.message : String(error2);
-      return failure2(name, "network_error", message, true);
+      return failure3(name, "network_error", message, true);
     } finally {
       clearTimeout(timeout);
     }
@@ -34007,7 +34648,7 @@ var NpmRegistryClient = class {
 };
 function parseMetadata2(name, metadata) {
   if (!isNpmMetadata(metadata)) {
-    return failure2(
+    return failure3(
       name,
       "invalid_response",
       "npm registry returned invalid package metadata.",
@@ -34028,14 +34669,14 @@ function firstPublishedDate2(metadata) {
   if (time === void 0) {
     return void 0;
   }
-  const created = dateFromString2(time.created);
+  const created = dateFromString3(time.created);
   if (created !== void 0) {
     return created;
   }
-  const publishTimes = Object.entries(time).filter(([key]) => key !== "modified").map(([, value]) => dateFromString2(value)).filter((date) => date !== void 0).sort((left, right) => left.getTime() - right.getTime());
+  const publishTimes = Object.entries(time).filter(([key]) => key !== "modified").map(([, value]) => dateFromString3(value)).filter((date) => date !== void 0).sort((left, right) => left.getTime() - right.getTime());
   return publishTimes[0];
 }
-function dateFromString2(input) {
+function dateFromString3(input) {
   if (input === void 0) {
     return void 0;
   }
@@ -34045,7 +34686,7 @@ function dateFromString2(input) {
 function registryPackageUrl2(name) {
   return `${npmRegistryUrl}/${encodeURIComponent(name)}`;
 }
-function failure2(name, status, message, retryable) {
+function failure3(name, status, message, retryable) {
   return {
     status,
     ecosystem: "npm",
@@ -34067,7 +34708,7 @@ function isNpmMetadata(input) {
   }
   return Object.values(metadata.time).every((value) => typeof value === "string");
 }
-function sleep2(milliseconds) {
+function sleep3(milliseconds) {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
@@ -34077,8 +34718,8 @@ function sleep2(milliseconds) {
 
 // src/registries/pypi.ts
 var pypiRegistryUrl = "https://pypi.org/pypi";
-var defaultTimeoutMs3 = 8e3;
-var defaultRetries3 = 2;
+var defaultTimeoutMs4 = 8e3;
+var defaultRetries4 = 2;
 var PypiRegistryClient = class {
   timeoutMs;
   retries;
@@ -34086,8 +34727,8 @@ var PypiRegistryClient = class {
   fetchImpl;
   cache = /* @__PURE__ */ new Map();
   constructor(options = {}) {
-    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs3;
-    this.retries = options.retries ?? defaultRetries3;
+    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs4;
+    this.retries = options.retries ?? defaultRetries4;
     this.userAgent = options.userAgent ?? "sloplock/0.1.0";
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -34120,7 +34761,7 @@ var PypiRegistryClient = class {
       if (!result.retryable || attempt === this.retries) {
         return result;
       }
-      await sleep3(100 * (attempt + 1));
+      await sleep4(100 * (attempt + 1));
     }
     return lastFailure ?? {
       status: "network_error",
@@ -34147,10 +34788,10 @@ var PypiRegistryClient = class {
         return { status: "not_found", ecosystem: "pypi", name };
       }
       if (response.status === 429) {
-        return failure3(name, "rate_limited", "PyPI registry rate limit exceeded.", true);
+        return failure4(name, "rate_limited", "PyPI registry rate limit exceeded.", true);
       }
       if (response.status >= 500) {
-        return failure3(
+        return failure4(
           name,
           "server_error",
           `PyPI registry returned HTTP ${response.status}.`,
@@ -34158,7 +34799,7 @@ var PypiRegistryClient = class {
         );
       }
       if (!response.ok) {
-        return failure3(
+        return failure4(
           name,
           "network_error",
           `PyPI registry returned HTTP ${response.status}.`,
@@ -34169,7 +34810,7 @@ var PypiRegistryClient = class {
       return parseMetadata3(name, metadata);
     } catch (error2) {
       const message = error2 instanceof Error && error2.name === "AbortError" ? "PyPI registry request timed out." : error2 instanceof Error ? error2.message : String(error2);
-      return failure3(name, "network_error", message, true);
+      return failure4(name, "network_error", message, true);
     } finally {
       clearTimeout(timeout);
     }
@@ -34177,7 +34818,7 @@ var PypiRegistryClient = class {
 };
 function parseMetadata3(name, metadata) {
   if (!isPypiMetadata(metadata)) {
-    return failure3(
+    return failure4(
       name,
       "invalid_response",
       "PyPI registry returned invalid package metadata.",
@@ -34210,9 +34851,9 @@ function uploadDatesFromFiles(files) {
   if (files === void 0) {
     return [];
   }
-  return files.map((file) => dateFromString3(file.upload_time_iso_8601 ?? file.upload_time)).filter((date) => date !== void 0);
+  return files.map((file) => dateFromString4(file.upload_time_iso_8601 ?? file.upload_time)).filter((date) => date !== void 0);
 }
-function dateFromString3(input) {
+function dateFromString4(input) {
   if (input === void 0) {
     return void 0;
   }
@@ -34254,7 +34895,7 @@ function isOptionalFileArray(input) {
 function registryPackageUrl3(name) {
   return `${pypiRegistryUrl}/${encodeURIComponent(name)}/json`;
 }
-function failure3(name, status, message, retryable) {
+function failure4(name, status, message, retryable) {
   return {
     status,
     ecosystem: "pypi",
@@ -34263,7 +34904,7 @@ function failure3(name, status, message, retryable) {
     retryable
   };
 }
-function sleep3(milliseconds) {
+function sleep4(milliseconds) {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
@@ -34274,10 +34915,12 @@ function sleep3(milliseconds) {
 // src/registries/index.ts
 var DefaultRegistryClient = class {
   crates;
+  go;
   npm;
   pypi;
   constructor(input = {}) {
     this.crates = input.crates ?? new CratesRegistryClient();
+    this.go = input.go ?? new GoProxyRegistryClient();
     this.npm = input.npm ?? new NpmRegistryClient();
     this.pypi = input.pypi ?? new PypiRegistryClient();
   }
@@ -34285,6 +34928,8 @@ var DefaultRegistryClient = class {
     switch (reference.ecosystem) {
       case "crates":
         return this.crates.getPackage(reference);
+      case "go":
+        return this.go.getPackage(reference);
       case "npm":
         return this.npm.getPackage(reference);
       case "pypi":
@@ -34383,9 +35028,13 @@ async function scan(options) {
     ...parsed.warnings
   ];
   const activeEcosystems = options.ecosystems ?? loadedConfig.config.ecosystems;
+  const goPrivatePatterns = [
+    ...loadedConfig.config.go.privateModules,
+    ...goPrivatePatternsFromEnvironment()
+  ];
   const bestReferences = selectBestReferences(
     parsed.references.filter(
-      (reference) => activeEcosystems.includes(reference.ecosystem)
+      (reference) => activeEcosystems.includes(reference.ecosystem) && !isPrivateGoModuleReference(reference, goPrivatePatterns)
     )
   );
   const registryClient = options.registryClient ?? new DefaultRegistryClient();
@@ -34465,6 +35114,13 @@ async function parseReferences(input) {
   }
   const files = await discoverDependencyFiles(input.rootDir);
   return parseWorkspaceFiles({ rootDir: input.rootDir, files });
+}
+function isPrivateGoModuleReference(reference, patterns) {
+  return reference.ecosystem === "go" && patterns.some(
+    (pattern) => splitGoPrivatePatternList(pattern).some(
+      (splitPattern) => matchesGoPrivateModulePattern(reference.name, splitPattern)
+    )
+  );
 }
 function selectBestReferences(references) {
   const byPackage = /* @__PURE__ */ new Map();
@@ -34675,10 +35331,12 @@ function ecosystemsInput(input) {
   if (trimmed.length === 0 || trimmed === "all") {
     return {};
   }
-  if (trimmed === "crates" || trimmed === "npm" || trimmed === "pypi") {
+  if (trimmed === "crates" || trimmed === "go" || trimmed === "npm" || trimmed === "pypi") {
     return { ecosystems: [trimmed] };
   }
-  throw new Error("Action input ecosystem must be all, crates, npm, or pypi.");
+  throw new Error(
+    "Action input ecosystem must be all, crates, go, npm, or pypi."
+  );
 }
 function readFailOn(input) {
   if (input === "medium" || input === "high") {

@@ -1,7 +1,7 @@
 {
   "name": "sloplock",
   "version": "0.1.0",
-  "description": "Block nonexistent and too-new npm, PyPI, and crates.io packages before they enter your repo.",
+  "description": "Block nonexistent and too-new package dependencies before they enter your repo.",
   "type": "module",
   "bin": {
     "sloplock": "./dist/cli/index.js"
@@ -34,6 +34,7 @@
     "supply-chain",
     "github-action",
     "crates",
+    "go",
     "npm",
     "pypi",
     "rust",
