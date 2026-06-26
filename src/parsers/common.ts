@@ -65,6 +65,27 @@ export function makePypiReference(input: {
   };
 }
 
+export function makePackagistReference(input: {
+  name: string;
+  versionRange?: string;
+  sourceFile: string;
+  sourceLine?: number;
+  sourceKind: SourceKind;
+  isDirect: boolean;
+}): DependencyReference {
+  return {
+    ecosystem: "packagist",
+    name: input.name,
+    ...(input.versionRange === undefined
+      ? {}
+      : { versionRange: input.versionRange }),
+    sourceFile: input.sourceFile,
+    ...(input.sourceLine === undefined ? {} : { sourceLine: input.sourceLine }),
+    sourceKind: input.sourceKind,
+    isDirect: input.isDirect
+  };
+}
+
 export function makeGoReference(input: {
   name: string;
   versionRange?: string;

@@ -31,6 +31,19 @@ export function makePypiReference(input) {
         isDirect: input.isDirect
     };
 }
+export function makePackagistReference(input) {
+    return {
+        ecosystem: "packagist",
+        name: input.name,
+        ...(input.versionRange === undefined
+            ? {}
+            : { versionRange: input.versionRange }),
+        sourceFile: input.sourceFile,
+        ...(input.sourceLine === undefined ? {} : { sourceLine: input.sourceLine }),
+        sourceKind: input.sourceKind,
+        isDirect: input.isDirect
+    };
+}
 export function makeGoReference(input) {
     return {
         ecosystem: "go",

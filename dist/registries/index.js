@@ -1,16 +1,19 @@
 import { CratesRegistryClient } from "./crates.js";
 import { GoProxyRegistryClient } from "./go.js";
 import { NpmRegistryClient } from "./npm.js";
+import { PackagistRegistryClient } from "./packagist.js";
 import { PypiRegistryClient } from "./pypi.js";
 export class DefaultRegistryClient {
     crates;
     go;
     npm;
+    packagist;
     pypi;
     constructor(input = {}) {
         this.crates = input.crates ?? new CratesRegistryClient();
         this.go = input.go ?? new GoProxyRegistryClient();
         this.npm = input.npm ?? new NpmRegistryClient();
+        this.packagist = input.packagist ?? new PackagistRegistryClient();
         this.pypi = input.pypi ?? new PypiRegistryClient();
     }
     getPackage(reference) {
@@ -21,6 +24,8 @@ export class DefaultRegistryClient {
                 return this.go.getPackage(reference);
             case "npm":
                 return this.npm.getPackage(reference);
+            case "packagist":
+                return this.packagist.getPackage(reference);
             case "pypi":
                 return this.pypi.getPackage(reference);
         }

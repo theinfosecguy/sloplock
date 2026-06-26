@@ -42,13 +42,14 @@ function ecosystemsInput(input: string): { ecosystems?: readonly Ecosystem[] } {
     trimmed === "crates" ||
     trimmed === "go" ||
     trimmed === "npm" ||
+    trimmed === "packagist" ||
     trimmed === "pypi"
   ) {
     return { ecosystems: [trimmed] };
   }
 
   throw new Error(
-    "Action input ecosystem must be all, crates, go, npm, or pypi."
+    "Action input ecosystem must be all, crates, go, npm, packagist, or pypi."
   );
 }
 

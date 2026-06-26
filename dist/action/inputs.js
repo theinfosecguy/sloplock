@@ -24,10 +24,11 @@ function ecosystemsInput(input) {
     if (trimmed === "crates" ||
         trimmed === "go" ||
         trimmed === "npm" ||
+        trimmed === "packagist" ||
         trimmed === "pypi") {
         return { ecosystems: [trimmed] };
     }
-    throw new Error("Action input ecosystem must be all, crates, go, npm, or pypi.");
+    throw new Error("Action input ecosystem must be all, crates, go, npm, packagist, or pypi.");
 }
 function readFailOn(input) {
     if (input === "medium" || input === "high") {

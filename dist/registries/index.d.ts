@@ -3,11 +3,13 @@ export declare class DefaultRegistryClient implements RegistryClient {
     private readonly crates;
     private readonly go;
     private readonly npm;
+    private readonly packagist;
     private readonly pypi;
     constructor(input?: {
         crates?: RegistryClient;
         go?: RegistryClient;
         npm?: RegistryClient;
+        packagist?: RegistryClient;
         pypi?: RegistryClient;
     });
     getPackage(reference: {

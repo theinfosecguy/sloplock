@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parseCargoLock } from "../src/parsers/cargo-lock.js";
 import { parseCargoToml } from "../src/parsers/cargo-toml.js";
+import { parseComposerJson } from "../src/parsers/composer-json.js";
+import { parseComposerLock } from "../src/parsers/composer-lock.js";
 import { parseGoMod } from "../src/parsers/go-mod.js";
 import { parsePackageJson } from "../src/parsers/package-json.js";
 import { parsePackageLock } from "../src/parsers/package-lock.js";
@@ -187,6 +189,264 @@ packages:
     });
 
     expect(parsed.references.map((reference) => reference.name)).toEqual(["react"]);
+  });
+});
+
+describe("PHP Composer dependency parsers", () => {
+  it("extracts Packagist dependencies from composer.json and skips platform packages", () => {
+    const parsed = parseComposerJson({
+      sourceFile: "composer.json",
+      content: `
+{
+  "require": {
+    "Monolog/Monolog": "^3.0",
+    "Acme/Upper": "1.0.0",
+    "php": "^8.3",
+    "ext-json": "*",
+    "lib-curl": "*",
+    "composer-plugin-api": "^2.0",
+    "acme/private": "dev-main",
+    "private/package": "1.0.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.0"
+  },
+  "repositories": [
+    {
+      "type": "composer",
+      "url": "https://packages.example.invalid",
+      "only": ["acme/private"]
+    },
+    {
+      "type": "package",
+      "package": {
+        "name": "private/package",
+        "version": "1.0.0"
+      }
+    }
+  ]
+}
+`
+    });
+
+    expect(
+      parsed.references.map((reference) => ({
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        versionRange: reference.versionRange,
+        sourceKind: reference.sourceKind,
+        isDirect: reference.isDirect
+      }))
+    ).toEqual([
+      {
+        ecosystem: "packagist",
+        name: "monolog/monolog",
+        versionRange: "^3.0",
+        sourceKind: "manifest",
+        isDirect: true
+      },
+      {
+        ecosystem: "packagist",
+        name: "acme/upper",
+        versionRange: "1.0.0",
+        sourceKind: "manifest",
+        isDirect: true
+      },
+      {
+        ecosystem: "packagist",
+        name: "phpunit/phpunit",
+        versionRange: "^11.0",
+        sourceKind: "manifest",
+        isDirect: true
+      }
+    ]);
+  });
+
+  it("skips composer.json dependencies when Packagist is disabled", () => {
+    const parsed = parseComposerJson({
+      sourceFile: "composer.json",
+      content: JSON.stringify({
+        require: {
+          "monolog/monolog": "^3.0"
+        },
+        repositories: [
+          {
+            "packagist.org": false
+          }
+        ]
+      })
+    });
+
+    expect(parsed.references).toEqual([]);
+  });
+
+  it("skips composer.json dependencies behind unconstrained path repositories", () => {
+    const parsed = parseComposerJson({
+      sourceFile: "composer.json",
+      content: JSON.stringify({
+        require: {
+          "acme/local": "dev-main"
+        },
+        repositories: [
+          {
+            type: "path",
+            url: "../packages/*"
+          }
+        ]
+      })
+    });
+
+    expect(parsed.references).toEqual([]);
+  });
+
+  it("skips composer.json dependencies behind broad private repository overrides", () => {
+    const parsed = parseComposerJson({
+      sourceFile: "composer.json",
+      content: JSON.stringify({
+        require: {
+          "acme/private": "dev-main",
+          "public/package": "^1.0"
+        },
+        repositories: [
+          {
+            type: "composer",
+            url: "https://packages.example.invalid",
+            canonical: false,
+            exclude: ["public/package"]
+          }
+        ]
+      })
+    });
+
+    expect(parsed.references).toEqual([]);
+  });
+
+  it("keeps composer.json dependencies when only public Packagist is configured", () => {
+    const parsed = parseComposerJson({
+      sourceFile: "composer.json",
+      content: JSON.stringify({
+        require: {
+          "monolog/monolog": "^3.0"
+        },
+        repositories: [
+          {
+            type: "composer",
+            url: "https://repo.packagist.org"
+          }
+        ]
+      })
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "monolog/monolog"
+    ]);
+  });
+
+  it("extracts Packagist packages from composer.lock and skips private sources", () => {
+    const parsed = parseComposerLock({
+      sourceFile: "composer.lock",
+      content: JSON.stringify(
+        {
+          packages: [
+            {
+              name: "Monolog/Monolog",
+              version: "3.9.0",
+              source: {
+                type: "git",
+                url: "https://github.com/Seldaek/monolog.git"
+              },
+              dist: {
+                type: "zip",
+                url: "https://api.github.com/repos/Seldaek/monolog/zipball/test"
+              },
+              "notification-url": "https://packagist.org/downloads/"
+            },
+            {
+              name: "private/package",
+              version: "1.0.0",
+              "notification-url": "https://packages.example.invalid/downloads/"
+            },
+            {
+              name: "vcs/package",
+              version: "1.0.0",
+              source: {
+                type: "git",
+                url: "https://github.com/example/vcs-package.git"
+              }
+            },
+            {
+              name: "ambiguous/package",
+              version: "1.0.0"
+            }
+          ],
+          "packages-dev": [
+            {
+              name: "phpunit/phpunit",
+              version: "11.0.0",
+              "notification-url": "https://packagist.org/downloads/"
+            }
+          ]
+        },
+        null,
+        2
+      )
+    });
+
+    expect(
+      parsed.references.map((reference) => ({
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        versionRange: reference.versionRange,
+        sourceKind: reference.sourceKind,
+        isDirect: reference.isDirect
+      }))
+    ).toEqual([
+      {
+        ecosystem: "packagist",
+        name: "monolog/monolog",
+        versionRange: "3.9.0",
+        sourceKind: "lockfile",
+        isDirect: false
+      },
+      {
+        ecosystem: "packagist",
+        name: "phpunit/phpunit",
+        versionRange: "11.0.0",
+        sourceKind: "lockfile",
+        isDirect: false
+      }
+    ]);
+  });
+
+  it("parses Composer files through dependency file discovery", () => {
+    expect(isSupportedDependencyFile("composer.json")).toBe(true);
+    expect(isSupportedDependencyFile("composer.lock")).toBe(true);
+
+    const manifest = parseDependencyFile({
+      sourceFile: "composer.json",
+      content: JSON.stringify({
+        require: {
+          "monolog/monolog": "^3.0"
+        }
+      })
+    });
+    const lockfile = parseDependencyFile({
+      sourceFile: "composer.lock",
+      content: JSON.stringify({
+        packages: [
+          {
+            name: "monolog/monolog",
+            version: "3.9.0",
+            "notification-url": "https://packagist.org/downloads/"
+          }
+        ]
+      })
+    });
+
+    expect(manifest.references[0]?.ecosystem).toBe("packagist");
+    expect(manifest.references[0]?.name).toBe("monolog/monolog");
+    expect(lockfile.references[0]?.ecosystem).toBe("packagist");
+    expect(lockfile.references[0]?.name).toBe("monolog/monolog");
   });
 });
 

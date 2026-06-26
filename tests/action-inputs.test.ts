@@ -1,0 +1,33 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const inputValues = vi.hoisted(() => new Map<string, string>());
+
+vi.mock("@actions/core", () => ({
+  getBooleanInput: vi.fn((name: string) => inputValues.get(name) === "true"),
+  getInput: vi.fn((name: string) => inputValues.get(name) ?? "")
+}));
+
+import { readActionInputs } from "../src/action/inputs.js";
+
+describe("readActionInputs", () => {
+  beforeEach(() => {
+    inputValues.clear();
+  });
+
+  it("accepts Packagist ecosystem scans", () => {
+    inputValues.set("ecosystem", "packagist");
+
+    expect(readActionInputs()).toMatchObject({
+      path: ".",
+      failOn: "high",
+      ecosystems: ["packagist"],
+      changedOnly: false,
+      comment: false,
+      failClosed: false
+    });
+  });
+
+  it("keeps all ecosystems enabled by default", () => {
+    expect(readActionInputs().ecosystems).toBeUndefined();
+  });
+});

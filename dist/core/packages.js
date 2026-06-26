@@ -1,6 +1,7 @@
 import { normalizeCratesPackageName } from "./crates.js";
 import { normalizeGoModulePath } from "./go.js";
 import { normalizeNpmPackageName } from "./npm.js";
+import { normalizePackagistPackageName } from "./packagist.js";
 import { normalizePypiPackageName } from "./pypi.js";
 export function normalizePackageName(ecosystem, packageName) {
     switch (ecosystem) {
@@ -10,6 +11,8 @@ export function normalizePackageName(ecosystem, packageName) {
             return normalizeGoModulePath(packageName);
         case "npm":
             return normalizeNpmPackageName(packageName);
+        case "packagist":
+            return normalizePackagistPackageName(packageName);
         case "pypi":
             return normalizePypiPackageName(packageName);
     }
@@ -22,6 +25,8 @@ export function registryDisplayName(ecosystem) {
             return "Go module proxy";
         case "npm":
             return "npm";
+        case "packagist":
+            return "Packagist";
         case "pypi":
             return "PyPI";
     }
