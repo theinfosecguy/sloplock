@@ -3,6 +3,7 @@ import { parsePackageJson } from "../src/parsers/package-json.js";
 import { parsePackageLock } from "../src/parsers/package-lock.js";
 import { parsePnpmLock } from "../src/parsers/pnpm-lock.js";
 import { parseDependencyFile, isSupportedDependencyFile } from "../src/parsers/index.js";
+import { parsePoetryLock } from "../src/parsers/poetry-lock.js";
 import { parsePyproject } from "../src/parsers/pyproject.js";
 import { parsePythonRequirements } from "../src/parsers/python-requirements.js";
 import { parseYarnLock } from "../src/parsers/yarn-lock.js";
@@ -244,6 +245,91 @@ git+https://github.com/example/pkg.git
 
     expect(parsed.references.map((reference) => reference.name)).toEqual([
       "missing-python-package"
+    ]);
+  });
+
+  it("extracts registry dependencies from poetry.lock", () => {
+    const parsed = parsePoetryLock({
+      sourceFile: "poetry.lock",
+      content: `
+[[package]]
+name = "Django"
+version = "5.0.1"
+description = "A high-level Python web framework."
+optional = false
+python-versions = ">=3.10"
+files = []
+
+[[package]]
+name = "zope.interface"
+version = "6.0"
+description = "Interfaces for Python."
+optional = false
+python-versions = ">=3.7"
+files = []
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "django",
+      "zope-interface"
+    ]);
+    expect(parsed.references.map((reference) => reference.sourceKind)).toEqual([
+      "lockfile",
+      "lockfile"
+    ]);
+  });
+
+  it("skips non-public poetry.lock package sources", () => {
+    const parsed = parsePoetryLock({
+      sourceFile: "poetry.lock",
+      content: `
+[[package]]
+name = "requests"
+version = "2.32.0"
+
+[[package]]
+name = "local-pkg"
+version = "0.1.0"
+[package.source]
+type = "directory"
+url = "../local-pkg"
+
+[[package]]
+name = "git-pkg"
+version = "0.1.0"
+[package.source]
+type = "git"
+url = "https://github.com/example/pkg.git"
+
+[[package]]
+name = "url-pkg"
+version = "0.1.0"
+[package.source]
+type = "url"
+url = "https://example.com/pkg.whl"
+
+[[package]]
+name = "private-index-pkg"
+version = "1.0.0"
+[package.source]
+type = "legacy"
+url = "https://packages.example.invalid/simple"
+reference = "private"
+
+[[package]]
+name = "public-source-pkg"
+version = "1.0.0"
+[package.source]
+type = "legacy"
+url = "https://pypi.org/simple/"
+reference = "pypi"
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "requests",
+      "public-source-pkg"
     ]);
   });
 

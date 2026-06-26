@@ -180,6 +180,68 @@ old-python-package~=1.0
     expect(result.findings[0]?.source.file).toBe("dev.txt");
   });
 
+  it("discovers PyPI packages from poetry.lock", async () => {
+    const rootDir = await tempProject({
+      "poetry.lock": `
+[[package]]
+name = "missing-python-package"
+version = "1.0.0"
+`
+    });
+    const result = await scan({
+      rootDir,
+      registryClient: fakeRegistry({
+        "pypi:missing-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "missing-python-package"
+        }
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("pypi");
+    expect(result.findings[0]?.package).toBe("missing-python-package");
+    expect(result.findings[0]?.source.file).toBe("poetry.lock");
+  });
+
+  it("skips Poetry packages locked to private sources", async () => {
+    const rootDir = await tempProject({
+      "poetry.lock": `
+[[package]]
+name = "sloplock-private-index-gha-202606261119"
+version = "1.0.0"
+description = "Private index package fixture."
+optional = false
+python-versions = ">=3.8"
+files = []
+
+[package.source]
+type = "legacy"
+url = "https://packages.example.invalid/simple"
+reference = "private"
+`
+    });
+    const calls: string[] = [];
+    const result = await scan({
+      rootDir,
+      registryClient: {
+        getPackage(reference) {
+          calls.push(`${reference.ecosystem}:${reference.name}`);
+          return Promise.resolve({
+            status: "not_found",
+            ecosystem: reference.ecosystem,
+            name: reference.name
+          });
+        }
+      }
+    });
+
+    expect(result.scannedDependencies).toBe(0);
+    expect(result.findings).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
   it("filters scans to a selected ecosystem", async () => {
     const rootDir = await tempProject({
       "package.json": JSON.stringify({
@@ -401,6 +463,54 @@ old-python-package~=1.0
     expect(result.scannedDependencies).toBe(1);
     expect(result.findings[0]?.ecosystem).toBe("pypi");
     expect(result.findings[0]?.package).toBe("new-python-package");
+  });
+
+  it("changed-only scans packages introduced in poetry.lock", async () => {
+    const rootDir = await tempProject({
+      "poetry.lock": `
+[[package]]
+name = "old-python-package"
+version = "1.0.0"
+`
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "poetry.lock"),
+      `
+[[package]]
+name = "old-python-package"
+version = "1.0.0"
+
+[[package]]
+name = "new-python-package"
+version = "1.0.0"
+`
+    );
+    await commitAll(rootDir, "update poetry lock");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "pypi:new-python-package": {
+          status: "not_found",
+          ecosystem: "pypi",
+          name: "new-python-package"
+        },
+        "pypi:old-python-package": found(
+          "old-python-package",
+          "2020-01-01T00:00:00.000Z",
+          "pypi"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("pypi");
+    expect(result.findings[0]?.package).toBe("new-python-package");
+    expect(result.findings[0]?.source.file).toBe("poetry.lock");
   });
 
   it("deduplicates package references before registry lookup", async () => {
