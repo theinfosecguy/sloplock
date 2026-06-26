@@ -52,7 +52,7 @@ the root `action.yml` metadata file.
    Action to GitHub Marketplace.
 2. Use `docs/releases/v1.0.0.md` as the release notes.
 3. Confirm the Marketplace listing shows:
-   - action name: `SlopLock Dependency Gate`
+   - action name: `SlopLock`
    - install ref: `theinfosecguy/sloplock@v1`
    - category/tags related to security and dependency review
 4. After publication, verify the install snippet in the Marketplace listing still
