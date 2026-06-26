@@ -256,6 +256,82 @@ old-python-package~=1.0
     );
   });
 
+  it("does not query public registries for new ecosystem private sources", async () => {
+    const rootDir = await tempProject({
+      "NuGet.config": `
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+    <add key="private" value="https://nuget.example.invalid/v3/index.json" />
+  </packageSources>
+  <packageSourceMapping>
+    <packageSource key="nuget.org">
+      <package pattern="Newtonsoft.*" />
+    </packageSource>
+    <packageSource key="private">
+      <package pattern="Private.*" />
+    </packageSource>
+  </packageSourceMapping>
+</configuration>
+`,
+      "App.csproj": `
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Private.Package" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+`,
+      "composer.json": JSON.stringify({
+        require: {
+          "monolog/monolog": "^3.0",
+          "private/package": "1.0.0"
+        },
+        repositories: [
+          {
+            type: "composer",
+            url: "https://packages.example.invalid",
+            only: ["private/package"]
+          }
+        ]
+      }),
+      Gemfile: `
+source "https://rubygems.org"
+
+gem "rake", "~> 13.0"
+gem "local-gem", path: "../local-gem"
+
+source "https://gems.example.invalid" do
+  gem "private-gem", "1.0.0"
+end
+`
+    });
+    const calls: string[] = [];
+    const result = await scan({
+      rootDir,
+      registryClient: {
+        getPackage(reference) {
+          calls.push(`${reference.ecosystem}:${reference.name}`);
+          return Promise.resolve(
+            found(reference.name, "2020-01-01T00:00:00.000Z", reference.ecosystem)
+          );
+        }
+      }
+    });
+
+    expect(result.scannedDependencies).toBe(3);
+    expect(result.findings).toEqual([]);
+    expect(calls.sort()).toEqual([
+      "nuget:newtonsoft.json",
+      "packagist:monolog/monolog",
+      "rubygems:rake"
+    ]);
+    expect(result.warnings.map((warning) => warning.message)).toContain(
+      "Skipped 1 NuGet package reference not mapped to NuGet.org."
+    );
+  });
+
   it("reports missing and too-new Rust crates", async () => {
     const rootDir = await tempProject({
       "Cargo.toml": `
