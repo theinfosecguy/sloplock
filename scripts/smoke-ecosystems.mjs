@@ -30,17 +30,18 @@ try {
   const passReport = runCliJson(passFixture, []);
   assertSummary("CLI pass fixture", passReport, {
     findings: 0,
-    scannedDependencies: 6
+    scannedDependencies: 7
   });
   smokeResults.push(["CLI pass", passReport.summary]);
 
   const missingResult = runCliJson(missingFixture, [], 1);
   assertSummary("CLI missing fixture", missingResult.report, {
-    findings: 6,
-    scannedDependencies: 6,
+    findings: 7,
+    scannedDependencies: 7,
     highestSeverity: "high"
   });
   assertFindingRules("CLI missing fixture", missingResult.report, [
+    "package_not_found",
     "package_not_found",
     "package_not_found",
     "package_not_found",
@@ -63,11 +64,12 @@ try {
     1
   );
   assertSummary("CLI changed-only fixture", changedResult.report, {
-    findings: 6,
-    scannedDependencies: 6,
+    findings: 7,
+    scannedDependencies: 7,
     highestSeverity: "high"
   });
   assertFindingRules("CLI changed-only fixture", changedResult.report, [
+    "package_not_found",
     "package_not_found",
     "package_not_found",
     "package_not_found",
@@ -86,7 +88,7 @@ try {
 
   const actionMissing = runAction(missingFixture, 1);
   assertActionOutputs("Action missing fixture", actionMissing.outputs, {
-    findings: "6",
+    findings: "7",
     highestSeverity: "high"
   });
   smokeResults.push(["Action missing", actionMissing.outputs]);
@@ -144,6 +146,15 @@ serde = "1"
 gem "rake", "~> 13.0"
 `
   );
+  writeFileSync(
+    path.join(rootDir, "App.csproj"),
+    `<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+</Project>
+`
+  );
 
   return rootDir;
 }
@@ -186,6 +197,15 @@ ${packages.crates} = "1"
     `source "https://rubygems.org"
 
 gem "${packages.rubygems}", "1.0.0"
+`
+  );
+  writeFileSync(
+    path.join(rootDir, "App.csproj"),
+    `<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="${packages.nuget}" Version="1.0.0" />
+  </ItemGroup>
+</Project>
 `
   );
 
@@ -254,6 +274,25 @@ gem "private-gem", "1.0.0"
 gem "local-gem", path: "../local-gem"
 `
   );
+  writeFileSync(
+    path.join(rootDir, "NuGet.config"),
+    `<configuration>
+  <packageSources>
+    <clear />
+    <add key="private" value="https://nuget.example.invalid/v3/index.json" />
+  </packageSources>
+</configuration>
+`
+  );
+  writeFileSync(
+    path.join(rootDir, "App.csproj"),
+    `<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Private.Package" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+`
+  );
 
   return rootDir;
 }
@@ -295,6 +334,15 @@ serde = "1"
     `source "https://rubygems.org"
 
 gem "rake", "~> 13.0"
+`
+  );
+  writeFileSync(
+    path.join(rootDir, "App.csproj"),
+    `<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+</Project>
 `
   );
 
@@ -364,6 +412,16 @@ ${packages.crates} = "1"
 
 gem "rake", "~> 13.0"
 gem "${packages.rubygems}", "1.0.0"
+`
+  );
+  writeFileSync(
+    path.join(rootDir, "App.csproj"),
+    `<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="${packages.nuget}" Version="1.0.0" />
+  </ItemGroup>
+</Project>
 `
   );
   run("git", ["add", "."], { cwd: rootDir });
@@ -518,6 +576,7 @@ function missingPackages(label = "missing") {
   const suffix = `${label}-${unique}`.toLowerCase();
   return {
     npm: `sloplock-smoke-npm-${suffix}`,
+    nuget: `SlopLock.Smoke.Missing.${suffix.replaceAll("-", ".")}`,
     pypi: `sloplock-smoke-pypi-${suffix}`,
     go: `github.com/sloplock-smoke/missing-go-${suffix}`,
     packagist: `sloplock-smoke/missing-${suffix}`,

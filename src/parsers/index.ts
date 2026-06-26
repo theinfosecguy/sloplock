@@ -8,6 +8,12 @@ import { parseCargoToml } from "./cargo-toml.js";
 import { parseGemfile } from "./gemfile.js";
 import { parseGemfileLock } from "./gemfile-lock.js";
 import { parseGoMod } from "./go-mod.js";
+import {
+  parseDirectoryPackagesProps,
+  parseMsBuildProject,
+  parsePackagesConfig,
+  parsePackagesLockJson
+} from "./nuget.js";
 import { parsePackageJson } from "./package-json.js";
 import { parsePackageLock } from "./package-lock.js";
 import { parsePdmLock } from "./pdm-lock.js";
@@ -26,8 +32,11 @@ const supportedFileNames = new Set([
   "Gemfile",
   "Gemfile.lock",
   "go.mod",
+  "Directory.Packages.props",
   "package.json",
   "package-lock.json",
+  "packages.config",
+  "packages.lock.json",
   "pdm.lock",
   "poetry.lock",
   "pnpm-lock.yaml",
@@ -39,7 +48,11 @@ const supportedFileNames = new Set([
 
 export function isSupportedDependencyFile(filePath: string): boolean {
   const fileName = path.basename(filePath);
-  return supportedFileNames.has(fileName) || isPythonRequirementsFile(fileName);
+  return (
+    supportedFileNames.has(fileName) ||
+    isPythonRequirementsFile(fileName) ||
+    isMsBuildProjectFile(fileName)
+  );
 }
 
 export function parseDependencyFile(input: {
@@ -97,10 +110,16 @@ function parseByFileName(
       return parseGemfileLock({ sourceFile, content });
     case "go.mod":
       return parseGoMod({ sourceFile, content });
+    case "Directory.Packages.props":
+      return parseDirectoryPackagesProps({ sourceFile, content });
     case "package.json":
       return parsePackageJson({ sourceFile, content });
     case "package-lock.json":
       return parsePackageLock({ sourceFile, content });
+    case "packages.config":
+      return parsePackagesConfig({ sourceFile, content });
+    case "packages.lock.json":
+      return parsePackagesLockJson({ sourceFile, content });
     case "pdm.lock":
       return parsePdmLock({ sourceFile, content });
     case "poetry.lock":
@@ -114,6 +133,10 @@ function parseByFileName(
     case "yarn.lock":
       return parseYarnLock({ sourceFile, content });
     default:
+      if (isMsBuildProjectFile(fileName)) {
+        return parseMsBuildProject({ sourceFile, content });
+      }
+
       return { references: [], warnings: [] };
   }
 }
@@ -125,4 +148,8 @@ function isPythonRequirementsFile(fileName: string): boolean {
     /^constraints(?:[-_.][A-Za-z0-9_.-]+)?\.txt$/u.test(fileName) ||
     /^[A-Za-z0-9_.-]+[-_.]constraints\.txt$/u.test(fileName)
   );
+}
+
+function isMsBuildProjectFile(fileName: string): boolean {
+  return /\.csproj$/iu.test(fileName);
 }

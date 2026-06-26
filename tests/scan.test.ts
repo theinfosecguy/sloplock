@@ -159,6 +159,103 @@ old-python-package~=1.0
     ]);
   });
 
+  it("reports missing and too-new NuGet packages from project files", async () => {
+    const rootDir = await tempProject({
+      "src/App/App.csproj": `
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Example.Missing" Version="1.0.0" />
+    <PackageReference Include="Example.Fresh" Version="1.0.0" />
+    <PackageReference Include="Example.Old" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+`
+    });
+    const result = await scan({
+      rootDir,
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "nuget:example.missing": {
+          status: "not_found",
+          ecosystem: "nuget",
+          name: "example.missing"
+        },
+        "nuget:example.fresh": found(
+          "example.fresh",
+          "2026-06-22T00:00:00.000Z",
+          "nuget"
+        ),
+        "nuget:example.old": found(
+          "example.old",
+          "2020-01-01T00:00:00.000Z",
+          "nuget"
+        )
+      })
+    });
+
+    expect(result.findings.map((finding) => finding.ecosystem)).toEqual([
+      "nuget",
+      "nuget"
+    ]);
+    expect(result.findings.map((finding) => finding.package).sort()).toEqual([
+      "example.fresh",
+      "example.missing"
+    ]);
+    expect(result.findings.map((finding) => finding.rule).sort()).toEqual([
+      "package_not_found",
+      "package_too_new"
+    ]);
+  });
+
+  it("skips NuGet packages not mapped to NuGet.org", async () => {
+    const rootDir = await tempProject({
+      "NuGet.config": `
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+    <add key="private" value="https://nuget.example.invalid/v3/index.json" />
+  </packageSources>
+  <packageSourceMapping>
+    <packageSource key="nuget.org">
+      <package pattern="Public.*" />
+    </packageSource>
+    <packageSource key="private">
+      <package pattern="Private.*" />
+    </packageSource>
+  </packageSourceMapping>
+</configuration>
+`,
+      "src/App/App.csproj": `
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Public.Package" Version="1.0.0" />
+    <PackageReference Include="Private.Package" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+`
+    });
+    const calls: string[] = [];
+    const result = await scan({
+      rootDir,
+      registryClient: {
+        getPackage(reference) {
+          calls.push(`${reference.ecosystem}:${reference.name}`);
+          return Promise.resolve(
+            found(reference.name, "2020-01-01T00:00:00.000Z", reference.ecosystem)
+          );
+        }
+      }
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings).toEqual([]);
+    expect(calls).toEqual(["nuget:public.package"]);
+    expect(result.warnings.map((warning) => warning.message)).toContain(
+      "Skipped 1 NuGet package reference not mapped to NuGet.org."
+    );
+  });
+
   it("reports missing and too-new Rust crates", async () => {
     const rootDir = await tempProject({
       "Cargo.toml": `
@@ -1251,6 +1348,55 @@ replace github.com/example/local-module => ../local-module
     expect(result.findings[0]?.ecosystem).toBe("go");
     expect(result.findings[0]?.package).toBe("github.com/example/new-module");
     expect(result.findings[0]?.source.file).toBe("go.mod");
+  });
+
+  it("changed-only scans NuGet packages introduced in project files", async () => {
+    const rootDir = await tempProject({
+      "src/App/App.csproj": `
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Example.Old" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+`
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "src/App/App.csproj"),
+      `
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Example.Old" Version="1.0.0" />
+    <PackageReference Include="Example.New" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+`
+    );
+    await commitAll(rootDir, "update nuget packages");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "nuget:example.new": {
+          status: "not_found",
+          ecosystem: "nuget",
+          name: "example.new"
+        },
+        "nuget:example.old": found(
+          "example.old",
+          "2020-01-01T00:00:00.000Z",
+          "nuget"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("nuget");
+    expect(result.findings[0]?.package).toBe("example.new");
+    expect(result.findings[0]?.source.file).toBe("src/App/App.csproj");
   });
 
   it("changed-only scans RubyGems packages introduced in Gemfile", async () => {

@@ -6,6 +6,7 @@ import type {
 } from "../core/types.js";
 import { CratesRegistryClient } from "./crates.js";
 import { GoProxyRegistryClient } from "./go.js";
+import { NugetRegistryClient } from "./nuget.js";
 import { NpmRegistryClient } from "./npm.js";
 import { PackagistRegistryClient } from "./packagist.js";
 import { PypiRegistryClient } from "./pypi.js";
@@ -15,6 +16,7 @@ export class DefaultRegistryClient implements RegistryClient {
   private readonly crates: RegistryClient;
   private readonly go: RegistryClient;
   private readonly npm: RegistryClient;
+  private readonly nuget: RegistryClient;
   private readonly packagist: RegistryClient;
   private readonly pypi: RegistryClient;
   private readonly rubygems: RegistryClient;
@@ -23,6 +25,7 @@ export class DefaultRegistryClient implements RegistryClient {
     crates?: RegistryClient;
     go?: RegistryClient;
     npm?: RegistryClient;
+    nuget?: RegistryClient;
     packagist?: RegistryClient;
     pypi?: RegistryClient;
     rubygems?: RegistryClient;
@@ -30,6 +33,7 @@ export class DefaultRegistryClient implements RegistryClient {
     this.crates = input.crates ?? new CratesRegistryClient();
     this.go = input.go ?? new GoProxyRegistryClient();
     this.npm = input.npm ?? new NpmRegistryClient();
+    this.nuget = input.nuget ?? new NugetRegistryClient();
     this.packagist = input.packagist ?? new PackagistRegistryClient();
     this.pypi = input.pypi ?? new PypiRegistryClient();
     this.rubygems = input.rubygems ?? new RubyGemsRegistryClient();
@@ -46,6 +50,8 @@ export class DefaultRegistryClient implements RegistryClient {
         return this.go.getPackage(reference);
       case "npm":
         return this.npm.getPackage(reference);
+      case "nuget":
+        return this.nuget.getPackage(reference);
       case "packagist":
         return this.packagist.getPackage(reference);
       case "pypi":

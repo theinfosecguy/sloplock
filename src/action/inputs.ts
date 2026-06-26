@@ -42,6 +42,7 @@ export function ecosystemsInput(input: string): { ecosystems?: readonly Ecosyste
     trimmed === "crates" ||
     trimmed === "go" ||
     trimmed === "npm" ||
+    trimmed === "nuget" ||
     trimmed === "packagist" ||
     trimmed === "pypi" ||
     trimmed === "rubygems"
@@ -50,7 +51,7 @@ export function ecosystemsInput(input: string): { ecosystems?: readonly Ecosyste
   }
 
   throw new Error(
-    "Action input ecosystem must be all, crates, go, npm, packagist, pypi, or rubygems."
+    "Action input ecosystem must be all, crates, go, npm, nuget, packagist, pypi, or rubygems."
   );
 }
 

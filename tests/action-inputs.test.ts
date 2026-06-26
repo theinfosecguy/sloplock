@@ -40,6 +40,19 @@ describe("readActionInputs", () => {
     });
   });
 
+  it("accepts NuGet ecosystem scans", () => {
+    inputValues.set("ecosystem", "nuget");
+
+    expect(readActionInputs()).toMatchObject({
+      path: ".",
+      failOn: "high",
+      ecosystems: ["nuget"],
+      changedOnly: false,
+      comment: false,
+      failClosed: false
+    });
+  });
+
   it("keeps all ecosystems enabled by default", () => {
     expect(readActionInputs().ecosystems).toBeUndefined();
   });

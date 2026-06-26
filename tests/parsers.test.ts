@@ -6,6 +6,12 @@ import { parseComposerLock } from "../src/parsers/composer-lock.js";
 import { parseGemfile } from "../src/parsers/gemfile.js";
 import { parseGemfileLock } from "../src/parsers/gemfile-lock.js";
 import { parseGoMod } from "../src/parsers/go-mod.js";
+import {
+  parseDirectoryPackagesProps,
+  parseMsBuildProject,
+  parsePackagesConfig,
+  parsePackagesLockJson
+} from "../src/parsers/nuget.js";
 import { parsePackageJson } from "../src/parsers/package-json.js";
 import { parsePackageLock } from "../src/parsers/package-lock.js";
 import { parsePdmLock } from "../src/parsers/pdm-lock.js";
@@ -191,6 +197,142 @@ packages:
     });
 
     expect(parsed.references.map((reference) => reference.name)).toEqual(["react"]);
+  });
+});
+
+describe("NuGet dependency parsers", () => {
+  it("extracts PackageReference entries from MSBuild project files", () => {
+    const parsed = parseMsBuildProject({
+      sourceFile: "src/App/App.csproj",
+      content: `
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Serilog">
+      <Version>3.1.1</Version>
+    </PackageReference>
+    <PackageReference Include="$(PrivatePackage)" Version="1.0.0" />
+    <ProjectReference Include="../Library/Library.csproj" />
+  </ItemGroup>
+</Project>
+`
+    });
+
+    expect(
+      parsed.references.map((reference) => ({
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        versionRange: reference.versionRange,
+        sourceKind: reference.sourceKind,
+        isDirect: reference.isDirect
+      }))
+    ).toEqual([
+      {
+        ecosystem: "nuget",
+        name: "newtonsoft.json",
+        versionRange: "13.0.3",
+        sourceKind: "manifest",
+        isDirect: true
+      },
+      {
+        ecosystem: "nuget",
+        name: "serilog",
+        versionRange: "3.1.1",
+        sourceKind: "manifest",
+        isDirect: true
+      }
+    ]);
+  });
+
+  it("extracts central package versions from Directory.Packages.props", () => {
+    const parsed = parseDirectoryPackagesProps({
+      sourceFile: "Directory.Packages.props",
+      content: `
+<Project>
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <GlobalPackageReference Include="Nerdbank.GitVersioning" Version="3.6.0" />
+  </ItemGroup>
+</Project>
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "microsoft.extensions.logging",
+      "nerdbank.gitversioning"
+    ]);
+    expect(parsed.references.every((reference) => reference.isDirect)).toBe(true);
+  });
+
+  it("extracts packages.lock.json dependencies and skips project entries", () => {
+    const parsed = parsePackagesLockJson({
+      sourceFile: "packages.lock.json",
+      content: JSON.stringify({
+        dependencies: {
+          net8: {
+            "Newtonsoft.Json": {
+              type: "Direct",
+              requested: "[13.0.3, )",
+              resolved: "13.0.3"
+            },
+            Serilog: {
+              type: "Transitive",
+              resolved: "3.1.1"
+            },
+            LocalProject: {
+              type: "Project",
+              resolved: "1.0.0"
+            }
+          }
+        }
+      })
+    });
+
+    expect(
+      parsed.references.map((reference) => ({
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        versionRange: reference.versionRange,
+        sourceKind: reference.sourceKind,
+        isDirect: reference.isDirect
+      }))
+    ).toEqual([
+      {
+        ecosystem: "nuget",
+        name: "newtonsoft.json",
+        versionRange: "[13.0.3, )",
+        sourceKind: "lockfile",
+        isDirect: true
+      },
+      {
+        ecosystem: "nuget",
+        name: "serilog",
+        versionRange: "3.1.1",
+        sourceKind: "lockfile",
+        isDirect: false
+      }
+    ]);
+  });
+
+  it("parses NuGet files through dependency file discovery", () => {
+    expect(isSupportedDependencyFile("src/App/App.csproj")).toBe(true);
+    expect(isSupportedDependencyFile("Directory.Packages.props")).toBe(true);
+    expect(isSupportedDependencyFile("packages.config")).toBe(true);
+    expect(isSupportedDependencyFile("packages.lock.json")).toBe(true);
+
+    const manifest = parseDependencyFile({
+      sourceFile: "src/App/App.csproj",
+      content:
+        '<Project><ItemGroup><PackageReference Include="Newtonsoft.Json" Version="13.0.3" /></ItemGroup></Project>'
+    });
+    const legacy = parsePackagesConfig({
+      sourceFile: "packages.config",
+      content: '<packages><package id="NUnit" version="4.2.2" /></packages>'
+    });
+
+    expect(manifest.references[0]?.ecosystem).toBe("nuget");
+    expect(manifest.references[0]?.name).toBe("newtonsoft.json");
+    expect(legacy.references[0]?.name).toBe("nunit");
   });
 });
 

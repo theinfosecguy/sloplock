@@ -83,6 +83,19 @@ export function makeRubygemsReference(input) {
         isDirect: input.isDirect
     };
 }
+export function makeNugetReference(input) {
+    return {
+        ecosystem: "nuget",
+        name: input.name,
+        ...(input.versionRange === undefined
+            ? {}
+            : { versionRange: input.versionRange }),
+        sourceFile: input.sourceFile,
+        ...(input.sourceLine === undefined ? {} : { sourceLine: input.sourceLine }),
+        sourceKind: input.sourceKind,
+        isDirect: input.isDirect
+    };
+}
 export function isRecord(input) {
     return typeof input === "object" && input !== null && !Array.isArray(input);
 }

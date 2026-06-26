@@ -149,6 +149,27 @@ export function makeRubygemsReference(input: {
   };
 }
 
+export function makeNugetReference(input: {
+  name: string;
+  versionRange?: string;
+  sourceFile: string;
+  sourceLine?: number;
+  sourceKind: SourceKind;
+  isDirect: boolean;
+}): DependencyReference {
+  return {
+    ecosystem: "nuget",
+    name: input.name,
+    ...(input.versionRange === undefined
+      ? {}
+      : { versionRange: input.versionRange }),
+    sourceFile: input.sourceFile,
+    ...(input.sourceLine === undefined ? {} : { sourceLine: input.sourceLine }),
+    sourceKind: input.sourceKind,
+    isDirect: input.isDirect
+  };
+}
+
 export function isRecord(input: unknown): input is Record<string, unknown> {
   return typeof input === "object" && input !== null && !Array.isArray(input);
 }

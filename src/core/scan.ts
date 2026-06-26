@@ -5,6 +5,7 @@ import {
   parseWorkspaceFiles
 } from "../discovery/find-files.js";
 import { parseChangedDependencyReferences } from "../discovery/git.js";
+import { filterNugetReferencesBySourcePolicy } from "../discovery/nuget-config.js";
 import { DefaultRegistryClient } from "../registries/index.js";
 import {
   goPrivatePatternsFromEnvironment,
@@ -47,13 +48,18 @@ export async function scan(options: ScanOptions): Promise<ScanResult> {
     ...loadedConfig.warnings,
     ...parsed.warnings
   ];
+  const sourceFiltered = await filterNugetReferencesBySourcePolicy({
+    rootDir,
+    references: parsed.references
+  });
+  warnings.push(...sourceFiltered.warnings);
   const activeEcosystems = options.ecosystems ?? loadedConfig.config.ecosystems;
   const goPrivatePatterns = [
     ...loadedConfig.config.go.privateModules,
     ...goPrivatePatternsFromEnvironment()
   ];
   const bestReferences = selectBestReferences(
-    parsed.references.filter(
+    sourceFiltered.references.filter(
       (reference) =>
         activeEcosystems.includes(reference.ecosystem) &&
         !isPrivateGoModuleReference(reference, goPrivatePatterns)
