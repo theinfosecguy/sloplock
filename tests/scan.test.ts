@@ -205,6 +205,43 @@ version = "1.0.0"
     expect(result.findings[0]?.source.file).toBe("poetry.lock");
   });
 
+  it("skips Poetry packages locked to private sources", async () => {
+    const rootDir = await tempProject({
+      "poetry.lock": `
+[[package]]
+name = "sloplock-private-index-gha-202606261119"
+version = "1.0.0"
+description = "Private index package fixture."
+optional = false
+python-versions = ">=3.8"
+files = []
+
+[package.source]
+type = "legacy"
+url = "https://packages.example.invalid/simple"
+reference = "private"
+`
+    });
+    const calls: string[] = [];
+    const result = await scan({
+      rootDir,
+      registryClient: {
+        getPackage(reference) {
+          calls.push(`${reference.ecosystem}:${reference.name}`);
+          return Promise.resolve({
+            status: "not_found",
+            ecosystem: reference.ecosystem,
+            name: reference.name
+          });
+        }
+      }
+    });
+
+    expect(result.scannedDependencies).toBe(0);
+    expect(result.findings).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
   it("filters scans to a selected ecosystem", async () => {
     const rootDir = await tempProject({
       "package.json": JSON.stringify({

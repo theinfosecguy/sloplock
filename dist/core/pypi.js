@@ -8,4 +8,13 @@ export function normalizePypiPackageName(name) {
     }
     return trimmed.toLowerCase().replace(/[-_.]+/gu, "-");
 }
+export function isPublicPypiRegistryUrl(specifier) {
+    try {
+        const url = new URL(specifier);
+        return url.hostname === "pypi.org" && url.pathname.replace(/\/+$/u, "") === "/simple";
+    }
+    catch {
+        return false;
+    }
+}
 //# sourceMappingURL=pypi.js.map

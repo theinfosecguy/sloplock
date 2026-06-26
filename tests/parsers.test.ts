@@ -280,7 +280,7 @@ files = []
     ]);
   });
 
-  it("skips non-registry poetry.lock package sources", () => {
+  it("skips non-public poetry.lock package sources", () => {
     const parsed = parsePoetryLock({
       sourceFile: "poetry.lock",
       content: `
@@ -308,11 +308,28 @@ version = "0.1.0"
 [package.source]
 type = "url"
 url = "https://example.com/pkg.whl"
+
+[[package]]
+name = "private-index-pkg"
+version = "1.0.0"
+[package.source]
+type = "legacy"
+url = "https://packages.example.invalid/simple"
+reference = "private"
+
+[[package]]
+name = "public-source-pkg"
+version = "1.0.0"
+[package.source]
+type = "legacy"
+url = "https://pypi.org/simple/"
+reference = "pypi"
 `
     });
 
     expect(parsed.references.map((reference) => reference.name)).toEqual([
-      "requests"
+      "requests",
+      "public-source-pkg"
     ]);
   });
 

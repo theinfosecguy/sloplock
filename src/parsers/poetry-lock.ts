@@ -1,5 +1,8 @@
 import { parse as parseToml } from "smol-toml";
-import { normalizePypiPackageName } from "../core/pypi.js";
+import {
+  isPublicPypiRegistryUrl,
+  normalizePypiPackageName
+} from "../core/pypi.js";
 import {
   isRecord,
   makePypiReference,
@@ -28,7 +31,7 @@ function referenceFromPackageEntry(
   entry: unknown,
   sourceFile: string
 ): ReturnType<typeof makePypiReference>[] {
-  if (!isRecord(entry) || isNonRegistrySource(readRecord(entry, "source"))) {
+  if (!isRecord(entry) || !isPublicPypiSource(readRecord(entry, "source"))) {
     return [];
   }
 
@@ -53,18 +56,17 @@ function referenceFromPackageEntry(
   ];
 }
 
-function isNonRegistrySource(source: Record<string, unknown> | undefined): boolean {
+function isPublicPypiSource(source: Record<string, unknown> | undefined): boolean {
   if (source === undefined) {
-    return false;
+    return true;
   }
 
-  const type = source.type;
-  return (
-    type === "directory" ||
-    type === "file" ||
-    type === "git" ||
-    type === "url"
-  );
+  const sourceUrl = readString(source, "url");
+  if (sourceUrl !== undefined) {
+    return isPublicPypiRegistryUrl(sourceUrl);
+  }
+
+  return readString(source, "type")?.toLowerCase() === "pypi";
 }
 
 function versionRangeInput(version: unknown): { versionRange?: string } {
@@ -79,6 +81,14 @@ function readRecord(
 ): Record<string, unknown> | undefined {
   const value = input[key];
   return isRecord(value) ? value : undefined;
+}
+
+function readString(
+  input: Record<string, unknown>,
+  key: string
+): string | undefined {
+  const value = input[key];
+  return typeof value === "string" ? value : undefined;
 }
 
 function parseTomlObject(

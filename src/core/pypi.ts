@@ -13,3 +13,12 @@ export function normalizePypiPackageName(name: string): string | undefined {
 
   return trimmed.toLowerCase().replace(/[-_.]+/gu, "-");
 }
+
+export function isPublicPypiRegistryUrl(specifier: string): boolean {
+  try {
+    const url = new URL(specifier);
+    return url.hostname === "pypi.org" && url.pathname.replace(/\/+$/u, "") === "/simple";
+  } catch {
+    return false;
+  }
+}

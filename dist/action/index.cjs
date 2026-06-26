@@ -31333,6 +31333,14 @@ function normalizePypiPackageName(name) {
   }
   return trimmed.toLowerCase().replace(/[-_.]+/gu, "-");
 }
+function isPublicPypiRegistryUrl(specifier) {
+  try {
+    const url = new URL(specifier);
+    return url.hostname === "pypi.org" && url.pathname.replace(/\/+$/u, "") === "/simple";
+  } catch {
+    return false;
+  }
+}
 
 // src/core/packages.ts
 function normalizePackageName(ecosystem, packageName) {
@@ -32504,7 +32512,7 @@ function parsePoetryLock(options) {
   return { references, warnings: [] };
 }
 function referenceFromPackageEntry(entry, sourceFile) {
-  if (!isRecord2(entry) || isNonRegistrySource(readRecord(entry, "source"))) {
+  if (!isRecord2(entry) || !isPublicPypiSource(readRecord(entry, "source"))) {
     return [];
   }
   const rawName = entry.name;
@@ -32525,12 +32533,15 @@ function referenceFromPackageEntry(entry, sourceFile) {
     })
   ];
 }
-function isNonRegistrySource(source) {
+function isPublicPypiSource(source) {
   if (source === void 0) {
-    return false;
+    return true;
   }
-  const type = source.type;
-  return type === "directory" || type === "file" || type === "git" || type === "url";
+  const sourceUrl = readString(source, "url");
+  if (sourceUrl !== void 0) {
+    return isPublicPypiRegistryUrl(sourceUrl);
+  }
+  return readString(source, "type")?.toLowerCase() === "pypi";
 }
 function versionRangeInput(version) {
   return typeof version === "string" && version.trim().length > 0 ? { versionRange: version.trim() } : {};
@@ -32538,6 +32549,10 @@ function versionRangeInput(version) {
 function readRecord(input, key) {
   const value = input[key];
   return isRecord2(value) ? value : void 0;
+}
+function readString(input, key) {
+  const value = input[key];
+  return typeof value === "string" ? value : void 0;
 }
 function parseTomlObject(content, sourceFile) {
   try {
