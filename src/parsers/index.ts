@@ -7,6 +7,7 @@ import { parsePoetryLock } from "./poetry-lock.js";
 import { parsePnpmLock } from "./pnpm-lock.js";
 import { parsePyproject } from "./pyproject.js";
 import { parsePythonRequirements } from "./python-requirements.js";
+import { parseUvLock } from "./uv-lock.js";
 import { parseYarnLock } from "./yarn-lock.js";
 
 const supportedFileNames = new Set([
@@ -16,6 +17,7 @@ const supportedFileNames = new Set([
   "pnpm-lock.yaml",
   "pyproject.toml",
   "requirements.txt",
+  "uv.lock",
   "yarn.lock"
 ]);
 
@@ -75,6 +77,8 @@ function parseByFileName(
       return parsePnpmLock({ sourceFile, content });
     case "pyproject.toml":
       return parsePyproject({ sourceFile, content });
+    case "uv.lock":
+      return parseUvLock({ sourceFile, content });
     case "yarn.lock":
       return parseYarnLock({ sourceFile, content });
     default:
