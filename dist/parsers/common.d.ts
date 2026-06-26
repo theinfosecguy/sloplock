@@ -41,6 +41,15 @@ export declare function makeGoReference(input: {
     sourceKind: SourceKind;
     isDirect: boolean;
 }): DependencyReference;
+export declare function makeMavenReference(input: {
+    name: string;
+    versionRange?: string;
+    sourceFile: string;
+    sourceLine?: number;
+    sourceKind: SourceKind;
+    isDirect: boolean;
+    registrySource?: DependencyReference["registrySource"];
+}): DependencyReference;
 export declare function makeCratesReference(input: {
     name: string;
     versionRange?: string;

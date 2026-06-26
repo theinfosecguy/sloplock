@@ -14,6 +14,19 @@ describe("readActionInputs", () => {
     inputValues.clear();
   });
 
+  it("accepts Maven ecosystem scans", () => {
+    inputValues.set("ecosystem", "maven");
+
+    expect(readActionInputs()).toMatchObject({
+      path: ".",
+      failOn: "high",
+      ecosystems: ["maven"],
+      changedOnly: false,
+      comment: false,
+      failClosed: false
+    });
+  });
+
   it("accepts Packagist ecosystem scans", () => {
     inputValues.set("ecosystem", "packagist");
 

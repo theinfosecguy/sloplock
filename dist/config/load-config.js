@@ -5,7 +5,16 @@ import { UsageError } from "../core/errors.js";
 import { normalizePackageName } from "../core/packages.js";
 const defaultConfig = {
     failOn: "high",
-    ecosystems: ["crates", "go", "npm", "nuget", "packagist", "pypi", "rubygems"],
+    ecosystems: [
+        "crates",
+        "go",
+        "maven",
+        "npm",
+        "nuget",
+        "packagist",
+        "pypi",
+        "rubygems"
+    ],
     cooldown: {
         highDays: 7,
         mediumDays: 30
@@ -184,6 +193,7 @@ function filterExpiredIgnoreRules(rules, warnings, sourceFile, now) {
 function parseEcosystem(input, field) {
     if (input === "crates" ||
         input === "go" ||
+        input === "maven" ||
         input === "npm" ||
         input === "nuget" ||
         input === "packagist" ||
@@ -191,7 +201,7 @@ function parseEcosystem(input, field) {
         input === "rubygems") {
         return input;
     }
-    throw new UsageError(`Config ${field} must be crates, go, npm, nuget, packagist, pypi, or rubygems.`);
+    throw new UsageError(`Config ${field} must be crates, go, maven, npm, nuget, packagist, pypi, or rubygems.`);
 }
 function parseRule(input, field) {
     if (input === "package_not_found" || input === "package_too_new") {

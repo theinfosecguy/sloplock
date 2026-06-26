@@ -17,6 +17,7 @@ npx --yes sloplock@latest . --ecosystem npm
 npx --yes sloplock@latest . --ecosystem pypi
 npx --yes sloplock@latest . --ecosystem go
 npx --yes sloplock@latest . --ecosystem crates
+npx --yes sloplock@latest . --ecosystem maven
 npx --yes sloplock@latest . --ecosystem nuget
 npx --yes sloplock@latest . --ecosystem packagist
 npx --yes sloplock@latest . --ecosystem rubygems
@@ -59,9 +60,9 @@ jobs:
 ```
 
 The Action accepts the same ecosystem values as the CLI: `all`, `npm`, `pypi`,
-`go`, `crates`, `nuget`, `packagist`, and `rubygems`. It works with read-only
-repository permissions through logs, annotations, and the step summary; `comment:
-true` needs `pull-requests: write`.
+`go`, `crates`, `maven`, `nuget`, `packagist`, and `rubygems`. It works with
+read-only repository permissions through logs, annotations, and the step summary;
+`comment: true` needs `pull-requests: write`.
 
 ## Supported Inputs
 
@@ -71,6 +72,7 @@ true` needs `pull-requests: write`.
 | PyPI | PyPI JSON API | `requirements*.txt`, `*-requirements.txt`, `constraints*.txt`, `*-constraints.txt`, `pyproject.toml`, `pdm.lock`, `poetry.lock`, `uv.lock` |
 | Go | Go module proxy | `go.mod` |
 | Rust | crates.io | `Cargo.toml`, `Cargo.lock` |
+| Maven/JVM | Maven Central | `pom.xml` |
 | .NET | NuGet.org | `*.csproj`, `Directory.Packages.props`, `packages.config`, `packages.lock.json` |
 | PHP | Packagist | `composer.json`, `composer.lock` |
 | Ruby | RubyGems.org | `Gemfile`, `Gemfile.lock` |
@@ -83,9 +85,18 @@ Ruby source blocks are handled conservatively: dependencies that are tied to
 non-Packagist or non-RubyGems.org sources are skipped instead of being reported
 as public registry misses.
 
+For Maven, SlopLock reads raw `pom.xml` files only. It does not run Maven, read
+effective POMs, resolve parents, activate profiles, or parse Gradle files. It
+checks direct project dependencies and imported BOMs by `groupId:artifactId`.
+Unresolved property-backed coordinates, `system` scope dependencies, snapshots,
+profiles, plugin dependencies, and ordinary dependency-management entries are
+skipped. If a POM declares custom repositories, Maven Central `not found` results
+become warnings instead of findings unless Central proves the coordinate is
+public.
+
 ## What It Checks
 
-- `package_not_found`: the dependency name does not exist in npm, PyPI, the Go module proxy, crates.io, NuGet.org, Packagist, or RubyGems.org.
+- `package_not_found`: the dependency name does not exist in npm, PyPI, the Go module proxy, crates.io, Maven Central, NuGet.org, Packagist, or RubyGems.org.
 - `package_too_new`: the dependency exists, but its first observed publish time is inside the configured cooldown window.
 
 SlopLock is not an SCA scanner, vulnerability scanner, typosquat detector, install-script analyzer, or package reputation score.
@@ -98,7 +109,7 @@ Usage: sloplock [options] [path]
 Options:
   --format <format>        text, json, or markdown
   --fail-on <severity>     medium or high
-  --ecosystem <ecosystem>  crates, go, npm, nuget, packagist, pypi, or rubygems
+  --ecosystem <ecosystem>  crates, go, maven, npm, nuget, packagist, pypi, or rubygems
   --changed-only           scan only dependencies added since --base
   --base <ref>             base git ref for --changed-only
   --config <path>          config file. Default: sloplock.yml
@@ -124,6 +135,7 @@ ecosystems:
   - pypi
   - go
   - crates
+  - maven
   - nuget
   - packagist
   - rubygems
@@ -153,6 +165,10 @@ allow:
   - ecosystem: rubygems
     package: internal-gem
     reason: private gem confirmed by platform team
+    expires: 2026-12-31
+  - ecosystem: maven
+    package: com.my-org:internal-lib
+    reason: private Maven artifact confirmed by platform team
     expires: 2026-12-31
 
 ignore:
@@ -188,4 +204,4 @@ npm run pack:dry-run
 npm run smoke:package
 ```
 
-`npm run smoke:ecosystems` exercises the built CLI and bundled GitHub Action across npm, PyPI, Go, crates.io, NuGet.org, Packagist, and RubyGems.org fixtures. `npm run smoke:package` packs the package, installs the tarball into a temporary project, and verifies the published CLI entry point.
+`npm run smoke:ecosystems` exercises the built CLI and bundled GitHub Action across npm, PyPI, Go, crates.io, Maven Central, NuGet.org, Packagist, and RubyGems.org fixtures. `npm run smoke:package` packs the package, installs the tarball into a temporary project, and verifies the published CLI entry point.

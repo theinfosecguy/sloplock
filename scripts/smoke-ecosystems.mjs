@@ -32,19 +32,20 @@ try {
   const passReport = runCliJson(passFixture, []);
   assertSummary("CLI pass fixture", passReport, {
     findings: 0,
-    scannedDependencies: 7
+    scannedDependencies: 8
   });
   smokeResults.push(["CLI pass", passReport.summary]);
 
   const missingResult = runCliJson(missingFixture, [], 1);
   assertSummary("CLI missing fixture", missingResult.report, {
-    findings: 7,
-    scannedDependencies: 7,
+    findings: 8,
+    scannedDependencies: 8,
     highestSeverity: "high"
   });
   assertFindingEcosystems("CLI missing fixture", missingResult.report, [
     "crates",
     "go",
+    "maven",
     "npm",
     "nuget",
     "packagist",
@@ -58,6 +59,7 @@ try {
     "package_not_found",
     "package_not_found",
     "package_not_found",
+    "package_not_found",
     "package_not_found"
   ]);
   smokeResults.push(["CLI missing", missingResult.report.summary]);
@@ -65,7 +67,8 @@ try {
   const mixedSourceReport = runCliJson(mixedSourceFixture, []);
   assertSummary("CLI mixed public/private/local fixture", mixedSourceReport, {
     findings: 0,
-    scannedDependencies: 7
+    scannedDependencies: 9,
+    warnings: 2
   });
   smokeResults.push([
     "CLI mixed public/private/local",
@@ -78,13 +81,14 @@ try {
     1
   );
   assertSummary("CLI changed-only fixture", changedResult.report, {
-    findings: 7,
-    scannedDependencies: 7,
+    findings: 8,
+    scannedDependencies: 8,
     highestSeverity: "high"
   });
   assertFindingEcosystems("CLI changed-only fixture", changedResult.report, [
     "crates",
     "go",
+    "maven",
     "npm",
     "nuget",
     "packagist",
@@ -92,6 +96,7 @@ try {
     "rubygems"
   ]);
   assertFindingRules("CLI changed-only fixture", changedResult.report, [
+    "package_not_found",
     "package_not_found",
     "package_not_found",
     "package_not_found",
@@ -111,7 +116,7 @@ try {
 
   const actionMissing = runAction(missingFixture, 1);
   assertActionOutputs("Action missing fixture", actionMissing.outputs, {
-    findings: "7",
+    findings: "8",
     highestSeverity: "high"
   });
   smokeResults.push(["Action missing", actionMissing.outputs]);
@@ -162,6 +167,19 @@ version = "0.1.0"
 
 [dependencies]
 serde = "1"
+`
+  );
+  writeFileSync(
+    path.join(rootDir, "pom.xml"),
+    `<project>
+  <dependencies>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>2.0.17</version>
+    </dependency>
+  </dependencies>
+</project>
 `
   );
   writeJson(path.join(rootDir, "composer.json"), {
@@ -222,6 +240,19 @@ ${packages.crates} = "1"
       [packages.packagist]: "1.0.0"
     }
   });
+  writeFileSync(
+    path.join(rootDir, "pom.xml"),
+    `<project>
+  <dependencies>
+    <dependency>
+      <groupId>${packages.mavenGroup}</groupId>
+      <artifactId>${packages.mavenArtifact}</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+  </dependencies>
+</project>
+`
+  );
   writeFileSync(
     path.join(rootDir, "Gemfile"),
     `source "https://rubygems.org"
@@ -290,6 +321,30 @@ path-crate = { path = "../path-crate" }
 git-crate = { git = "https://github.com/example/git-crate" }
 private-crate = { version = "1", registry = "private" }
 workspace-crate = { workspace = true }
+`
+  );
+  writeFileSync(
+    path.join(rootDir, "pom.xml"),
+    `<project>
+  <repositories>
+    <repository>
+      <id>private</id>
+      <url>https://repo.example.invalid/maven2</url>
+    </repository>
+  </repositories>
+  <dependencies>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>2.0.17</version>
+    </dependency>
+    <dependency>
+      <groupId>com.sloplock.private</groupId>
+      <artifactId>internal-${unique.toLowerCase()}</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+  </dependencies>
+</project>
 `
   );
   writeJson(path.join(rootDir, "composer.json"), {
@@ -383,6 +438,19 @@ serde = "1"
     }
   });
   writeFileSync(
+    path.join(rootDir, "pom.xml"),
+    `<project>
+  <dependencies>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>2.0.17</version>
+    </dependency>
+  </dependencies>
+</project>
+`
+  );
+  writeFileSync(
     path.join(rootDir, "Gemfile"),
     `source "https://rubygems.org"
 
@@ -459,6 +527,24 @@ ${packages.crates} = "1"
       [packages.packagist]: "1.0.0"
     }
   });
+  writeFileSync(
+    path.join(rootDir, "pom.xml"),
+    `<project>
+  <dependencies>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>2.0.17</version>
+    </dependency>
+    <dependency>
+      <groupId>${packages.mavenGroup}</groupId>
+      <artifactId>${packages.mavenArtifact}</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+  </dependencies>
+</project>
+`
+  );
   writeFileSync(
     path.join(rootDir, "Gemfile"),
     `source "https://rubygems.org"
@@ -640,7 +726,12 @@ function assertActionOutputs(name, outputs, expected) {
 
 function missingPackages(label = "missing") {
   const suffix = `${label}-${unique}`.toLowerCase();
+  const mavenGroup = "com.sloplock.smoke";
+  const mavenArtifact = `missing-${suffix}`;
   return {
+    maven: `${mavenGroup}:${mavenArtifact}`,
+    mavenGroup,
+    mavenArtifact,
     npm: `sloplock-smoke-npm-${suffix}`,
     nuget: `SlopLock.Smoke.Missing.${suffix.replaceAll("-", ".")}`,
     pypi: `sloplock-smoke-pypi-${suffix}`,

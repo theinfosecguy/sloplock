@@ -6,6 +6,7 @@ import type {
 } from "../core/types.js";
 import { CratesRegistryClient } from "./crates.js";
 import { GoProxyRegistryClient } from "./go.js";
+import { MavenCentralRegistryClient } from "./maven.js";
 import { NugetRegistryClient } from "./nuget.js";
 import { NpmRegistryClient } from "./npm.js";
 import { PackagistRegistryClient } from "./packagist.js";
@@ -15,6 +16,7 @@ import { RubyGemsRegistryClient } from "./rubygems.js";
 export class DefaultRegistryClient implements RegistryClient {
   private readonly crates: RegistryClient;
   private readonly go: RegistryClient;
+  private readonly maven: RegistryClient;
   private readonly npm: RegistryClient;
   private readonly nuget: RegistryClient;
   private readonly packagist: RegistryClient;
@@ -24,6 +26,7 @@ export class DefaultRegistryClient implements RegistryClient {
   constructor(input: {
     crates?: RegistryClient;
     go?: RegistryClient;
+    maven?: RegistryClient;
     npm?: RegistryClient;
     nuget?: RegistryClient;
     packagist?: RegistryClient;
@@ -32,6 +35,7 @@ export class DefaultRegistryClient implements RegistryClient {
   } = {}) {
     this.crates = input.crates ?? new CratesRegistryClient();
     this.go = input.go ?? new GoProxyRegistryClient();
+    this.maven = input.maven ?? new MavenCentralRegistryClient();
     this.npm = input.npm ?? new NpmRegistryClient();
     this.nuget = input.nuget ?? new NugetRegistryClient();
     this.packagist = input.packagist ?? new PackagistRegistryClient();
@@ -48,6 +52,8 @@ export class DefaultRegistryClient implements RegistryClient {
         return this.crates.getPackage(reference);
       case "go":
         return this.go.getPackage(reference);
+      case "maven":
+        return this.maven.getPackage(reference);
       case "npm":
         return this.npm.getPackage(reference);
       case "nuget":

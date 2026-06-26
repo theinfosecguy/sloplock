@@ -1,4 +1,4 @@
-export type Ecosystem = "crates" | "go" | "npm" | "nuget" | "packagist" | "pypi" | "rubygems";
+export type Ecosystem = "crates" | "go" | "maven" | "npm" | "nuget" | "packagist" | "pypi" | "rubygems";
 export type Severity = "low" | "medium" | "high";
 export type RuleId = "package_not_found" | "package_too_new";
 export type SourceKind = "manifest" | "lockfile" | "docs" | "shell";
@@ -11,6 +11,7 @@ export type DependencyReference = {
     sourceLine?: number;
     sourceKind: SourceKind;
     isDirect: boolean;
+    registrySource?: "known-public" | "ambiguous-custom-repository";
 };
 export type RegistryPackageFound = {
     status: "found";

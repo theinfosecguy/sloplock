@@ -107,6 +107,31 @@ export function makeGoReference(input: {
   };
 }
 
+export function makeMavenReference(input: {
+  name: string;
+  versionRange?: string;
+  sourceFile: string;
+  sourceLine?: number;
+  sourceKind: SourceKind;
+  isDirect: boolean;
+  registrySource?: DependencyReference["registrySource"];
+}): DependencyReference {
+  return {
+    ecosystem: "maven",
+    name: input.name,
+    ...(input.versionRange === undefined
+      ? {}
+      : { versionRange: input.versionRange }),
+    sourceFile: input.sourceFile,
+    ...(input.sourceLine === undefined ? {} : { sourceLine: input.sourceLine }),
+    sourceKind: input.sourceKind,
+    isDirect: input.isDirect,
+    ...(input.registrySource === undefined
+      ? {}
+      : { registrySource: input.registrySource })
+  };
+}
+
 export function makeCratesReference(input: {
   name: string;
   versionRange?: string;
