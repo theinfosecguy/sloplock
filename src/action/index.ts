@@ -1,8 +1,11 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { scan } from "../core/scan.js";
-import type { Finding } from "../core/types.js";
-import { renderMarkdown, renderStepSummary } from "../reporting/markdown.js";
+import type { Finding, RegistryPackageFailure } from "../core/types.js";
+import {
+  renderPullRequestComment,
+  renderStepSummary
+} from "../reporting/markdown.js";
 import { hasFailingFindings } from "../reporting/summary.js";
 import { resolveChangedOnlyBaseRef } from "./base-ref.js";
 import { upsertStickyComment } from "./comments.js";
@@ -26,6 +29,7 @@ async function run(): Promise<void> {
   });
 
   annotateFindings(result.findings);
+  annotateRegistryFailures(result.registryFailures);
 
   await core.summary.addRaw(renderStepSummary(result)).write();
   core.setOutput("findings", String(result.findings.length));
@@ -35,7 +39,7 @@ async function run(): Promise<void> {
     try {
       await upsertStickyComment({
         token: inputs.githubToken,
-        body: renderMarkdown(result)
+        body: renderPullRequestComment(result)
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -55,7 +59,7 @@ async function run(): Promise<void> {
 
 function annotateFindings(findings: readonly Finding[]): void {
   for (const finding of findings) {
-    const message = `${finding.rule}: ${finding.evidence} ${finding.recommendation}`;
+    const message = `${finding.ecosystem} ${finding.package}: ${finding.evidence}`;
     const properties =
       finding.source.line === undefined
         ? { file: finding.source.file }
@@ -66,6 +70,16 @@ function annotateFindings(findings: readonly Finding[]): void {
     } else {
       core.warning(message, properties);
     }
+  }
+}
+
+function annotateRegistryFailures(
+  failures: readonly RegistryPackageFailure[]
+): void {
+  for (const failure of failures) {
+    core.warning(
+      `Registry check did not complete for ${failure.ecosystem} ${failure.name}: ${failure.message}`
+    );
   }
 }
 
