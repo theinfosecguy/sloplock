@@ -35398,6 +35398,51 @@ function isGoVersion(input) {
   return /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(input);
 }
 
+// src/parsers/gradle-lockfile.ts
+function parseGradleLockfile(options) {
+  const references = [];
+  const lines = options.content.split(/\r?\n/u);
+  lines.forEach((line, index) => {
+    const reference = referenceFromLine(line, index + 1, options.sourceFile);
+    if (reference !== void 0) {
+      references.push(reference);
+    }
+  });
+  return { references: dedupeReferences6(references), warnings: [] };
+}
+function referenceFromLine(line, sourceLine, sourceFile) {
+  const trimmed = line.trim();
+  if (trimmed.length === 0 || trimmed.startsWith("#") || trimmed.startsWith("empty=")) {
+    return void 0;
+  }
+  const equalsIndex = trimmed.indexOf("=");
+  const coordinate = equalsIndex === -1 ? trimmed : trimmed.slice(0, equalsIndex);
+  const parts = coordinate.split(":");
+  if (parts.length !== 3) {
+    return void 0;
+  }
+  const [groupId, artifactId, version] = parts;
+  if (groupId === void 0 || artifactId === void 0 || version === void 0 || isUnresolvedMavenValue(groupId) || isUnresolvedMavenValue(artifactId) || isUnresolvedMavenValue(version) || version.toLowerCase().includes("snapshot")) {
+    return void 0;
+  }
+  const name = normalizeMavenPackageName(`${groupId}:${artifactId}`);
+  if (name === void 0 || version.trim().length === 0) {
+    return void 0;
+  }
+  return makeMavenReference({
+    name,
+    versionRange: version,
+    sourceFile,
+    sourceLine,
+    sourceKind: "lockfile",
+    isDirect: false,
+    registrySource: "ambiguous-lockfile-source"
+  });
+}
+function dedupeReferences6(references) {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
+
 // src/parsers/maven.ts
 var import_saxes = __toESM(require_saxes(), 1);
 function parsePomXml(options) {
@@ -35412,7 +35457,7 @@ function parsePomXml(options) {
   ].flatMap(
     (dependency) => referenceFromDependency2(dependency, options.sourceFile, registrySource)
   );
-  return { references: dedupeReferences6(references), warnings: [] };
+  return { references: dedupeReferences7(references), warnings: [] };
 }
 function parsePomTree(options) {
   const parser = new import_saxes.SaxesParser();
@@ -35529,7 +35574,7 @@ function versionRangeInput4(version) {
 function localName(name) {
   return name.includes(":") ? name.slice(name.lastIndexOf(":") + 1) : name;
 }
-function dedupeReferences6(references) {
+function dedupeReferences7(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -35704,7 +35749,7 @@ function countLineBreaks(input) {
 // src/parsers/nuget.ts
 function parseMsBuildProject(options) {
   return {
-    references: dedupeReferences7(
+    references: dedupeReferences8(
       packageReferenceElements(options).flatMap(
         (element) => referenceFromMsBuildElement(element, options)
       )
@@ -35714,7 +35759,7 @@ function parseMsBuildProject(options) {
 }
 function parseDirectoryPackagesProps(options) {
   return {
-    references: dedupeReferences7(
+    references: dedupeReferences8(
       packageVersionElements(options).flatMap(
         (element) => referenceFromMsBuildElement(element, options)
       )
@@ -35740,7 +35785,7 @@ function parsePackagesConfig(options) {
       })
     ];
   });
-  return { references: dedupeReferences7(references), warnings: [] };
+  return { references: dedupeReferences8(references), warnings: [] };
 }
 function parsePackagesLockJson(options) {
   const parsed = parseJsonObject3(options.content, options.sourceFile);
@@ -35760,7 +35805,7 @@ function parsePackagesLockJson(options) {
       }
     }
   }
-  return { references: dedupeReferences7(references), warnings: [] };
+  return { references: dedupeReferences8(references), warnings: [] };
 }
 function packageReferenceElements(options) {
   return parseXmlElements(options.content).filter((element) => {
@@ -35844,7 +35889,7 @@ function lineNumberInput5(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences7(references) {
+function dedupeReferences8(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -35916,7 +35961,7 @@ function parsePackageLock(options) {
     ...parseDependenciesObject(parsed.dependencies, options.sourceFile)
   ];
   return {
-    references: dedupeReferences8(references),
+    references: dedupeReferences9(references),
     warnings: []
   };
 }
@@ -36010,7 +36055,7 @@ function parseJsonObject5(content, sourceFile) {
     throw new Error(`Invalid JSON in ${sourceFile}: ${message}`);
   }
 }
-function dedupeReferences8(references) {
+function dedupeReferences9(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -36038,7 +36083,7 @@ var nonRegistrySourceFields = [
 function parsePdmLock(options) {
   const parsed = parseTomlObject3(options.content, options.sourceFile);
   return {
-    references: dedupeReferences9(parsePackages2(parsed.package, options)),
+    references: dedupeReferences10(parsePackages2(parsed.package, options)),
     warnings: []
   };
 }
@@ -36119,7 +36164,7 @@ function lineNumberInput7(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences9(references) {
+function dedupeReferences10(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -36130,7 +36175,7 @@ function parsePoetryLock(options) {
   if (!Array.isArray(packages)) {
     return { references: [], warnings: [] };
   }
-  const references = dedupeReferences10(
+  const references = dedupeReferences11(
     packages.flatMap((entry) => referenceFromPackageEntry2(entry, options))
   );
   return { references, warnings: [] };
@@ -36199,7 +36244,7 @@ function lineNumberInput8(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences10(references) {
+function dedupeReferences11(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -36212,7 +36257,7 @@ function parsePnpmLock(options) {
     ...parsePackages3(parsed.packages, options.sourceFile)
   ];
   return {
-    references: dedupeReferences11(references),
+    references: dedupeReferences12(references),
     warnings: []
   };
 }
@@ -36346,7 +36391,7 @@ function parseYamlObject(content, sourceFile) {
     throw new Error(`Invalid YAML in ${sourceFile}: ${message}`);
   }
 }
-function dedupeReferences11(references) {
+function dedupeReferences12(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -36572,7 +36617,7 @@ function lineNumberInput9(content, pattern) {
 function parseUvLock(options) {
   const parsed = parseTomlObject6(options.content, options.sourceFile);
   return {
-    references: dedupeReferences12(parsePackages4(parsed.package, options)),
+    references: dedupeReferences13(parsePackages4(parsed.package, options)),
     warnings: []
   };
 }
@@ -36627,7 +36672,7 @@ function lineNumberInput10(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences12(references) {
+function dedupeReferences13(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -36656,7 +36701,7 @@ function parseYarnLock(options) {
     }
   }
   return {
-    references: dedupeReferences13(references),
+    references: dedupeReferences14(references),
     warnings: []
   };
 }
@@ -36714,7 +36759,7 @@ function packageNameFromPossibleAliasTarget(value) {
   const match = value.match(/^([a-z0-9][a-z0-9._-]*)@/iu);
   return match?.[1] === void 0 ? void 0 : normalizeNpmPackageName(match[1]);
 }
-function dedupeReferences13(references) {
+function dedupeReferences14(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -36726,7 +36771,9 @@ var supportedFileNames = /* @__PURE__ */ new Set([
   "composer.lock",
   "Gemfile",
   "Gemfile.lock",
+  "buildscript-gradle.lockfile",
   "go.mod",
+  "gradle.lockfile",
   "Directory.Packages.props",
   "package.json",
   "package-lock.json",
@@ -36780,6 +36827,9 @@ function parseByFileName(fileName, sourceFile, content) {
       return parseGemfile({ sourceFile, content });
     case "Gemfile.lock":
       return parseGemfileLock({ sourceFile, content });
+    case "buildscript-gradle.lockfile":
+    case "gradle.lockfile":
+      return parseGradleLockfile({ sourceFile, content });
     case "go.mod":
       return parseGoMod({ sourceFile, content });
     case "pom.xml":
@@ -39204,12 +39254,13 @@ async function evaluateReference(input) {
       };
     }
     case "not_found":
-      if (input.reference.ecosystem === "maven" && input.reference.registrySource === "ambiguous-custom-repository") {
+      if (isAmbiguousMavenSource(input.reference)) {
+        const reason = input.reference.registrySource === "ambiguous-lockfile-source" ? "Gradle lockfiles do not record repository source" : "pom.xml declares custom repositories";
         return {
           findings: [],
           warnings: [
             {
-              message: `Skipped Maven coordinate ${input.reference.name} because pom.xml declares custom repositories and Maven Central did not prove the coordinate is public.`
+              message: `Skipped Maven coordinate ${input.reference.name} because ${reason} and Maven Central did not prove the coordinate is public.`
             }
           ],
           registryFailures: []
@@ -39272,8 +39323,11 @@ function referenceScore(reference) {
     shell: 3,
     docs: 4
   };
-  const registrySourceScore = reference.ecosystem === "maven" && reference.registrySource === "ambiguous-custom-repository" ? 1 : 0;
+  const registrySourceScore = isAmbiguousMavenSource(reference) ? 1 : 0;
   return sourceKindScore[reference.sourceKind] * 10 + registrySourceScore;
+}
+function isAmbiguousMavenSource(reference) {
+  return reference.ecosystem === "maven" && (reference.registrySource === "ambiguous-custom-repository" || reference.registrySource === "ambiguous-lockfile-source");
 }
 async function mapWithConcurrency(inputs, concurrency, mapper) {
   const outputs = new Array(inputs.length);

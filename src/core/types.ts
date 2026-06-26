@@ -24,7 +24,10 @@ export type DependencyReference = {
   sourceLine?: number;
   sourceKind: SourceKind;
   isDirect: boolean;
-  registrySource?: "known-public" | "ambiguous-custom-repository";
+  registrySource?:
+    | "known-public"
+    | "ambiguous-custom-repository"
+    | "ambiguous-lockfile-source";
 };
 
 export type RegistryPackageFound = {

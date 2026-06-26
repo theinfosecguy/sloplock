@@ -82,13 +82,15 @@ async function evaluateReference(input) {
             };
         }
         case "not_found":
-            if (input.reference.ecosystem === "maven" &&
-                input.reference.registrySource === "ambiguous-custom-repository") {
+            if (isAmbiguousMavenSource(input.reference)) {
+                const reason = input.reference.registrySource === "ambiguous-lockfile-source"
+                    ? "Gradle lockfiles do not record repository source"
+                    : "pom.xml declares custom repositories";
                 return {
                     findings: [],
                     warnings: [
                         {
-                            message: `Skipped Maven coordinate ${input.reference.name} because pom.xml declares custom repositories and Maven Central did not prove the coordinate is public.`
+                            message: `Skipped Maven coordinate ${input.reference.name} because ${reason} and Maven Central did not prove the coordinate is public.`
                         }
                     ],
                     registryFailures: []
@@ -147,11 +149,15 @@ function referenceScore(reference) {
         shell: 3,
         docs: 4
     };
-    const registrySourceScore = reference.ecosystem === "maven" &&
-        reference.registrySource === "ambiguous-custom-repository"
+    const registrySourceScore = isAmbiguousMavenSource(reference)
         ? 1
         : 0;
     return sourceKindScore[reference.sourceKind] * 10 + registrySourceScore;
+}
+function isAmbiguousMavenSource(reference) {
+    return (reference.ecosystem === "maven" &&
+        (reference.registrySource === "ambiguous-custom-repository" ||
+            reference.registrySource === "ambiguous-lockfile-source"));
 }
 async function mapWithConcurrency(inputs, concurrency, mapper) {
     const outputs = new Array(inputs.length);

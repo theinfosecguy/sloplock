@@ -311,6 +311,46 @@ old-python-package~=1.0
     );
   });
 
+  it("scans Maven packages from Gradle lockfiles without failing ambiguous misses", async () => {
+    const rootDir = await tempProject({
+      "gradle.lockfile": `
+com.acme:missing-gradle-lib:1.0.0=runtimeClasspath
+com.acme:fresh-gradle-lib:1.0.0=runtimeClasspath
+com.acme:old-gradle-lib:1.0.0=runtimeClasspath
+`
+    });
+    const result = await scan({
+      rootDir,
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "maven:com.acme:missing-gradle-lib": {
+          status: "not_found",
+          ecosystem: "maven",
+          name: "com.acme:missing-gradle-lib"
+        },
+        "maven:com.acme:fresh-gradle-lib": found(
+          "com.acme:fresh-gradle-lib",
+          "2026-06-22T00:00:00.000Z",
+          "maven"
+        ),
+        "maven:com.acme:old-gradle-lib": found(
+          "com.acme:old-gradle-lib",
+          "2020-01-01T00:00:00.000Z",
+          "maven"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(3);
+    expect(result.findings.map((finding) => finding.package)).toEqual([
+      "com.acme:fresh-gradle-lib"
+    ]);
+    expect(result.findings[0]?.rule).toBe("package_too_new");
+    expect(result.warnings.map((warning) => warning.message)).toContain(
+      "Skipped Maven coordinate com.acme:missing-gradle-lib because Gradle lockfiles do not record repository source and Maven Central did not prove the coordinate is public."
+    );
+  });
+
   it("skips NuGet packages not mapped to NuGet.org", async () => {
     const rootDir = await tempProject({
       "NuGet.config": `
@@ -1370,6 +1410,46 @@ version = "0.1.0"
     expect(result.findings[0]?.ecosystem).toBe("maven");
     expect(result.findings[0]?.package).toBe("com.acme:new-lib");
     expect(result.findings[0]?.source.file).toBe("pom.xml");
+  });
+
+  it("changed-only scans packages introduced in Gradle lockfiles", async () => {
+    const rootDir = await tempProject({
+      "gradle.lockfile": "com.acme:old-lib:1.0.0=runtimeClasspath\n"
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "gradle.lockfile"),
+      [
+        "com.acme:old-lib:1.0.0=runtimeClasspath",
+        "com.acme:new-lib:1.0.0=runtimeClasspath"
+      ].join("\n") + "\n"
+    );
+    await commitAll(rootDir, "update gradle lockfile");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "maven:com.acme:new-lib": found(
+          "com.acme:new-lib",
+          "2026-06-22T00:00:00.000Z",
+          "maven"
+        ),
+        "maven:com.acme:old-lib": found(
+          "com.acme:old-lib",
+          "2020-01-01T00:00:00.000Z",
+          "maven"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("maven");
+    expect(result.findings[0]?.package).toBe("com.acme:new-lib");
+    expect(result.findings[0]?.source.file).toBe("gradle.lockfile");
   });
 
   it("changed-only scans packages introduced in composer.lock", async () => {
