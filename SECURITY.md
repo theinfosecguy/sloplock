@@ -2,21 +2,21 @@
 
 ## Supported Versions
 
-SlopLock has not published a stable public release yet. Until the first V1 release, security fixes apply to the `main` branch only.
+Security fixes apply to the latest npm release and the `main` branch.
 
-After V1, supported versions will be documented here by release line.
+Pre-1.0 releases may receive fixes as patch releases when the issue affects documented behavior.
 
 ## Scope
 
 Please report security issues in SlopLock itself, including:
 
 - Incorrectly treating unavailable or malformed registry responses as package existence results.
-- False negatives that allow clearly nonexistent npm, PyPI, or crates.io packages through supported V1 inputs.
+- False negatives that allow clearly nonexistent npm, PyPI, Go, or crates.io packages through supported V1 inputs.
 - Command injection, path traversal, or unsafe handling of untrusted package names, file paths, branch names, PR metadata, manifests, lockfiles, or config files.
 - GitHub Action behavior that exposes secrets, requires unsafe permissions, or mishandles pull request input.
 - npm package, action, or release workflow issues that could publish stale, tampered, or unexpected artifacts.
 
-V1 intentionally supports npm, PyPI, and crates.io package manifests and lockfiles only. Missing support for other ecosystems, package reputation scoring, typosquat detection, vulnerability scanning, install-script analysis, or private registry policy is not considered a vulnerability unless documented behavior says otherwise.
+V1 intentionally supports npm, PyPI, Go, and crates.io package manifests and lockfiles only. Missing support for other ecosystems, package reputation scoring, typosquat detection, vulnerability scanning, install-script analysis, or private registry policy is not considered a vulnerability unless documented behavior says otherwise.
 
 ## Reporting
 
