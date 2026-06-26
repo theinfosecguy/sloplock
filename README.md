@@ -58,6 +58,11 @@ jobs:
           comment: true
 ```
 
+The Action accepts the same ecosystem values as the CLI: `all`, `npm`, `pypi`,
+`go`, `crates`, `nuget`, `packagist`, and `rubygems`. It works with read-only
+repository permissions through logs, annotations, and the step summary; `comment:
+true` needs `pull-requests: write`.
+
 ## Supported Inputs
 
 | Ecosystem | Registry | Files |
@@ -71,6 +76,12 @@ jobs:
 | Ruby | RubyGems.org | `Gemfile`, `Gemfile.lock` |
 
 SlopLock skips local, workspace, path, git, editable, alternate-registry, and private-source dependencies where the supported file format exposes that information. Go private modules can also be skipped with `GOPRIVATE`, `GONOPROXY`, or `go.privateModules` in config.
+
+For NuGet, `NuGet.config` package source mappings are used to keep packages
+mapped only to private sources out of NuGet.org checks. Composer repositories and
+Ruby source blocks are handled conservatively: dependencies that are tied to
+non-Packagist or non-RubyGems.org sources are skipped instead of being reported
+as public registry misses.
 
 ## What It Checks
 
@@ -130,6 +141,18 @@ allow:
   - ecosystem: npm
     package: known-internal-name
     reason: internal package mirrored outside npm
+    expires: 2026-12-31
+  - ecosystem: nuget
+    package: internal.package
+    reason: private package confirmed by platform team
+    expires: 2026-12-31
+  - ecosystem: packagist
+    package: my-org/internal-package
+    reason: private package confirmed by platform team
+    expires: 2026-12-31
+  - ecosystem: rubygems
+    package: internal-gem
+    reason: private gem confirmed by platform team
     expires: 2026-12-31
 
 ignore:

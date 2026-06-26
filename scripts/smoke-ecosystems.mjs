@@ -24,7 +24,9 @@ const smokeResults = [];
 try {
   const passFixture = createPassFixture(path.join(tempDir, "pass"));
   const missingFixture = createMissingFixture(path.join(tempDir, "missing"));
-  const privateFixture = createPrivateFixture(path.join(tempDir, "private"));
+  const mixedSourceFixture = createMixedSourceFixture(
+    path.join(tempDir, "mixed-sources")
+  );
   const changedFixture = createChangedOnlyFixture(path.join(tempDir, "changed"));
 
   const passReport = runCliJson(passFixture, []);
@@ -40,6 +42,15 @@ try {
     scannedDependencies: 7,
     highestSeverity: "high"
   });
+  assertFindingEcosystems("CLI missing fixture", missingResult.report, [
+    "crates",
+    "go",
+    "npm",
+    "nuget",
+    "packagist",
+    "pypi",
+    "rubygems"
+  ]);
   assertFindingRules("CLI missing fixture", missingResult.report, [
     "package_not_found",
     "package_not_found",
@@ -51,12 +62,15 @@ try {
   ]);
   smokeResults.push(["CLI missing", missingResult.report.summary]);
 
-  const privateReport = runCliJson(privateFixture, []);
-  assertSummary("CLI private/local fixture", privateReport, {
+  const mixedSourceReport = runCliJson(mixedSourceFixture, []);
+  assertSummary("CLI mixed public/private/local fixture", mixedSourceReport, {
     findings: 0,
-    scannedDependencies: 0
+    scannedDependencies: 7
   });
-  smokeResults.push(["CLI private/local", privateReport.summary]);
+  smokeResults.push([
+    "CLI mixed public/private/local",
+    mixedSourceReport.summary
+  ]);
 
   const changedResult = runCliJson(
     changedFixture,
@@ -68,6 +82,15 @@ try {
     scannedDependencies: 7,
     highestSeverity: "high"
   });
+  assertFindingEcosystems("CLI changed-only fixture", changedResult.report, [
+    "crates",
+    "go",
+    "npm",
+    "nuget",
+    "packagist",
+    "pypi",
+    "rubygems"
+  ]);
   assertFindingRules("CLI changed-only fixture", changedResult.report, [
     "package_not_found",
     "package_not_found",
@@ -93,12 +116,19 @@ try {
   });
   smokeResults.push(["Action missing", actionMissing.outputs]);
 
-  const actionPrivate = runAction(privateFixture, 0);
-  assertActionOutputs("Action private/local fixture", actionPrivate.outputs, {
-    findings: "0",
-    highestSeverity: ""
-  });
-  smokeResults.push(["Action private/local", actionPrivate.outputs]);
+  const actionMixedSource = runAction(mixedSourceFixture, 0);
+  assertActionOutputs(
+    "Action mixed public/private/local fixture",
+    actionMixedSource.outputs,
+    {
+      findings: "0",
+      highestSeverity: ""
+    }
+  );
+  smokeResults.push([
+    "Action mixed public/private/local",
+    actionMixedSource.outputs
+  ]);
 
   for (const [name, summary] of smokeResults) {
     process.stdout.write(`${name}: ${JSON.stringify(summary)}\n`);
@@ -212,16 +242,18 @@ gem "${packages.rubygems}", "1.0.0"
   return rootDir;
 }
 
-function createPrivateFixture(rootDir) {
+function createMixedSourceFixture(rootDir) {
   mkdirSync(rootDir, { recursive: true });
   writeJson(path.join(rootDir, "package.json"), {
     dependencies: {
+      react: "^18.2.0",
       "local-npm-package": "file:../local-npm-package"
     }
   });
   writeFileSync(
     path.join(rootDir, "requirements.txt"),
     [
+      "requests==2.32.0",
       "local-python-package @ file:///tmp/local-python-package",
       "git+https://github.com/example/python-package.git",
       "./local-python-package"
@@ -240,7 +272,10 @@ function createPrivateFixture(rootDir) {
 
 go 1.23
 
-require github.com/private-org/internal-module v1.0.0
+require (
+  github.com/stretchr/testify v1.10.0
+  github.com/private-org/internal-module v1.0.0
+)
 `
   );
   writeFileSync(
@@ -250,6 +285,7 @@ name = "sloplock-smoke-private"
 version = "0.1.0"
 
 [dependencies]
+serde = "1"
 path-crate = { path = "../path-crate" }
 git-crate = { git = "https://github.com/example/git-crate" }
 private-crate = { version = "1", registry = "private" }
@@ -258,20 +294,27 @@ workspace-crate = { workspace = true }
   );
   writeJson(path.join(rootDir, "composer.json"), {
     require: {
+      "monolog/monolog": "^3.0",
       "private/package": "1.0.0"
     },
     repositories: [
       {
-        "packagist.org": false
+        type: "composer",
+        url: "https://packages.example.invalid",
+        only: ["private/package"]
       }
     ]
   });
   writeFileSync(
     path.join(rootDir, "Gemfile"),
-    `source "https://gems.example.invalid"
+    `source "https://rubygems.org"
 
-gem "private-gem", "1.0.0"
+gem "rake", "~> 13.0"
 gem "local-gem", path: "../local-gem"
+
+source "https://gems.example.invalid" do
+  gem "private-gem", "1.0.0"
+end
 `
   );
   writeFileSync(
@@ -279,8 +322,17 @@ gem "local-gem", path: "../local-gem"
     `<configuration>
   <packageSources>
     <clear />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
     <add key="private" value="https://nuget.example.invalid/v3/index.json" />
   </packageSources>
+  <packageSourceMapping>
+    <packageSource key="nuget.org">
+      <package pattern="Newtonsoft.*" />
+    </packageSource>
+    <packageSource key="private">
+      <package pattern="Private.*" />
+    </packageSource>
+  </packageSourceMapping>
 </configuration>
 `
   );
@@ -288,6 +340,7 @@ gem "local-gem", path: "../local-gem"
     path.join(rootDir, "App.csproj"),
     `<Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Private.Package" Version="1.0.0" />
   </ItemGroup>
 </Project>
@@ -551,6 +604,19 @@ function assertFindingRules(name, report, rules) {
     throw new Error(
       `${name}: expected finding rules ${JSON.stringify(expectedRules)}, ` +
         `got ${JSON.stringify(actualRules)}`
+    );
+  }
+}
+
+function assertFindingEcosystems(name, report, ecosystems) {
+  const actualEcosystems = report.findings
+    .map((finding) => finding.ecosystem)
+    .sort();
+  const expectedEcosystems = [...ecosystems].sort();
+  if (JSON.stringify(actualEcosystems) !== JSON.stringify(expectedEcosystems)) {
+    throw new Error(
+      `${name}: expected finding ecosystems ${JSON.stringify(expectedEcosystems)}, ` +
+        `got ${JSON.stringify(actualEcosystems)}`
     );
   }
 }
