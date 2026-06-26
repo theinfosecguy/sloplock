@@ -1,5 +1,8 @@
 import { parse as parseToml } from "smol-toml";
-import { normalizePypiPackageName } from "../core/pypi.js";
+import {
+  isPublicPypiRegistryUrl,
+  normalizePypiPackageName
+} from "../core/pypi.js";
 import type { DependencyReference } from "../core/types.js";
 import {
   isRecord,
@@ -98,6 +101,13 @@ function isRegistryPackage(
   const source = metadata.source;
   if (!isRecord(source)) {
     return true;
+  }
+
+  if (
+    typeof source.registry === "string" &&
+    !isPublicPypiRegistryUrl(source.registry)
+  ) {
+    return false;
   }
 
   for (const field of nonRegistrySourceFields) {

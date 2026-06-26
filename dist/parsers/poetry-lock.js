@@ -1,16 +1,16 @@
 import { parse as parseToml } from "smol-toml";
 import { isPublicPypiRegistryUrl, normalizePypiPackageName } from "../core/pypi.js";
-import { isRecord, makePypiReference } from "./common.js";
+import { isRecord, lineNumberForPattern, makePypiReference } from "./common.js";
 export function parsePoetryLock(options) {
     const parsed = parseTomlObject(options.content, options.sourceFile);
     const packages = parsed.package;
     if (!Array.isArray(packages)) {
         return { references: [], warnings: [] };
     }
-    const references = packages.flatMap((entry) => referenceFromPackageEntry(entry, options.sourceFile));
+    const references = dedupeReferences(packages.flatMap((entry) => referenceFromPackageEntry(entry, options)));
     return { references, warnings: [] };
 }
-function referenceFromPackageEntry(entry, sourceFile) {
+function referenceFromPackageEntry(entry, options) {
     if (!isRecord(entry) || !isPublicPypiSource(readRecord(entry, "source"))) {
         return [];
     }
@@ -26,9 +26,10 @@ function referenceFromPackageEntry(entry, sourceFile) {
         makePypiReference({
             name: packageName,
             ...versionRangeInput(entry.version),
-            sourceFile,
+            sourceFile: options.sourceFile,
             sourceKind: "lockfile",
-            isDirect: false
+            isDirect: false,
+            ...lineNumberInput(options.content, rawName)
         })
     ];
 }
@@ -67,5 +68,13 @@ function parseTomlObject(content, sourceFile) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
     }
+}
+function lineNumberInput(content, packageName) {
+    const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const sourceLine = lineNumberForPattern(content, new RegExp(`^name\\s*=\\s*["']${escaped}["']`, "mu"));
+    return sourceLine === undefined ? {} : { sourceLine };
+}
+function dedupeReferences(references) {
+    return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 //# sourceMappingURL=poetry-lock.js.map

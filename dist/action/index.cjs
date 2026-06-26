@@ -32570,6 +32570,9 @@ function isRegistryPackage(metadata) {
   if (!isRecord2(source)) {
     return true;
   }
+  if (typeof source.registry === "string" && !isPublicPypiRegistryUrl(source.registry)) {
+    return false;
+  }
   for (const field of nonRegistrySourceFields) {
     if (typeof source[field] === "string") {
       return false;
@@ -32612,12 +32615,12 @@ function parsePoetryLock(options) {
   if (!Array.isArray(packages)) {
     return { references: [], warnings: [] };
   }
-  const references = packages.flatMap(
-    (entry) => referenceFromPackageEntry(entry, options.sourceFile)
+  const references = dedupeReferences3(
+    packages.flatMap((entry) => referenceFromPackageEntry(entry, options))
   );
   return { references, warnings: [] };
 }
-function referenceFromPackageEntry(entry, sourceFile) {
+function referenceFromPackageEntry(entry, options) {
   if (!isRecord2(entry) || !isPublicPypiSource(readRecord(entry, "source"))) {
     return [];
   }
@@ -32633,9 +32636,10 @@ function referenceFromPackageEntry(entry, sourceFile) {
     makePypiReference({
       name: packageName,
       ...versionRangeInput(entry.version),
-      sourceFile,
+      sourceFile: options.sourceFile,
       sourceKind: "lockfile",
-      isDirect: false
+      isDirect: false,
+      ...lineNumberInput3(options.content, rawName)
     })
   ];
 }
@@ -32672,6 +32676,17 @@ function parseTomlObject2(content, sourceFile) {
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
 }
+function lineNumberInput3(content, packageName) {
+  const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const sourceLine = lineNumberForPattern(
+    content,
+    new RegExp(`^name\\s*=\\s*["']${escaped}["']`, "mu")
+  );
+  return sourceLine === void 0 ? {} : { sourceLine };
+}
+function dedupeReferences3(references) {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
 
 // src/parsers/pnpm-lock.ts
 var import_yaml2 = __toESM(require_dist2(), 1);
@@ -32682,7 +32697,7 @@ function parsePnpmLock(options) {
     ...parsePackages2(parsed.packages, options.sourceFile)
   ];
   return {
-    references: dedupeReferences3(references),
+    references: dedupeReferences4(references),
     warnings: []
   };
 }
@@ -32816,7 +32831,7 @@ function parseYamlObject(content, sourceFile) {
     throw new Error(`Invalid YAML in ${sourceFile}: ${message}`);
   }
 }
-function dedupeReferences3(references) {
+function dedupeReferences4(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -32973,7 +32988,7 @@ function parseRequirementArray(input, options) {
     return parsePythonRequirementString({
       requirement,
       sourceFile: options.sourceFile,
-      ...lineNumberInput3(options.content, requirement)
+      ...lineNumberInput4(options.content, requirement)
     }).references;
   });
 }
@@ -32996,7 +33011,7 @@ function parsePoetryDependencyTable(table, options) {
         sourceFile: options.sourceFile,
         sourceKind: "manifest",
         isDirect: true,
-        ...lineNumberInput3(options.content, name)
+        ...lineNumberInput4(options.content, name)
       })
     ];
   });
@@ -33032,7 +33047,7 @@ function parseTomlObject3(content, sourceFile) {
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
 }
-function lineNumberInput3(content, pattern) {
+function lineNumberInput4(content, pattern) {
   const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(content, new RegExp(escaped, "u"));
   return sourceLine === void 0 ? {} : { sourceLine };
@@ -33042,7 +33057,7 @@ function lineNumberInput3(content, pattern) {
 function parseUvLock(options) {
   const parsed = parseTomlObject4(options.content, options.sourceFile);
   return {
-    references: dedupeReferences4(parsePackages3(parsed.package, options)),
+    references: dedupeReferences5(parsePackages3(parsed.package, options)),
     warnings: []
   };
 }
@@ -33065,7 +33080,7 @@ function parsePackages3(packages, options) {
         sourceFile: options.sourceFile,
         sourceKind: "lockfile",
         isDirect: false,
-        ...lineNumberInput4(options.content, metadata.name)
+        ...lineNumberInput5(options.content, metadata.name)
       })
     ];
   });
@@ -33089,7 +33104,7 @@ function parseTomlObject4(content, sourceFile) {
     throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
   }
 }
-function lineNumberInput4(content, packageName) {
+function lineNumberInput5(content, packageName) {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const sourceLine = lineNumberForPattern(
     content,
@@ -33097,7 +33112,7 @@ function lineNumberInput4(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences4(references) {
+function dedupeReferences5(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33126,7 +33141,7 @@ function parseYarnLock(options) {
     }
   }
   return {
-    references: dedupeReferences5(references),
+    references: dedupeReferences6(references),
     warnings: []
   };
 }
@@ -33184,7 +33199,7 @@ function packageNameFromPossibleAliasTarget(value) {
   const match = value.match(/^([a-z0-9][a-z0-9._-]*)@/iu);
   return match?.[1] === void 0 ? void 0 : normalizeNpmPackageName(match[1]);
 }
-function dedupeReferences5(references) {
+function dedupeReferences6(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 

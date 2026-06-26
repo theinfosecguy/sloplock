@@ -1,7 +1,7 @@
 {
   "name": "sloplock",
   "version": "0.1.0",
-  "description": "Block nonexistent and too-new npm packages before they enter your repo.",
+  "description": "Block nonexistent and too-new npm and PyPI packages before they enter your repo.",
   "type": "module",
   "bin": {
     "sloplock": "./dist/cli/index.js"
@@ -34,6 +34,8 @@
     "supply-chain",
     "github-action",
     "npm",
+    "pypi",
+    "python",
     "security",
     "dependencies"
   ],
