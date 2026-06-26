@@ -1,37 +1,12 @@
 # SlopLock
 
-SlopLock blocks newly introduced dependency names that are nonexistent or too new in public package registries.
+SlopLock is a GitHub Action that blocks AI-hallucinated, nonexistent, and too-new dependency names before they merge.
 
-It is built for pull request gating: scan only dependency changes, check the public registry, and fail before a hallucinated or freshly registered package lands in your repo.
+It is built for pull request gating: scan only newly introduced dependency names, check public package registries, and fail before a typo, hallucination, or freshly registered package lands in your repository.
 
-## Quick Start
+## Add SlopLock To A Repository
 
-```bash
-npx --yes sloplock@latest .
-```
-
-Run only one ecosystem:
-
-```bash
-npx --yes sloplock@latest . --ecosystem npm
-npx --yes sloplock@latest . --ecosystem pypi
-npx --yes sloplock@latest . --ecosystem go
-npx --yes sloplock@latest . --ecosystem crates
-npx --yes sloplock@latest . --ecosystem maven
-npx --yes sloplock@latest . --ecosystem nuget
-npx --yes sloplock@latest . --ecosystem packagist
-npx --yes sloplock@latest . --ecosystem rubygems
-```
-
-Scan only dependencies introduced since a base ref:
-
-```bash
-npx --yes sloplock@latest . --changed-only --base origin/main
-```
-
-## GitHub Action
-
-Use a full checkout history when `changed-only` is enabled.
+Create `.github/workflows/sloplock.yml`.
 
 ```yaml
 name: SlopLock
@@ -45,19 +20,83 @@ permissions:
 
 jobs:
   sloplock:
+    name: SlopLock dependency gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: theinfosecguy/sloplock@v0.1.0
-        with:
-          ecosystem: all
-          fail-on: high
-          changed-only: true
-          comment: true
+      - uses: theinfosecguy/sloplock@v1
 ```
+
+That default workflow:
+
+- scans only dependency names introduced by the pull request
+- checks all supported ecosystems
+- writes annotations and a job summary
+- updates one sticky pull request comment when `pull-requests: write` is allowed
+- fails the job on high-severity findings
+
+## Common Action Setups
+
+### Read-Only Permissions
+
+Use this when organization policy does not allow pull request comments. SlopLock still reports through annotations, logs, and the step summary.
+
+```yaml
+permissions:
+  contents: read
+
+steps:
+  - uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+
+  - uses: theinfosecguy/sloplock@v1
+    with:
+      comment: false
+```
+
+### Strict Pull Request Gate
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+
+steps:
+  - uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+
+  - uses: theinfosecguy/sloplock@v1
+    with:
+      fail-on: medium
+      fail-closed: true
+```
+
+### Monorepo Or Subdirectory Scan
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+
+steps:
+  - uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+
+  - uses: theinfosecguy/sloplock@v1
+    with:
+      path: packages/api
+      ecosystem: npm
+```
+
+### Required Status Check
+
+After the workflow runs once, make `SlopLock dependency gate` a required status check in your branch protection rule or repository ruleset. That turns SlopLock from an advisory comment into a merge gate.
 
 The Action accepts the same ecosystem values as the CLI: `all`, `npm`, `pypi`,
 `go`, `crates`, `maven`, `nuget`, `packagist`, and `rubygems`. It works with
@@ -105,6 +144,24 @@ version catalogs.
 SlopLock is not an SCA scanner, vulnerability scanner, typosquat detector, install-script analyzer, or package reputation score.
 
 ## CLI
+
+The CLI is useful for local checks and debugging Action results.
+
+```bash
+npx --yes sloplock@latest .
+```
+
+Scan one ecosystem:
+
+```bash
+npx --yes sloplock@latest . --ecosystem npm
+```
+
+Scan only dependencies introduced since a base ref:
+
+```bash
+npx --yes sloplock@latest . --changed-only --base origin/main
+```
 
 ```text
 Usage: sloplock [options] [path]
@@ -212,6 +269,8 @@ npm run smoke:package
 
 Longer repo-maintenance commands live under `scripts/` by domain while
 `package.json` keeps the stable contributor-facing command names.
+
+Release and Marketplace steps live in [`docs/release.md`](docs/release.md).
 
 `dist/` is committed because `action.yml` runs the bundled JavaScript Action
 from `dist/action/index.cjs`, but feature PRs should leave generated artifacts
