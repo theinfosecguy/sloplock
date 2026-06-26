@@ -4291,7 +4291,7 @@ var require_util2 = __commonJS({
       if (crypto2 === void 0) {
         return true;
       }
-      const parsedMetadata = parseMetadata5(metadataList);
+      const parsedMetadata = parseMetadata6(metadataList);
       if (parsedMetadata === "no metadata") {
         return true;
       }
@@ -4318,7 +4318,7 @@ var require_util2 = __commonJS({
       return false;
     }
     var parseHashWithOptions = /(?<algo>sha256|sha384|sha512)-((?<hash>[A-Za-z0-9+/]+|[A-Za-z0-9_-]+)={0,2}(?:\s|$)( +[!-~]*)?)?/i;
-    function parseMetadata5(metadata) {
+    function parseMetadata6(metadata) {
       const result = [];
       let empty = true;
       for (const token of metadata.split(" ")) {
@@ -4856,7 +4856,7 @@ var require_util2 = __commonJS({
       readAllBytes,
       simpleRangeHeaderValue,
       buildContentRange,
-      parseMetadata: parseMetadata5,
+      parseMetadata: parseMetadata6,
       createInflate,
       extractMimeType,
       getDecodeSplit,
@@ -31464,6 +31464,25 @@ function isPublicPypiRegistryUrl(specifier) {
   }
 }
 
+// src/core/rubygems.ts
+var rubygemsPackageNamePattern = /^[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9])?$/u;
+var publicRubyGemsHosts = /* @__PURE__ */ new Set(["rubygems.org", "index.rubygems.org"]);
+function normalizeRubygemsPackageName(name) {
+  const trimmed = name.trim();
+  if (trimmed.length === 0 || trimmed.length > 255 || !rubygemsPackageNamePattern.test(trimmed)) {
+    return void 0;
+  }
+  return trimmed;
+}
+function isPublicRubyGemsSourceUrl(specifier) {
+  try {
+    const url = new URL(specifier);
+    return (url.protocol === "https:" || url.protocol === "http:") && publicRubyGemsHosts.has(url.hostname.toLowerCase()) && url.pathname.replace(/\/+$/u, "") === "";
+  } catch {
+    return false;
+  }
+}
+
 // src/core/packages.ts
 function normalizePackageName(ecosystem, packageName) {
   switch (ecosystem) {
@@ -31477,6 +31496,8 @@ function normalizePackageName(ecosystem, packageName) {
       return normalizePackagistPackageName(packageName);
     case "pypi":
       return normalizePypiPackageName(packageName);
+    case "rubygems":
+      return normalizeRubygemsPackageName(packageName);
   }
 }
 function registryDisplayName(ecosystem) {
@@ -31491,13 +31512,15 @@ function registryDisplayName(ecosystem) {
       return "Packagist";
     case "pypi":
       return "PyPI";
+    case "rubygems":
+      return "RubyGems.org";
   }
 }
 
 // src/config/load-config.ts
 var defaultConfig = {
   failOn: "high",
-  ecosystems: ["crates", "go", "npm", "packagist", "pypi"],
+  ecosystems: ["crates", "go", "npm", "packagist", "pypi", "rubygems"],
   cooldown: {
     highDays: 7,
     mediumDays: 30
@@ -31683,11 +31706,11 @@ function filterExpiredIgnoreRules(rules, warnings, sourceFile, now) {
   });
 }
 function parseEcosystem(input, field) {
-  if (input === "crates" || input === "go" || input === "npm" || input === "packagist" || input === "pypi") {
+  if (input === "crates" || input === "go" || input === "npm" || input === "packagist" || input === "pypi" || input === "rubygems") {
     return input;
   }
   throw new UsageError(
-    `Config ${field} must be crates, go, npm, packagist, or pypi.`
+    `Config ${field} must be crates, go, npm, packagist, pypi, or rubygems.`
   );
 }
 function parseRule(input, field) {
@@ -31841,6 +31864,17 @@ function makeGoReference(input) {
 function makeCratesReference(input) {
   return {
     ecosystem: "crates",
+    name: input.name,
+    ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
+    sourceFile: input.sourceFile,
+    ...input.sourceLine === void 0 ? {} : { sourceLine: input.sourceLine },
+    sourceKind: input.sourceKind,
+    isDirect: input.isDirect
+  };
+}
+function makeRubygemsReference(input) {
+  return {
+    ecosystem: "rubygems",
     name: input.name,
     ...input.versionRange === void 0 ? {} : { versionRange: input.versionRange },
     sourceFile: input.sourceFile,
@@ -32951,6 +32985,182 @@ function dedupeReferences3(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
+// src/parsers/gemfile.ts
+function parseGemfile(options) {
+  const references = [];
+  const warnings = [];
+  const sourceBlocks = [];
+  const lines = options.content.split(/\r?\n/u);
+  let blockDepth = 0;
+  let defaultSourceIsPublicRubyGems = false;
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (/^end\b/u.test(trimmed)) {
+      blockDepth = Math.max(0, blockDepth - 1);
+      while (lastSourceBlockIsDeeperThan(sourceBlocks, blockDepth)) {
+        sourceBlocks.pop();
+      }
+      return;
+    }
+    const source = sourceFromLine(line);
+    if (source !== void 0) {
+      const isPublicRubyGems = isPublicRubyGemsSourceUrl(source.url);
+      if (source.opensBlock) {
+        sourceBlocks.push({
+          depth: blockDepth + 1,
+          isPublicRubyGems
+        });
+        blockDepth += 1;
+      } else {
+        defaultSourceIsPublicRubyGems = isPublicRubyGems;
+      }
+      return;
+    }
+    if (activeSourceIsPublic(sourceBlocks, defaultSourceIsPublicRubyGems)) {
+      const parsedGem = gemFromLine(line);
+      if (parsedGem !== void 0) {
+        const packageName = normalizeRubygemsPackageName(parsedGem.name);
+        if (packageName === void 0) {
+          warnings.push(`Skipped invalid RubyGems package name ${parsedGem.name}.`);
+        } else if (!hasNonRegistryGemOption(parsedGem.rest)) {
+          references.push(
+            makeRubygemsReference({
+              name: packageName,
+              ...versionRangeInput3(parsedGem.rest),
+              sourceFile: options.sourceFile,
+              sourceLine: index + 1,
+              sourceKind: "manifest",
+              isDirect: true
+            })
+          );
+        }
+      }
+    }
+    if (opensRubyBlock(trimmed)) {
+      blockDepth += 1;
+    }
+  });
+  return { references: dedupeReferences4(references), warnings };
+}
+function sourceFromLine(line) {
+  const source = /^\s*source\s+(['"])([^'"]+)\1(?<rest>.*)$/u.exec(line);
+  if (source === null) {
+    return void 0;
+  }
+  const url = source[2];
+  if (url === void 0) {
+    return void 0;
+  }
+  return {
+    url,
+    opensBlock: /\bdo\s*(?:\|[^|]*\|)?\s*(?:#.*)?$/u.test(source.groups?.rest ?? "")
+  };
+}
+function gemFromLine(line) {
+  const gem = /^\s*gem\s+(['"])([^'"]+)\1(?<rest>.*)$/u.exec(line);
+  const name = gem?.[2];
+  if (gem === null || name === void 0) {
+    return void 0;
+  }
+  return {
+    name,
+    rest: gem.groups?.rest ?? ""
+  };
+}
+function activeSourceIsPublic(sourceBlocks, defaultSourceIsPublicRubyGems) {
+  return lastSourceBlock(sourceBlocks)?.isPublicRubyGems ?? defaultSourceIsPublicRubyGems;
+}
+function lastSourceBlock(sourceBlocks) {
+  return sourceBlocks[sourceBlocks.length - 1];
+}
+function lastSourceBlockIsDeeperThan(sourceBlocks, blockDepth) {
+  const sourceBlock = lastSourceBlock(sourceBlocks);
+  return sourceBlock !== void 0 && sourceBlock.depth > blockDepth;
+}
+function hasNonRegistryGemOption(rest) {
+  if (/(?:^|[,{]\s*)(?:path|git|github):\s*/u.test(rest)) {
+    return true;
+  }
+  const source = /(?:^|[,{]\s*)source:\s*(['"])([^'"]+)\1/u.exec(rest)?.[2];
+  return source !== void 0 && !isPublicRubyGemsSourceUrl(source);
+}
+function versionRangeInput3(rest) {
+  const versionRange = /^\s*,\s*(['"])([^'"]+)\1/u.exec(rest)?.[2]?.trim();
+  return versionRange === void 0 || versionRange.length === 0 ? {} : { versionRange };
+}
+function opensRubyBlock(trimmedLine) {
+  return /\bdo\s*(?:\|[^|]*\|)?\s*(?:#.*)?$/u.test(trimmedLine);
+}
+function dedupeReferences4(references) {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
+
+// src/parsers/gemfile-lock.ts
+function parseGemfileLock(options) {
+  return {
+    references: dedupeReferences5(parseGemSection(options)),
+    warnings: []
+  };
+}
+function parseGemSection(options) {
+  const references = [];
+  const lines = options.content.split(/\r?\n/u);
+  let currentSection = "";
+  let remotes = [];
+  let inPublicSpecs = false;
+  lines.forEach((line, index) => {
+    const section = /^([A-Z][A-Z0-9_ ]*)\s*$/u.exec(line)?.[1];
+    if (section !== void 0) {
+      currentSection = section;
+      remotes = [];
+      inPublicSpecs = false;
+      return;
+    }
+    if (currentSection !== "GEM") {
+      return;
+    }
+    const remote = /^\s{2}remote:\s*(\S+)\s*$/u.exec(line)?.[1];
+    if (remote !== void 0) {
+      remotes.push(remote);
+      return;
+    }
+    if (/^\s{2}specs:\s*$/u.test(line)) {
+      inPublicSpecs = remotes.length > 0 && remotes.every(isPublicRubyGemsSourceUrl);
+      return;
+    }
+    if (!inPublicSpecs) {
+      return;
+    }
+    const spec = /^\s{4}([A-Za-z0-9_.-]+)\s+\(([^)]+)\)/u.exec(line);
+    if (spec === null) {
+      return;
+    }
+    const rawPackageName = spec[1];
+    const versionRange = spec[2];
+    if (rawPackageName === void 0 || versionRange === void 0) {
+      return;
+    }
+    const packageName = normalizeRubygemsPackageName(rawPackageName);
+    if (packageName === void 0) {
+      return;
+    }
+    references.push(
+      makeRubygemsReference({
+        name: packageName,
+        versionRange,
+        sourceFile: options.sourceFile,
+        sourceLine: index + 1,
+        sourceKind: "lockfile",
+        isDirect: false
+      })
+    );
+  });
+  return references;
+}
+function dedupeReferences5(references) {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
+
 // src/parsers/go-mod.ts
 function parseGoMod(options) {
   const requiredModules = [];
@@ -33249,7 +33459,7 @@ function parsePackageLock(options) {
     ...parseDependenciesObject(parsed.dependencies, options.sourceFile)
   ];
   return {
-    references: dedupeReferences4(references),
+    references: dedupeReferences6(references),
     warnings: []
   };
 }
@@ -33343,7 +33553,7 @@ function parseJsonObject4(content, sourceFile) {
     throw new Error(`Invalid JSON in ${sourceFile}: ${message}`);
   }
 }
-function dedupeReferences4(references) {
+function dedupeReferences6(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33371,7 +33581,7 @@ var nonRegistrySourceFields = [
 function parsePdmLock(options) {
   const parsed = parseTomlObject3(options.content, options.sourceFile);
   return {
-    references: dedupeReferences5(parsePackages2(parsed.package, options)),
+    references: dedupeReferences7(parsePackages2(parsed.package, options)),
     warnings: []
   };
 }
@@ -33452,7 +33662,7 @@ function lineNumberInput6(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences5(references) {
+function dedupeReferences7(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33463,7 +33673,7 @@ function parsePoetryLock(options) {
   if (!Array.isArray(packages)) {
     return { references: [], warnings: [] };
   }
-  const references = dedupeReferences6(
+  const references = dedupeReferences8(
     packages.flatMap((entry) => referenceFromPackageEntry2(entry, options))
   );
   return { references, warnings: [] };
@@ -33483,7 +33693,7 @@ function referenceFromPackageEntry2(entry, options) {
   return [
     makePypiReference({
       name: packageName,
-      ...versionRangeInput3(entry.version),
+      ...versionRangeInput4(entry.version),
       sourceFile: options.sourceFile,
       sourceKind: "lockfile",
       isDirect: false,
@@ -33501,7 +33711,7 @@ function isPublicPypiSource(source) {
   }
   return readString3(source, "type")?.toLowerCase() === "pypi";
 }
-function versionRangeInput3(version) {
+function versionRangeInput4(version) {
   return typeof version === "string" && version.trim().length > 0 ? { versionRange: version.trim() } : {};
 }
 function readRecord2(input, key) {
@@ -33532,7 +33742,7 @@ function lineNumberInput7(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences6(references) {
+function dedupeReferences8(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33545,7 +33755,7 @@ function parsePnpmLock(options) {
     ...parsePackages3(parsed.packages, options.sourceFile)
   ];
   return {
-    references: dedupeReferences7(references),
+    references: dedupeReferences9(references),
     warnings: []
   };
 }
@@ -33679,7 +33889,7 @@ function parseYamlObject(content, sourceFile) {
     throw new Error(`Invalid YAML in ${sourceFile}: ${message}`);
   }
 }
-function dedupeReferences7(references) {
+function dedupeReferences9(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33855,7 +34065,7 @@ function parsePoetryDependencyTable(table, options) {
     return [
       makePypiReference({
         name: packageName,
-        ...versionRangeInput4(specifier),
+        ...versionRangeInput5(specifier),
         sourceFile: options.sourceFile,
         sourceKind: "manifest",
         isDirect: true,
@@ -33864,7 +34074,7 @@ function parsePoetryDependencyTable(table, options) {
     ];
   });
 }
-function versionRangeInput4(specifier) {
+function versionRangeInput5(specifier) {
   if (typeof specifier === "string" && specifier.trim().length > 0) {
     return { versionRange: specifier.trim() };
   }
@@ -33905,7 +34115,7 @@ function lineNumberInput8(content, pattern) {
 function parseUvLock(options) {
   const parsed = parseTomlObject6(options.content, options.sourceFile);
   return {
-    references: dedupeReferences8(parsePackages4(parsed.package, options)),
+    references: dedupeReferences10(parsePackages4(parsed.package, options)),
     warnings: []
   };
 }
@@ -33960,7 +34170,7 @@ function lineNumberInput9(content, packageName) {
   );
   return sourceLine === void 0 ? {} : { sourceLine };
 }
-function dedupeReferences8(references) {
+function dedupeReferences10(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -33989,7 +34199,7 @@ function parseYarnLock(options) {
     }
   }
   return {
-    references: dedupeReferences9(references),
+    references: dedupeReferences11(references),
     warnings: []
   };
 }
@@ -34047,7 +34257,7 @@ function packageNameFromPossibleAliasTarget(value) {
   const match = value.match(/^([a-z0-9][a-z0-9._-]*)@/iu);
   return match?.[1] === void 0 ? void 0 : normalizeNpmPackageName(match[1]);
 }
-function dedupeReferences9(references) {
+function dedupeReferences11(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -34057,6 +34267,8 @@ var supportedFileNames = /* @__PURE__ */ new Set([
   "Cargo.toml",
   "composer.json",
   "composer.lock",
+  "Gemfile",
+  "Gemfile.lock",
   "go.mod",
   "package.json",
   "package-lock.json",
@@ -34103,6 +34315,10 @@ function parseByFileName(fileName, sourceFile, content) {
       return parseComposerJson({ sourceFile, content });
     case "composer.lock":
       return parseComposerLock({ sourceFile, content });
+    case "Gemfile":
+      return parseGemfile({ sourceFile, content });
+    case "Gemfile.lock":
+      return parseGemfileLock({ sourceFile, content });
     case "go.mod":
       return parseGoMod({ sourceFile, content });
     case "package.json":
@@ -35402,6 +35618,184 @@ function sleep5(milliseconds) {
   });
 }
 
+// src/registries/rubygems.ts
+var rubygemsVersionsUrl = "https://rubygems.org/api/v1/versions";
+var rubygemsPackagePageUrl = "https://rubygems.org/gems";
+var defaultTimeoutMs6 = 8e3;
+var defaultRetries6 = 2;
+var RubyGemsRegistryClient = class {
+  timeoutMs;
+  retries;
+  userAgent;
+  fetchImpl;
+  cache = /* @__PURE__ */ new Map();
+  constructor(options = {}) {
+    this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs6;
+    this.retries = options.retries ?? defaultRetries6;
+    this.userAgent = options.userAgent ?? "sloplock/0.1.0 (https://github.com/theinfosecguy/sloplock)";
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+  async getPackage(reference) {
+    if (reference.ecosystem !== "rubygems") {
+      return {
+        status: "unsupported",
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        message: "RubyGems.org registry client only supports RubyGems packages.",
+        retryable: false
+      };
+    }
+    const cached = this.cache.get(reference.name);
+    if (cached !== void 0) {
+      return cached;
+    }
+    const request2 = this.getPackageUncached(reference.name);
+    this.cache.set(reference.name, request2);
+    return request2;
+  }
+  async getPackageUncached(name) {
+    let lastFailure;
+    for (let attempt = 0; attempt <= this.retries; attempt += 1) {
+      const result = await this.fetchPackage(name);
+      if (result.status === "found" || result.status === "not_found") {
+        return result;
+      }
+      lastFailure = result;
+      if (!result.retryable || attempt === this.retries) {
+        return result;
+      }
+      await sleep6(100 * (attempt + 1));
+    }
+    return lastFailure ?? {
+      status: "network_error",
+      ecosystem: "rubygems",
+      name,
+      message: "RubyGems.org registry request failed without a response.",
+      retryable: true
+    };
+  }
+  async fetchPackage(name) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, this.timeoutMs);
+    try {
+      const response = await this.fetchImpl(registryVersionsUrl(name), {
+        headers: {
+          accept: "application/json",
+          "user-agent": this.userAgent
+        },
+        signal: controller.signal
+      });
+      if (response.status === 404) {
+        return { status: "not_found", ecosystem: "rubygems", name };
+      }
+      if (response.status === 429) {
+        return failure6(
+          name,
+          "rate_limited",
+          "RubyGems.org registry rate limit exceeded.",
+          true
+        );
+      }
+      if (response.status >= 500) {
+        return failure6(
+          name,
+          "server_error",
+          `RubyGems.org registry returned HTTP ${response.status}.`,
+          true
+        );
+      }
+      if (!response.ok) {
+        return failure6(
+          name,
+          "network_error",
+          `RubyGems.org registry returned HTTP ${response.status}.`,
+          false
+        );
+      }
+      let metadata;
+      try {
+        metadata = await response.json();
+      } catch {
+        return failure6(
+          name,
+          "invalid_response",
+          "RubyGems.org registry returned invalid package metadata.",
+          false
+        );
+      }
+      return parseMetadata5(name, metadata);
+    } catch (error2) {
+      const message = error2 instanceof Error && error2.name === "AbortError" ? "RubyGems.org registry request timed out." : error2 instanceof Error ? error2.message : String(error2);
+      return failure6(name, "network_error", message, true);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+};
+function parseMetadata5(name, metadata) {
+  if (!isRubyGemsVersionArray(metadata)) {
+    return failure6(
+      name,
+      "invalid_response",
+      "RubyGems.org registry returned invalid package metadata.",
+      false
+    );
+  }
+  const firstPublishedAt = firstPublishedDate5(metadata);
+  const found = {
+    status: "found",
+    ecosystem: "rubygems",
+    name,
+    registryUrl: registryPackagePageUrlFor(name)
+  };
+  return firstPublishedAt === void 0 ? found : { ...found, firstPublishedAt };
+}
+function firstPublishedDate5(versions) {
+  const publishTimes = versions.map((version) => dateFromString6(version.created_at)).filter((date) => date !== void 0).sort((left, right) => left.getTime() - right.getTime());
+  return publishTimes[0];
+}
+function dateFromString6(input) {
+  if (input === void 0) {
+    return void 0;
+  }
+  const date = new Date(input);
+  return Number.isNaN(date.getTime()) ? void 0 : date;
+}
+function isRubyGemsVersionArray(input) {
+  return Array.isArray(input) && input.every(isRubyGemsVersion);
+}
+function isRubyGemsVersion(input) {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+  const version = input;
+  return version.created_at === void 0 || typeof version.created_at === "string";
+}
+function registryVersionsUrl(name) {
+  return `${rubygemsVersionsUrl}/${encodeURIComponent(name)}.json`;
+}
+function registryPackagePageUrlFor(name) {
+  return `${rubygemsPackagePageUrl}/${encodeURIComponent(name)}`;
+}
+function failure6(name, status, message, retryable) {
+  return {
+    status,
+    ecosystem: "rubygems",
+    name,
+    message,
+    retryable
+  };
+}
+function sleep6(milliseconds) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, milliseconds);
+  });
+}
+
 // src/registries/index.ts
 var DefaultRegistryClient = class {
   crates;
@@ -35409,12 +35803,14 @@ var DefaultRegistryClient = class {
   npm;
   packagist;
   pypi;
+  rubygems;
   constructor(input = {}) {
     this.crates = input.crates ?? new CratesRegistryClient();
     this.go = input.go ?? new GoProxyRegistryClient();
     this.npm = input.npm ?? new NpmRegistryClient();
     this.packagist = input.packagist ?? new PackagistRegistryClient();
     this.pypi = input.pypi ?? new PypiRegistryClient();
+    this.rubygems = input.rubygems ?? new RubyGemsRegistryClient();
   }
   getPackage(reference) {
     switch (reference.ecosystem) {
@@ -35428,6 +35824,8 @@ var DefaultRegistryClient = class {
         return this.packagist.getPackage(reference);
       case "pypi":
         return this.pypi.getPackage(reference);
+      case "rubygems":
+        return this.rubygems.getPackage(reference);
     }
   }
 };
@@ -35825,11 +36223,11 @@ function ecosystemsInput(input) {
   if (trimmed.length === 0 || trimmed === "all") {
     return {};
   }
-  if (trimmed === "crates" || trimmed === "go" || trimmed === "npm" || trimmed === "packagist" || trimmed === "pypi") {
+  if (trimmed === "crates" || trimmed === "go" || trimmed === "npm" || trimmed === "packagist" || trimmed === "pypi" || trimmed === "rubygems") {
     return { ecosystems: [trimmed] };
   }
   throw new Error(
-    "Action input ecosystem must be all, crates, go, npm, packagist, or pypi."
+    "Action input ecosystem must be all, crates, go, npm, packagist, pypi, or rubygems."
   );
 }
 function readFailOn(input) {

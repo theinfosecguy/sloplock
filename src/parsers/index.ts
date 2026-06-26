@@ -5,6 +5,8 @@ import { parseComposerJson } from "./composer-json.js";
 import { parseComposerLock } from "./composer-lock.js";
 import { parseCargoLock } from "./cargo-lock.js";
 import { parseCargoToml } from "./cargo-toml.js";
+import { parseGemfile } from "./gemfile.js";
+import { parseGemfileLock } from "./gemfile-lock.js";
 import { parseGoMod } from "./go-mod.js";
 import { parsePackageJson } from "./package-json.js";
 import { parsePackageLock } from "./package-lock.js";
@@ -21,6 +23,8 @@ const supportedFileNames = new Set([
   "Cargo.toml",
   "composer.json",
   "composer.lock",
+  "Gemfile",
+  "Gemfile.lock",
   "go.mod",
   "package.json",
   "package-lock.json",
@@ -87,6 +91,10 @@ function parseByFileName(
       return parseComposerJson({ sourceFile, content });
     case "composer.lock":
       return parseComposerLock({ sourceFile, content });
+    case "Gemfile":
+      return parseGemfile({ sourceFile, content });
+    case "Gemfile.lock":
+      return parseGemfileLock({ sourceFile, content });
     case "go.mod":
       return parseGoMod({ sourceFile, content });
     case "package.json":

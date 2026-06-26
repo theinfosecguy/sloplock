@@ -35,7 +35,7 @@ describe("parseCliArgs", () => {
   });
 
   it("rejects unsupported ecosystems", () => {
-    expect(() => parseCliArgs(["--ecosystem", "rubygems"])).toThrow(UsageError);
+    expect(() => parseCliArgs(["--ecosystem", "maven"])).toThrow(UsageError);
   });
 
   it("accepts Go ecosystem scans", () => {
@@ -46,6 +46,10 @@ describe("parseCliArgs", () => {
     expect(parseCliArgs(["--ecosystem", "packagist"]).ecosystem).toBe(
       "packagist"
     );
+  });
+
+  it("accepts RubyGems ecosystem scans", () => {
+    expect(parseCliArgs(["--ecosystem", "rubygems"]).ecosystem).toBe("rubygems");
   });
 
   it("rejects extra positional arguments", () => {

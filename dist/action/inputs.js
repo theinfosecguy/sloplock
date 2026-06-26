@@ -16,7 +16,7 @@ export function readActionInputs() {
         failClosed: core.getBooleanInput("fail-closed")
     };
 }
-function ecosystemsInput(input) {
+export function ecosystemsInput(input) {
     const trimmed = input.trim();
     if (trimmed.length === 0 || trimmed === "all") {
         return {};
@@ -25,10 +25,11 @@ function ecosystemsInput(input) {
         trimmed === "go" ||
         trimmed === "npm" ||
         trimmed === "packagist" ||
-        trimmed === "pypi") {
+        trimmed === "pypi" ||
+        trimmed === "rubygems") {
         return { ecosystems: [trimmed] };
     }
-    throw new Error("Action input ecosystem must be all, crates, go, npm, packagist, or pypi.");
+    throw new Error("Action input ecosystem must be all, crates, go, npm, packagist, pypi, or rubygems.");
 }
 function readFailOn(input) {
     if (input === "medium" || input === "high") {

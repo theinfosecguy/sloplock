@@ -250,6 +250,101 @@ replace github.com/example/local-module => ../local-module
     ]);
   });
 
+  it("reports missing and too-new RubyGems packages from Gemfile", async () => {
+    const rootDir = await tempProject({
+      Gemfile: `
+source "https://rubygems.org"
+
+gem "missing-gem", "1.0.0"
+gem "fresh-gem", "1.0.0"
+gem "old-gem", "1.0.0"
+`
+    });
+    const result = await scan({
+      rootDir,
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "rubygems:missing-gem": {
+          status: "not_found",
+          ecosystem: "rubygems",
+          name: "missing-gem"
+        },
+        "rubygems:fresh-gem": found(
+          "fresh-gem",
+          "2026-06-22T00:00:00.000Z",
+          "rubygems"
+        ),
+        "rubygems:old-gem": found(
+          "old-gem",
+          "2020-01-01T00:00:00.000Z",
+          "rubygems"
+        )
+      })
+    });
+
+    expect(result.findings.map((finding) => finding.ecosystem)).toEqual([
+      "rubygems",
+      "rubygems"
+    ]);
+    expect(result.findings.map((finding) => finding.package).sort()).toEqual([
+      "fresh-gem",
+      "missing-gem"
+    ]);
+    expect(result.findings.map((finding) => finding.rule).sort()).toEqual([
+      "package_not_found",
+      "package_too_new"
+    ]);
+  });
+
+  it("scans RubyGems packages from Gemfile.lock", async () => {
+    const rootDir = await tempProject({
+      "Gemfile.lock": `
+GEM
+  remote: https://rubygems.org/
+  specs:
+    missing-gem (1.0.0)
+    fresh-gem (1.0.0)
+    old-gem (1.0.0)
+
+GIT
+  remote: https://github.com/example/private-gem.git
+  specs:
+    private-gem (1.0.0)
+`
+    });
+    const result = await scan({
+      rootDir,
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "rubygems:missing-gem": {
+          status: "not_found",
+          ecosystem: "rubygems",
+          name: "missing-gem"
+        },
+        "rubygems:fresh-gem": found(
+          "fresh-gem",
+          "2026-06-22T00:00:00.000Z",
+          "rubygems"
+        ),
+        "rubygems:old-gem": found(
+          "old-gem",
+          "2020-01-01T00:00:00.000Z",
+          "rubygems"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(3);
+    expect(result.findings.map((finding) => finding.package).sort()).toEqual([
+      "fresh-gem",
+      "missing-gem"
+    ]);
+    expect(result.findings.map((finding) => finding.source.file)).toEqual([
+      "Gemfile.lock",
+      "Gemfile.lock"
+    ]);
+  });
+
   it("skips Go private modules from config and environment patterns", async () => {
     const previousGoPrivate = process.env.GOPRIVATE;
     process.env.GOPRIVATE = "gitlab.example.com/private/*";
@@ -1156,6 +1251,52 @@ replace github.com/example/local-module => ../local-module
     expect(result.findings[0]?.ecosystem).toBe("go");
     expect(result.findings[0]?.package).toBe("github.com/example/new-module");
     expect(result.findings[0]?.source.file).toBe("go.mod");
+  });
+
+  it("changed-only scans RubyGems packages introduced in Gemfile", async () => {
+    const rootDir = await tempProject({
+      Gemfile: `
+source "https://rubygems.org"
+
+gem "old-gem", "1.0.0"
+`
+    });
+
+    await initGitRepository(rootDir);
+    await writeFile(
+      path.join(rootDir, "Gemfile"),
+      `
+source "https://rubygems.org"
+
+gem "old-gem", "1.0.0"
+gem "new-gem", "1.0.0"
+gem "local-gem", path: "../local-gem"
+`
+    );
+    await commitAll(rootDir, "update gemfile");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "main",
+      registryClient: fakeRegistry({
+        "rubygems:new-gem": {
+          status: "not_found",
+          ecosystem: "rubygems",
+          name: "new-gem"
+        },
+        "rubygems:old-gem": found(
+          "old-gem",
+          "2020-01-01T00:00:00.000Z",
+          "rubygems"
+        )
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings[0]?.ecosystem).toBe("rubygems");
+    expect(result.findings[0]?.package).toBe("new-gem");
+    expect(result.findings[0]?.source.file).toBe("Gemfile");
   });
 
   it("changed-only scans packages introduced in pdm.lock", async () => {

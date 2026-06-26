@@ -1,4 +1,10 @@
-export type Ecosystem = "crates" | "go" | "npm" | "packagist" | "pypi";
+export type Ecosystem =
+  | "crates"
+  | "go"
+  | "npm"
+  | "packagist"
+  | "pypi"
+  | "rubygems";
 
 export type Severity = "low" | "medium" | "high";
 

@@ -30,17 +30,18 @@ try {
   const passReport = runCliJson(passFixture, []);
   assertSummary("CLI pass fixture", passReport, {
     findings: 0,
-    scannedDependencies: 5
+    scannedDependencies: 6
   });
   smokeResults.push(["CLI pass", passReport.summary]);
 
   const missingResult = runCliJson(missingFixture, [], 1);
   assertSummary("CLI missing fixture", missingResult.report, {
-    findings: 5,
-    scannedDependencies: 5,
+    findings: 6,
+    scannedDependencies: 6,
     highestSeverity: "high"
   });
   assertFindingRules("CLI missing fixture", missingResult.report, [
+    "package_not_found",
     "package_not_found",
     "package_not_found",
     "package_not_found",
@@ -62,11 +63,12 @@ try {
     1
   );
   assertSummary("CLI changed-only fixture", changedResult.report, {
-    findings: 5,
-    scannedDependencies: 5,
+    findings: 6,
+    scannedDependencies: 6,
     highestSeverity: "high"
   });
   assertFindingRules("CLI changed-only fixture", changedResult.report, [
+    "package_not_found",
     "package_not_found",
     "package_not_found",
     "package_not_found",
@@ -84,7 +86,7 @@ try {
 
   const actionMissing = runAction(missingFixture, 1);
   assertActionOutputs("Action missing fixture", actionMissing.outputs, {
-    findings: "5",
+    findings: "6",
     highestSeverity: "high"
   });
   smokeResults.push(["Action missing", actionMissing.outputs]);
@@ -135,6 +137,13 @@ serde = "1"
       "monolog/monolog": "^3.0"
     }
   });
+  writeFileSync(
+    path.join(rootDir, "Gemfile"),
+    `source "https://rubygems.org"
+
+gem "rake", "~> 13.0"
+`
+  );
 
   return rootDir;
 }
@@ -172,6 +181,13 @@ ${packages.crates} = "1"
       [packages.packagist]: "1.0.0"
     }
   });
+  writeFileSync(
+    path.join(rootDir, "Gemfile"),
+    `source "https://rubygems.org"
+
+gem "${packages.rubygems}", "1.0.0"
+`
+  );
 
   return rootDir;
 }
@@ -230,6 +246,14 @@ workspace-crate = { workspace = true }
       }
     ]
   });
+  writeFileSync(
+    path.join(rootDir, "Gemfile"),
+    `source "https://gems.example.invalid"
+
+gem "private-gem", "1.0.0"
+gem "local-gem", path: "../local-gem"
+`
+  );
 
   return rootDir;
 }
@@ -266,6 +290,13 @@ serde = "1"
       "monolog/monolog": "^3.0"
     }
   });
+  writeFileSync(
+    path.join(rootDir, "Gemfile"),
+    `source "https://rubygems.org"
+
+gem "rake", "~> 13.0"
+`
+  );
 
   run("git", ["init", "-q", "-b", "main"], { cwd: rootDir });
   run("git", ["add", "."], { cwd: rootDir });
@@ -327,6 +358,14 @@ ${packages.crates} = "1"
       [packages.packagist]: "1.0.0"
     }
   });
+  writeFileSync(
+    path.join(rootDir, "Gemfile"),
+    `source "https://rubygems.org"
+
+gem "rake", "~> 13.0"
+gem "${packages.rubygems}", "1.0.0"
+`
+  );
   run("git", ["add", "."], { cwd: rootDir });
   run(
     "git",
@@ -482,6 +521,7 @@ function missingPackages(label = "missing") {
     pypi: `sloplock-smoke-pypi-${suffix}`,
     go: `github.com/sloplock-smoke/missing-go-${suffix}`,
     packagist: `sloplock-smoke/missing-${suffix}`,
+    rubygems: `sloplock-smoke-missing-${suffix}`,
     crates: `sloplock_smoke_crate_${suffix.replaceAll("-", "_")}`.slice(0, 64)
   };
 }
