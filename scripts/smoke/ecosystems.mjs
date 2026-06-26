@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
+  "..",
   ".."
 );
 const cliPath = path.join(repoRoot, "dist", "cli", "index.js");

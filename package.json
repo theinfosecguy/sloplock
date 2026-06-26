@@ -38,11 +38,11 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:dist-policy": "node scripts/check-dist-pr-policy.mjs --base origin/main",
-    "check:dist-current": "node scripts/check-dist-current.mjs",
+    "check:dist-policy": "node scripts/ci/check-dist-pr-policy.mjs --base origin/main",
+    "check:dist-current": "node scripts/ci/check-dist-current.mjs",
     "pack:dry-run": "npm pack --dry-run",
-    "smoke:package": "node scripts/smoke-package.mjs",
-    "smoke:ecosystems": "node scripts/smoke-ecosystems.mjs"
+    "smoke:package": "node scripts/smoke/package.mjs",
+    "smoke:ecosystems": "node scripts/smoke/ecosystems.mjs"
   },
   "keywords": [
     "supply-chain",

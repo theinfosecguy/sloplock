@@ -210,6 +210,9 @@ npm run smoke:package
 
 `npm run smoke:ecosystems` exercises the built CLI and bundled GitHub Action across npm, PyPI, Go, crates.io, Maven Central, NuGet.org, Packagist, and RubyGems.org fixtures. `npm run smoke:package` packs the package, installs the tarball into a temporary project, and verifies the published CLI entry point.
 
+Longer repo-maintenance commands live under `scripts/` by domain while
+`package.json` keeps the stable contributor-facing command names.
+
 `dist/` is committed because `action.yml` runs the bundled JavaScript Action
 from `dist/action/index.cjs`, but feature PRs should leave generated artifacts
 out. CI builds fresh artifacts for tests and smoke checks on every PR. After a

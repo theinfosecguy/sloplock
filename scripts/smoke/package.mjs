@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
+  "..",
   ".."
 );
 const packageJson = JSON.parse(
