@@ -25,5 +25,13 @@ export declare function makePypiReference(input: {
     sourceKind: SourceKind;
     isDirect: boolean;
 }): DependencyReference;
+export declare function makeCratesReference(input: {
+    name: string;
+    versionRange?: string;
+    sourceFile: string;
+    sourceLine?: number;
+    sourceKind: SourceKind;
+    isDirect: boolean;
+}): DependencyReference;
 export declare function isRecord(input: unknown): input is Record<string, unknown>;
 export declare function toPosixPath(filePath: string): string;

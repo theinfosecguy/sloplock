@@ -1,4 +1,4 @@
-export type Ecosystem = "npm" | "pypi";
+export type Ecosystem = "crates" | "npm" | "pypi";
 export type Severity = "low" | "medium" | "high";
 export type RuleId = "package_not_found" | "package_too_new";
 export type SourceKind = "manifest" | "lockfile" | "docs" | "shell";

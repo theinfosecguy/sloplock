@@ -1,14 +1,19 @@
+import { CratesRegistryClient } from "./crates.js";
 import { NpmRegistryClient } from "./npm.js";
 import { PypiRegistryClient } from "./pypi.js";
 export class DefaultRegistryClient {
+    crates;
     npm;
     pypi;
     constructor(input = {}) {
+        this.crates = input.crates ?? new CratesRegistryClient();
         this.npm = input.npm ?? new NpmRegistryClient();
         this.pypi = input.pypi ?? new PypiRegistryClient();
     }
     getPackage(reference) {
         switch (reference.ecosystem) {
+            case "crates":
+                return this.crates.getPackage(reference);
             case "npm":
                 return this.npm.getPackage(reference);
             case "pypi":

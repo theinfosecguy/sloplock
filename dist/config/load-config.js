@@ -5,7 +5,7 @@ import { UsageError } from "../core/errors.js";
 import { normalizePackageName } from "../core/packages.js";
 const defaultConfig = {
     failOn: "high",
-    ecosystems: ["npm", "pypi"],
+    ecosystems: ["crates", "npm", "pypi"],
     cooldown: {
         highDays: 7,
         mediumDays: 30
@@ -177,10 +177,10 @@ function filterExpiredIgnoreRules(rules, warnings, sourceFile, now) {
     });
 }
 function parseEcosystem(input, field) {
-    if (input === "npm" || input === "pypi") {
+    if (input === "crates" || input === "npm" || input === "pypi") {
         return input;
     }
-    throw new UsageError(`Config ${field} must be npm or pypi.`);
+    throw new UsageError(`Config ${field} must be crates, npm, or pypi.`);
 }
 function parseRule(input, field) {
     if (input === "package_not_found" || input === "package_too_new") {
