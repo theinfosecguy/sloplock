@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { parsePackageJson } from "../src/parsers/package-json.js";
 import { parsePackageLock } from "../src/parsers/package-lock.js";
 import { parsePnpmLock } from "../src/parsers/pnpm-lock.js";
+import { parsePyproject } from "../src/parsers/pyproject.js";
+import { parsePythonRequirements } from "../src/parsers/python-requirements.js";
 import { parseYarnLock } from "../src/parsers/yarn-lock.js";
 
 describe("npm dependency parsers", () => {
@@ -178,5 +180,76 @@ packages:
     });
 
     expect(parsed.references.map((reference) => reference.name)).toEqual(["react"]);
+  });
+});
+
+describe("PyPI dependency parsers", () => {
+  it("extracts registry dependencies from requirements.txt", () => {
+    const parsed = parsePythonRequirements({
+      sourceFile: "requirements.txt",
+      content: `
+# comment
+Django>=5.0
+requests[security]==2.32.0 ; python_version >= "3.11"
+zope.interface~=6.0
+-r dev-requirements.txt
+local @ file:///tmp/local
+git+https://github.com/example/pkg.git
+./local-package
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "django",
+      "requests",
+      "zope-interface"
+    ]);
+    expect(parsed.references.map((reference) => reference.ecosystem)).toEqual([
+      "pypi",
+      "pypi",
+      "pypi"
+    ]);
+  });
+
+  it("extracts dependencies from pyproject project metadata", () => {
+    const parsed = parsePyproject({
+      sourceFile: "pyproject.toml",
+      content: `
+[project]
+dependencies = [
+  "Django>=5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest~=8.0",
+]
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "django",
+      "pytest"
+    ]);
+  });
+
+  it("extracts dependencies from Poetry tables and skips local specs", () => {
+    const parsed = parsePyproject({
+      sourceFile: "pyproject.toml",
+      content: `
+[tool.poetry.dependencies]
+python = "^3.12"
+requests = "^2.32"
+local = { path = "../local" }
+
+[tool.poetry.group.dev.dependencies]
+pytest = { version = "^8.0" }
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "requests",
+      "pytest"
+    ]);
   });
 });
