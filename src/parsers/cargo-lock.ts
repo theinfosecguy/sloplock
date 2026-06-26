@@ -1,39 +1,18 @@
 import { parse as parseToml } from "smol-toml";
 import {
-  isPublicPypiRegistryUrl,
-  normalizePypiPackageName
-} from "../core/pypi.js";
+  isDefaultCratesRegistrySource,
+  normalizeCratesPackageName
+} from "../core/crates.js";
 import type { DependencyReference } from "../core/types.js";
 import {
   isRecord,
   lineNumberForPattern,
-  makePypiReference,
+  makeCratesReference,
   type ParsedDependencyFile,
   type ParseDependencyFileOptions
 } from "./common.js";
 
-const nonRegistrySourceTypes = new Set([
-  "directory",
-  "editable",
-  "file",
-  "git",
-  "path",
-  "url",
-  "virtual"
-]);
-const nonRegistrySourceFields = [
-  "directory",
-  "editable",
-  "file",
-  "git",
-  "member",
-  "path",
-  "url",
-  "virtual",
-  "workspace"
-];
-
-export function parsePdmLock(
+export function parseCargoLock(
   options: ParseDependencyFileOptions
 ): ParsedDependencyFile {
   const parsed = parseTomlObject(options.content, options.sourceFile);
@@ -57,13 +36,13 @@ function parsePackages(
       return [];
     }
 
-    const packageName = normalizePypiPackageName(metadata.name);
+    const packageName = normalizeCratesPackageName(metadata.name);
     if (packageName === undefined) {
       return [];
     }
 
     return [
-      makePypiReference({
+      makeCratesReference({
         name: packageName,
         ...(typeof metadata.version === "string"
           ? { versionRange: metadata.version }
@@ -84,46 +63,9 @@ function isRegistryPackage(
     return false;
   }
 
-  if (metadata.editable === true) {
-    return false;
-  }
-
-  for (const field of nonRegistrySourceFields) {
-    if (typeof metadata[field] === "string") {
-      return false;
-    }
-
-    if (metadata[field] === true) {
-      return false;
-    }
-  }
-
-  const source = metadata.source;
-  if (!isRecord(source)) {
-    return true;
-  }
-
-  if (
-    typeof source.registry === "string" &&
-    !isPublicPypiRegistryUrl(source.registry)
-  ) {
-    return false;
-  }
-
-  for (const field of nonRegistrySourceFields) {
-    if (typeof source[field] === "string") {
-      return false;
-    }
-
-    if (source[field] === true) {
-      return false;
-    }
-  }
-
-  const type = source.type;
-  return !(
-    typeof type === "string" &&
-    nonRegistrySourceTypes.has(type.trim().toLowerCase())
+  return (
+    typeof metadata.source === "string" &&
+    isDefaultCratesRegistrySource(metadata.source)
   );
 }
 

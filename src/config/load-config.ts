@@ -14,7 +14,7 @@ import type {
 
 const defaultConfig: SlopLockConfig = {
   failOn: "high",
-  ecosystems: ["go", "npm", "pypi"],
+  ecosystems: ["crates", "go", "npm", "pypi"],
   cooldown: {
     highDays: 7,
     mediumDays: 30
@@ -274,11 +274,16 @@ function filterExpiredIgnoreRules(
 }
 
 function parseEcosystem(input: unknown, field: string): Ecosystem {
-  if (input === "go" || input === "npm" || input === "pypi") {
+  if (
+    input === "crates" ||
+    input === "go" ||
+    input === "npm" ||
+    input === "pypi"
+  ) {
     return input;
   }
 
-  throw new UsageError(`Config ${field} must be go, npm, or pypi.`);
+  throw new UsageError(`Config ${field} must be crates, go, npm, or pypi.`);
 }
 
 function parseRule(input: unknown, field: string): RuleId {

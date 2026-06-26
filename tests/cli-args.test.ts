@@ -12,7 +12,7 @@ describe("parseCliArgs", () => {
         "--fail-on",
         "medium",
         "--ecosystem",
-        "go",
+        "crates",
         "--changed-only",
         "--base",
         "origin/main",
@@ -24,7 +24,7 @@ describe("parseCliArgs", () => {
       path: "packages/app",
       format: "json",
       failOn: "medium",
-      ecosystem: "go",
+      ecosystem: "crates",
       changedOnly: true,
       base: "origin/main",
       config: "sloplock.yml",
@@ -36,6 +36,10 @@ describe("parseCliArgs", () => {
 
   it("rejects unsupported ecosystems", () => {
     expect(() => parseCliArgs(["--ecosystem", "rubygems"])).toThrow(UsageError);
+  });
+
+  it("accepts Go ecosystem scans", () => {
+    expect(parseCliArgs(["--ecosystem", "go"]).ecosystem).toBe("go");
   });
 
   it("rejects extra positional arguments", () => {

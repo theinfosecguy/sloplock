@@ -33,9 +33,12 @@
   "keywords": [
     "supply-chain",
     "github-action",
+    "crates",
     "go",
     "npm",
     "pypi",
+    "rust",
+    "python",
     "security",
     "dependencies"
   ],

@@ -1,27 +1,7 @@
 import { parse as parseToml } from "smol-toml";
-import { isPublicPypiRegistryUrl, normalizePypiPackageName } from "../core/pypi.js";
-import { isRecord, lineNumberForPattern, makePypiReference } from "./common.js";
-const nonRegistrySourceTypes = new Set([
-    "directory",
-    "editable",
-    "file",
-    "git",
-    "path",
-    "url",
-    "virtual"
-]);
-const nonRegistrySourceFields = [
-    "directory",
-    "editable",
-    "file",
-    "git",
-    "member",
-    "path",
-    "url",
-    "virtual",
-    "workspace"
-];
-export function parsePdmLock(options) {
+import { isDefaultCratesRegistrySource, normalizeCratesPackageName } from "../core/crates.js";
+import { isRecord, lineNumberForPattern, makeCratesReference } from "./common.js";
+export function parseCargoLock(options) {
     const parsed = parseTomlObject(options.content, options.sourceFile);
     return {
         references: dedupeReferences(parsePackages(parsed.package, options)),
@@ -36,12 +16,12 @@ function parsePackages(packages, options) {
         if (!isRegistryPackage(metadata)) {
             return [];
         }
-        const packageName = normalizePypiPackageName(metadata.name);
+        const packageName = normalizeCratesPackageName(metadata.name);
         if (packageName === undefined) {
             return [];
         }
         return [
-            makePypiReference({
+            makeCratesReference({
                 name: packageName,
                 ...(typeof metadata.version === "string"
                     ? { versionRange: metadata.version }
@@ -58,36 +38,8 @@ function isRegistryPackage(metadata) {
     if (!isRecord(metadata) || typeof metadata.name !== "string") {
         return false;
     }
-    if (metadata.editable === true) {
-        return false;
-    }
-    for (const field of nonRegistrySourceFields) {
-        if (typeof metadata[field] === "string") {
-            return false;
-        }
-        if (metadata[field] === true) {
-            return false;
-        }
-    }
-    const source = metadata.source;
-    if (!isRecord(source)) {
-        return true;
-    }
-    if (typeof source.registry === "string" &&
-        !isPublicPypiRegistryUrl(source.registry)) {
-        return false;
-    }
-    for (const field of nonRegistrySourceFields) {
-        if (typeof source[field] === "string") {
-            return false;
-        }
-        if (source[field] === true) {
-            return false;
-        }
-    }
-    const type = source.type;
-    return !(typeof type === "string" &&
-        nonRegistrySourceTypes.has(type.trim().toLowerCase()));
+    return (typeof metadata.source === "string" &&
+        isDefaultCratesRegistrySource(metadata.source));
 }
 function parseTomlObject(content, sourceFile) {
     try {
@@ -110,4 +62,4 @@ function lineNumberInput(content, packageName) {
 function dedupeReferences(references) {
     return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
-//# sourceMappingURL=pdm-lock.js.map
+//# sourceMappingURL=cargo-lock.js.map

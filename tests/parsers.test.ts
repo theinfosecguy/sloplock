@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { parseCargoLock } from "../src/parsers/cargo-lock.js";
+import { parseCargoToml } from "../src/parsers/cargo-toml.js";
 import { parseGoMod } from "../src/parsers/go-mod.js";
 import { parsePackageJson } from "../src/parsers/package-json.js";
 import { parsePackageLock } from "../src/parsers/package-lock.js";
@@ -188,6 +190,173 @@ packages:
   });
 });
 
+describe("Rust dependency parsers", () => {
+  it("extracts registry dependencies from Cargo.toml and skips non-crates.io specs", () => {
+    const parsed = parseCargoToml({
+      sourceFile: "Cargo.toml",
+      content: `
+[package]
+name = "fixture"
+version = "0.1.0"
+
+[dependencies]
+serde = "1"
+serde_json = { version = "1", package = "serde-json" }
+local-crate = { path = "../local-crate" }
+git-crate = { git = "https://github.com/example/git-crate" }
+private-crate = { version = "1", registry = "private" }
+workspace-crate = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[build-dependencies]
+cc = { version = "1" }
+
+[target.'cfg(unix)'.dependencies]
+nix = "0.29"
+
+[workspace.dependencies]
+workspace-serde = { package = "serde", version = "1" }
+`
+    });
+
+    expect(
+      parsed.references.map((reference) => ({
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        versionRange: reference.versionRange,
+        sourceKind: reference.sourceKind,
+        isDirect: reference.isDirect
+      }))
+    ).toEqual([
+      {
+        ecosystem: "crates",
+        name: "serde",
+        versionRange: "1",
+        sourceKind: "manifest",
+        isDirect: true
+      },
+      {
+        ecosystem: "crates",
+        name: "serde-json",
+        versionRange: "1",
+        sourceKind: "manifest",
+        isDirect: true
+      },
+      {
+        ecosystem: "crates",
+        name: "tempfile",
+        versionRange: "3",
+        sourceKind: "manifest",
+        isDirect: true
+      },
+      {
+        ecosystem: "crates",
+        name: "cc",
+        versionRange: "1",
+        sourceKind: "manifest",
+        isDirect: true
+      },
+      {
+        ecosystem: "crates",
+        name: "nix",
+        versionRange: "0.29",
+        sourceKind: "manifest",
+        isDirect: true
+      }
+    ]);
+  });
+
+  it("extracts crates.io packages from Cargo.lock and skips local and alternate sources", () => {
+    const parsed = parseCargoLock({
+      sourceFile: "Cargo.lock",
+      content: `
+version = 3
+
+[[package]]
+name = "fixture"
+version = "0.1.0"
+
+[[package]]
+name = "serde"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "serde_json"
+version = "1.0.0"
+source = "registry+https://index.crates.io/"
+
+[[package]]
+name = "git-crate"
+version = "0.1.0"
+source = "git+https://github.com/example/git-crate"
+
+[[package]]
+name = "private-crate"
+version = "0.1.0"
+source = "registry+https://example.invalid/index"
+`
+    });
+
+    expect(
+      parsed.references.map((reference) => ({
+        ecosystem: reference.ecosystem,
+        name: reference.name,
+        versionRange: reference.versionRange,
+        sourceKind: reference.sourceKind,
+        isDirect: reference.isDirect,
+        sourceLine: reference.sourceLine
+      }))
+    ).toEqual([
+      {
+        ecosystem: "crates",
+        name: "serde",
+        versionRange: "1.0.0",
+        sourceKind: "lockfile",
+        isDirect: false,
+        sourceLine: 9
+      },
+      {
+        ecosystem: "crates",
+        name: "serde_json",
+        versionRange: "1.0.0",
+        sourceKind: "lockfile",
+        isDirect: false,
+        sourceLine: 14
+      }
+    ]);
+  });
+
+  it("parses Cargo files through dependency file discovery", () => {
+    expect(isSupportedDependencyFile("Cargo.toml")).toBe(true);
+    expect(isSupportedDependencyFile("Cargo.lock")).toBe(true);
+
+    const manifest = parseDependencyFile({
+      sourceFile: "Cargo.toml",
+      content: `
+[dependencies]
+serde = "1"
+`
+    });
+    const lockfile = parseDependencyFile({
+      sourceFile: "Cargo.lock",
+      content: `
+[[package]]
+name = "serde"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+`
+    });
+
+    expect(manifest.references[0]?.ecosystem).toBe("crates");
+    expect(manifest.references[0]?.name).toBe("serde");
+    expect(lockfile.references[0]?.ecosystem).toBe("crates");
+    expect(lockfile.references[0]?.name).toBe("serde");
+  });
+});
+
 describe("Go dependency parsers", () => {
   it("extracts go.mod require directives and skips replaced modules", () => {
     const parsed = parseGoMod({
@@ -297,6 +466,8 @@ git+https://github.com/example/pkg.git
     expect(isSupportedDependencyFile("constraints.txt")).toBe(true);
     expect(isSupportedDependencyFile("prod-constraints.txt")).toBe(true);
     expect(isSupportedDependencyFile("pdm.lock")).toBe(true);
+    expect(isSupportedDependencyFile("poetry.lock")).toBe(true);
+    expect(isSupportedDependencyFile("uv.lock")).toBe(true);
   });
 
   it("extracts includes from requirements files", () => {
@@ -353,9 +524,23 @@ files = []
       "django",
       "zope-interface"
     ]);
-    expect(parsed.references.map((reference) => reference.sourceKind)).toEqual([
-      "lockfile",
-      "lockfile"
+    expect(
+      parsed.references.map((reference) => ({
+        name: reference.name,
+        sourceKind: reference.sourceKind,
+        sourceLine: reference.sourceLine
+      }))
+    ).toEqual([
+      {
+        name: "django",
+        sourceKind: "lockfile",
+        sourceLine: 3
+      },
+      {
+        name: "zope-interface",
+        sourceKind: "lockfile",
+        sourceLine: 11
+      }
     ]);
   });
 
@@ -410,6 +595,25 @@ reference = "pypi"
       "requests",
       "public-source-pkg"
     ]);
+  });
+
+  it("parses poetry.lock through dependency file discovery", () => {
+    expect(isSupportedDependencyFile("poetry.lock")).toBe(true);
+
+    const parsed = parseDependencyFile({
+      sourceFile: "poetry.lock",
+      content: `
+[[package]]
+name = "missing-python-package"
+version = "1.0.0"
+`
+    });
+
+    expect(parsed.references.map((reference) => reference.name)).toEqual([
+      "missing-python-package"
+    ]);
+    expect(parsed.references[0]?.ecosystem).toBe("pypi");
+    expect(parsed.references[0]?.sourceLine).toBe(3);
   });
 
   it("extracts dependencies from pyproject project metadata", () => {
@@ -557,6 +761,11 @@ source = { path = "../source-path-package" }
 name = "source-editable-package"
 version = "0.1.0"
 source = { editable = "../source-editable-package" }
+
+[[package]]
+name = "private-registry-package"
+version = "1.0.0"
+source = { registry = "https://packages.example.invalid/simple" }
 `
     });
 

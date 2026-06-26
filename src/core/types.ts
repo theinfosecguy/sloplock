@@ -1,4 +1,4 @@
-export type Ecosystem = "go" | "npm" | "pypi";
+export type Ecosystem = "crates" | "go" | "npm" | "pypi";
 
 export type Severity = "low" | "medium" | "high";
 

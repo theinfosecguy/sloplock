@@ -1,4 +1,6 @@
 import path from "node:path";
+import { parseCargoLock } from "./cargo-lock.js";
+import { parseCargoToml } from "./cargo-toml.js";
 import { parseGoMod } from "./go-mod.js";
 import { parsePackageJson } from "./package-json.js";
 import { parsePackageLock } from "./package-lock.js";
@@ -10,6 +12,8 @@ import { parsePythonRequirements } from "./python-requirements.js";
 import { parseUvLock } from "./uv-lock.js";
 import { parseYarnLock } from "./yarn-lock.js";
 const supportedFileNames = new Set([
+    "Cargo.lock",
+    "Cargo.toml",
     "go.mod",
     "package.json",
     "package-lock.json",
@@ -46,6 +50,10 @@ function parseByFileName(fileName, sourceFile, content) {
         return parsePythonRequirements({ sourceFile, content });
     }
     switch (fileName) {
+        case "Cargo.lock":
+            return parseCargoLock({ sourceFile, content });
+        case "Cargo.toml":
+            return parseCargoToml({ sourceFile, content });
         case "go.mod":
             return parseGoMod({ sourceFile, content });
         case "package.json":

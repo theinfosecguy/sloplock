@@ -38,11 +38,18 @@ function ecosystemsInput(input: string): { ecosystems?: readonly Ecosystem[] } {
     return {};
   }
 
-  if (trimmed === "go" || trimmed === "npm" || trimmed === "pypi") {
+  if (
+    trimmed === "crates" ||
+    trimmed === "go" ||
+    trimmed === "npm" ||
+    trimmed === "pypi"
+  ) {
     return { ecosystems: [trimmed] };
   }
 
-  throw new Error("Action input ecosystem must be all, go, npm, or pypi.");
+  throw new Error(
+    "Action input ecosystem must be all, crates, go, npm, or pypi."
+  );
 }
 
 function readFailOn(input: string): "medium" | "high" {
