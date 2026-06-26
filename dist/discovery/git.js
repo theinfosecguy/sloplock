@@ -29,8 +29,11 @@ export async function parseChangedDependencyReferences(input) {
     };
 }
 function diffDependencyReferences(baseReferences, headReferences) {
-    const basePackages = new Set(baseReferences.map((reference) => reference.name));
-    return headReferences.filter((reference) => !basePackages.has(reference.name));
+    const basePackages = new Set(baseReferences.map(referenceKey));
+    return headReferences.filter((reference) => !basePackages.has(referenceKey(reference)));
+}
+function referenceKey(reference) {
+    return `${reference.ecosystem}:${reference.name}`;
 }
 async function parseBaseFiles(input) {
     const references = [];

@@ -30,6 +30,7 @@ async function main(): Promise<void> {
     isCi: process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true",
     ...(args.base === undefined ? {} : { baseRef: args.base }),
     ...(args.config === undefined ? {} : { configPath: args.config }),
+    ...(args.ecosystem === undefined ? {} : { ecosystems: [args.ecosystem] }),
     ...(args.failOn === undefined ? {} : { failOn: args.failOn })
   });
 

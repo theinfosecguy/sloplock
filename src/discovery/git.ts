@@ -47,8 +47,12 @@ function diffDependencyReferences(
   baseReferences: readonly DependencyReference[],
   headReferences: readonly DependencyReference[]
 ): DependencyReference[] {
-  const basePackages = new Set(baseReferences.map((reference) => reference.name));
-  return headReferences.filter((reference) => !basePackages.has(reference.name));
+  const basePackages = new Set(baseReferences.map(referenceKey));
+  return headReferences.filter((reference) => !basePackages.has(referenceKey(reference)));
+}
+
+function referenceKey(reference: DependencyReference): string {
+  return `${reference.ecosystem}:${reference.name}`;
 }
 
 async function parseBaseFiles(input: {

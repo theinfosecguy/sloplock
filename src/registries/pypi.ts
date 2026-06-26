@@ -1,34 +1,40 @@
 import type {
   Ecosystem,
   RegistryClient,
-  RegistryPackageFound,
   RegistryPackageFailure,
+  RegistryPackageFound,
   RegistryResult
 } from "../core/types.js";
 
-const npmRegistryUrl = "https://registry.npmjs.org";
+const pypiRegistryUrl = "https://pypi.org/pypi";
 const defaultTimeoutMs = 8_000;
 const defaultRetries = 2;
 
-type NpmRegistryClientOptions = {
+type PypiRegistryClientOptions = {
   timeoutMs?: number;
   retries?: number;
   userAgent?: string;
   fetchImpl?: typeof fetch;
 };
 
-type NpmMetadata = {
-  time?: Record<string, string>;
+type PypiFile = {
+  upload_time?: string;
+  upload_time_iso_8601?: string;
 };
 
-export class NpmRegistryClient implements RegistryClient {
+type PypiMetadata = {
+  releases?: Record<string, PypiFile[]>;
+  urls?: PypiFile[];
+};
+
+export class PypiRegistryClient implements RegistryClient {
   private readonly timeoutMs: number;
   private readonly retries: number;
   private readonly userAgent: string;
   private readonly fetchImpl: typeof fetch;
   private readonly cache = new Map<string, Promise<RegistryResult>>();
 
-  constructor(options: NpmRegistryClientOptions = {}) {
+  constructor(options: PypiRegistryClientOptions = {}) {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
     this.retries = options.retries ?? defaultRetries;
     this.userAgent = options.userAgent ?? "sloplock/0.1.0";
@@ -39,24 +45,23 @@ export class NpmRegistryClient implements RegistryClient {
     ecosystem: Ecosystem;
     name: string;
   }): Promise<RegistryResult> {
-    if (reference.ecosystem !== "npm") {
+    if (reference.ecosystem !== "pypi") {
       return {
         status: "unsupported",
         ecosystem: reference.ecosystem,
         name: reference.name,
-        message: "npm registry client only supports npm packages.",
+        message: "PyPI registry client only supports PyPI packages.",
         retryable: false
       };
     }
 
-    const { name } = reference;
-    const cached = this.cache.get(name);
+    const cached = this.cache.get(reference.name);
     if (cached !== undefined) {
       return cached;
     }
 
-    const request = this.getPackageUncached(name);
-    this.cache.set(name, request);
+    const request = this.getPackageUncached(reference.name);
+    this.cache.set(reference.name, request);
     return request;
   }
 
@@ -80,9 +85,9 @@ export class NpmRegistryClient implements RegistryClient {
     return (
       lastFailure ?? {
         status: "network_error",
-        ecosystem: "npm",
+        ecosystem: "pypi",
         name,
-        message: "npm registry request failed without a response.",
+        message: "PyPI registry request failed without a response.",
         retryable: true
       }
     );
@@ -104,18 +109,18 @@ export class NpmRegistryClient implements RegistryClient {
       });
 
       if (response.status === 404) {
-        return { status: "not_found", ecosystem: "npm", name };
+        return { status: "not_found", ecosystem: "pypi", name };
       }
 
       if (response.status === 429) {
-        return failure(name, "rate_limited", "npm registry rate limit exceeded.", true);
+        return failure(name, "rate_limited", "PyPI registry rate limit exceeded.", true);
       }
 
       if (response.status >= 500) {
         return failure(
           name,
           "server_error",
-          `npm registry returned HTTP ${response.status}.`,
+          `PyPI registry returned HTTP ${response.status}.`,
           true
         );
       }
@@ -124,7 +129,7 @@ export class NpmRegistryClient implements RegistryClient {
         return failure(
           name,
           "network_error",
-          `npm registry returned HTTP ${response.status}.`,
+          `PyPI registry returned HTTP ${response.status}.`,
           false
         );
       }
@@ -134,7 +139,7 @@ export class NpmRegistryClient implements RegistryClient {
     } catch (error) {
       const message =
         error instanceof Error && error.name === "AbortError"
-          ? "npm registry request timed out."
+          ? "PyPI registry request timed out."
           : error instanceof Error
             ? error.message
             : String(error);
@@ -147,11 +152,11 @@ export class NpmRegistryClient implements RegistryClient {
 }
 
 function parseMetadata(name: string, metadata: unknown): RegistryResult {
-  if (!isNpmMetadata(metadata)) {
+  if (!isPypiMetadata(metadata)) {
     return failure(
       name,
       "invalid_response",
-      "npm registry returned invalid package metadata.",
+      "PyPI registry returned invalid package metadata.",
       false
     );
   }
@@ -159,7 +164,7 @@ function parseMetadata(name: string, metadata: unknown): RegistryResult {
   const firstPublishedAt = firstPublishedDate(metadata);
   const found: RegistryPackageFound = {
     status: "found",
-    ecosystem: "npm",
+    ecosystem: "pypi",
     name,
     registryUrl: registryPackageUrl(name)
   };
@@ -169,24 +174,33 @@ function parseMetadata(name: string, metadata: unknown): RegistryResult {
     : { ...found, firstPublishedAt };
 }
 
-function firstPublishedDate(metadata: NpmMetadata): Date | undefined {
-  const time = metadata.time;
-  if (time === undefined) {
-    return undefined;
+function firstPublishedDate(metadata: PypiMetadata): Date | undefined {
+  const uploadDates = [
+    ...uploadDatesFromReleases(metadata.releases),
+    ...uploadDatesFromFiles(metadata.urls)
+  ].sort((left, right) => left.getTime() - right.getTime());
+
+  return uploadDates[0];
+}
+
+function uploadDatesFromReleases(
+  releases: PypiMetadata["releases"]
+): Date[] {
+  if (releases === undefined) {
+    return [];
   }
 
-  const created = dateFromString(time.created);
-  if (created !== undefined) {
-    return created;
+  return Object.values(releases).flatMap((files) => uploadDatesFromFiles(files));
+}
+
+function uploadDatesFromFiles(files: PypiFile[] | undefined): Date[] {
+  if (files === undefined) {
+    return [];
   }
 
-  const publishTimes = Object.entries(time)
-    .filter(([key]) => key !== "modified")
-    .map(([, value]) => dateFromString(value))
-    .filter((date): date is Date => date !== undefined)
-    .sort((left, right) => left.getTime() - right.getTime());
-
-  return publishTimes[0];
+  return files
+    .map((file) => dateFromString(file.upload_time_iso_8601 ?? file.upload_time))
+    .filter((date): date is Date => date !== undefined);
 }
 
 function dateFromString(input: string | undefined): Date | undefined {
@@ -198,8 +212,57 @@ function dateFromString(input: string | undefined): Date | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
+function isPypiMetadata(input: unknown): input is PypiMetadata {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+
+  const metadata = input as { releases?: unknown; urls?: unknown };
+  return (
+    isOptionalReleaseMap(metadata.releases) &&
+    isOptionalFileArray(metadata.urls)
+  );
+}
+
+function isOptionalReleaseMap(input: unknown): input is Record<string, PypiFile[]> | undefined {
+  if (input === undefined) {
+    return true;
+  }
+
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return false;
+  }
+
+  return Object.values(input).every(isOptionalFileArray);
+}
+
+function isOptionalFileArray(input: unknown): input is PypiFile[] | undefined {
+  if (input === undefined) {
+    return true;
+  }
+
+  if (!Array.isArray(input)) {
+    return false;
+  }
+
+  return input.every((file) => {
+    if (typeof file !== "object" || file === null || Array.isArray(file)) {
+      return false;
+    }
+
+    const uploadTime = (file as { upload_time?: unknown }).upload_time;
+    const uploadTimeIso = (file as { upload_time_iso_8601?: unknown })
+      .upload_time_iso_8601;
+
+    return (
+      (uploadTime === undefined || typeof uploadTime === "string") &&
+      (uploadTimeIso === undefined || typeof uploadTimeIso === "string")
+    );
+  });
+}
+
 function registryPackageUrl(name: string): string {
-  return `${npmRegistryUrl}/${encodeURIComponent(name)}`;
+  return `${pypiRegistryUrl}/${encodeURIComponent(name)}/json`;
 }
 
 function failure(
@@ -210,32 +273,11 @@ function failure(
 ): RegistryPackageFailure {
   return {
     status,
-    ecosystem: "npm",
+    ecosystem: "pypi",
     name,
     message,
     retryable
   };
-}
-
-function isNpmMetadata(input: unknown): input is NpmMetadata {
-  if (typeof input !== "object" || input === null || Array.isArray(input)) {
-    return false;
-  }
-
-  const metadata = input as { time?: unknown };
-  if (metadata.time === undefined) {
-    return true;
-  }
-
-  if (
-    typeof metadata.time !== "object" ||
-    metadata.time === null ||
-    Array.isArray(metadata.time)
-  ) {
-    return false;
-  }
-
-  return Object.values(metadata.time).every((value) => typeof value === "string");
 }
 
 function sleep(milliseconds: number): Promise<void> {

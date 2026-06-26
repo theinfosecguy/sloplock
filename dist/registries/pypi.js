@@ -1,7 +1,7 @@
-const npmRegistryUrl = "https://registry.npmjs.org";
+const pypiRegistryUrl = "https://pypi.org/pypi";
 const defaultTimeoutMs = 8_000;
 const defaultRetries = 2;
-export class NpmRegistryClient {
+export class PypiRegistryClient {
     timeoutMs;
     retries;
     userAgent;
@@ -14,22 +14,21 @@ export class NpmRegistryClient {
         this.fetchImpl = options.fetchImpl ?? fetch;
     }
     async getPackage(reference) {
-        if (reference.ecosystem !== "npm") {
+        if (reference.ecosystem !== "pypi") {
             return {
                 status: "unsupported",
                 ecosystem: reference.ecosystem,
                 name: reference.name,
-                message: "npm registry client only supports npm packages.",
+                message: "PyPI registry client only supports PyPI packages.",
                 retryable: false
             };
         }
-        const { name } = reference;
-        const cached = this.cache.get(name);
+        const cached = this.cache.get(reference.name);
         if (cached !== undefined) {
             return cached;
         }
-        const request = this.getPackageUncached(name);
-        this.cache.set(name, request);
+        const request = this.getPackageUncached(reference.name);
+        this.cache.set(reference.name, request);
         return request;
     }
     async getPackageUncached(name) {
@@ -47,9 +46,9 @@ export class NpmRegistryClient {
         }
         return (lastFailure ?? {
             status: "network_error",
-            ecosystem: "npm",
+            ecosystem: "pypi",
             name,
-            message: "npm registry request failed without a response.",
+            message: "PyPI registry request failed without a response.",
             retryable: true
         });
     }
@@ -67,23 +66,23 @@ export class NpmRegistryClient {
                 signal: controller.signal
             });
             if (response.status === 404) {
-                return { status: "not_found", ecosystem: "npm", name };
+                return { status: "not_found", ecosystem: "pypi", name };
             }
             if (response.status === 429) {
-                return failure(name, "rate_limited", "npm registry rate limit exceeded.", true);
+                return failure(name, "rate_limited", "PyPI registry rate limit exceeded.", true);
             }
             if (response.status >= 500) {
-                return failure(name, "server_error", `npm registry returned HTTP ${response.status}.`, true);
+                return failure(name, "server_error", `PyPI registry returned HTTP ${response.status}.`, true);
             }
             if (!response.ok) {
-                return failure(name, "network_error", `npm registry returned HTTP ${response.status}.`, false);
+                return failure(name, "network_error", `PyPI registry returned HTTP ${response.status}.`, false);
             }
             const metadata = await response.json();
             return parseMetadata(name, metadata);
         }
         catch (error) {
             const message = error instanceof Error && error.name === "AbortError"
-                ? "npm registry request timed out."
+                ? "PyPI registry request timed out."
                 : error instanceof Error
                     ? error.message
                     : String(error);
@@ -95,13 +94,13 @@ export class NpmRegistryClient {
     }
 }
 function parseMetadata(name, metadata) {
-    if (!isNpmMetadata(metadata)) {
-        return failure(name, "invalid_response", "npm registry returned invalid package metadata.", false);
+    if (!isPypiMetadata(metadata)) {
+        return failure(name, "invalid_response", "PyPI registry returned invalid package metadata.", false);
     }
     const firstPublishedAt = firstPublishedDate(metadata);
     const found = {
         status: "found",
-        ecosystem: "npm",
+        ecosystem: "pypi",
         name,
         registryUrl: registryPackageUrl(name)
     };
@@ -110,20 +109,25 @@ function parseMetadata(name, metadata) {
         : { ...found, firstPublishedAt };
 }
 function firstPublishedDate(metadata) {
-    const time = metadata.time;
-    if (time === undefined) {
-        return undefined;
+    const uploadDates = [
+        ...uploadDatesFromReleases(metadata.releases),
+        ...uploadDatesFromFiles(metadata.urls)
+    ].sort((left, right) => left.getTime() - right.getTime());
+    return uploadDates[0];
+}
+function uploadDatesFromReleases(releases) {
+    if (releases === undefined) {
+        return [];
     }
-    const created = dateFromString(time.created);
-    if (created !== undefined) {
-        return created;
+    return Object.values(releases).flatMap((files) => uploadDatesFromFiles(files));
+}
+function uploadDatesFromFiles(files) {
+    if (files === undefined) {
+        return [];
     }
-    const publishTimes = Object.entries(time)
-        .filter(([key]) => key !== "modified")
-        .map(([, value]) => dateFromString(value))
-        .filter((date) => date !== undefined)
-        .sort((left, right) => left.getTime() - right.getTime());
-    return publishTimes[0];
+    return files
+        .map((file) => dateFromString(file.upload_time_iso_8601 ?? file.upload_time))
+        .filter((date) => date !== undefined);
 }
 function dateFromString(input) {
     if (input === undefined) {
@@ -132,32 +136,52 @@ function dateFromString(input) {
     const date = new Date(input);
     return Number.isNaN(date.getTime()) ? undefined : date;
 }
-function registryPackageUrl(name) {
-    return `${npmRegistryUrl}/${encodeURIComponent(name)}`;
-}
-function failure(name, status, message, retryable) {
-    return {
-        status,
-        ecosystem: "npm",
-        name,
-        message,
-        retryable
-    };
-}
-function isNpmMetadata(input) {
+function isPypiMetadata(input) {
     if (typeof input !== "object" || input === null || Array.isArray(input)) {
         return false;
     }
     const metadata = input;
-    if (metadata.time === undefined) {
+    return (isOptionalReleaseMap(metadata.releases) &&
+        isOptionalFileArray(metadata.urls));
+}
+function isOptionalReleaseMap(input) {
+    if (input === undefined) {
         return true;
     }
-    if (typeof metadata.time !== "object" ||
-        metadata.time === null ||
-        Array.isArray(metadata.time)) {
+    if (typeof input !== "object" || input === null || Array.isArray(input)) {
         return false;
     }
-    return Object.values(metadata.time).every((value) => typeof value === "string");
+    return Object.values(input).every(isOptionalFileArray);
+}
+function isOptionalFileArray(input) {
+    if (input === undefined) {
+        return true;
+    }
+    if (!Array.isArray(input)) {
+        return false;
+    }
+    return input.every((file) => {
+        if (typeof file !== "object" || file === null || Array.isArray(file)) {
+            return false;
+        }
+        const uploadTime = file.upload_time;
+        const uploadTimeIso = file
+            .upload_time_iso_8601;
+        return ((uploadTime === undefined || typeof uploadTime === "string") &&
+            (uploadTimeIso === undefined || typeof uploadTimeIso === "string"));
+    });
+}
+function registryPackageUrl(name) {
+    return `${pypiRegistryUrl}/${encodeURIComponent(name)}/json`;
+}
+function failure(name, status, message, retryable) {
+    return {
+        status,
+        ecosystem: "pypi",
+        name,
+        message,
+        retryable
+    };
 }
 function sleep(milliseconds) {
     return new Promise((resolve) => {
@@ -166,4 +190,4 @@ function sleep(milliseconds) {
         }, milliseconds);
     });
 }
-//# sourceMappingURL=npm.js.map
+//# sourceMappingURL=pypi.js.map

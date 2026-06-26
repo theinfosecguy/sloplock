@@ -1,17 +1,17 @@
 import type { Ecosystem, RegistryClient, RegistryResult } from "../core/types.js";
-type NpmRegistryClientOptions = {
+type PypiRegistryClientOptions = {
     timeoutMs?: number;
     retries?: number;
     userAgent?: string;
     fetchImpl?: typeof fetch;
 };
-export declare class NpmRegistryClient implements RegistryClient {
+export declare class PypiRegistryClient implements RegistryClient {
     private readonly timeoutMs;
     private readonly retries;
     private readonly userAgent;
     private readonly fetchImpl;
     private readonly cache;
-    constructor(options?: NpmRegistryClientOptions);
+    constructor(options?: PypiRegistryClientOptions);
     getPackage(reference: {
         ecosystem: Ecosystem;
         name: string;

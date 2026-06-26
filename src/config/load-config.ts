@@ -2,10 +2,11 @@ import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { UsageError } from "../core/errors.js";
-import { normalizeNpmPackageName } from "../core/npm.js";
+import { normalizePackageName } from "../core/packages.js";
 import type {
   AllowRule,
   ConfigWarning,
+  Ecosystem,
   IgnoreRule,
   RuleId,
   SlopLockConfig
@@ -13,7 +14,7 @@ import type {
 
 const defaultConfig: SlopLockConfig = {
   failOn: "high",
-  ecosystems: ["npm"],
+  ecosystems: ["npm", "pypi"],
   cooldown: {
     highDays: 7,
     mediumDays: 30
@@ -153,22 +154,21 @@ function parseCooldown(input: unknown): SlopLockConfig["cooldown"] {
   return { highDays, mediumDays };
 }
 
-function parseEcosystems(input: unknown): readonly ["npm"] {
+function parseEcosystems(input: unknown): Ecosystem[] {
   if (input === undefined) {
-    return ["npm"];
+    return [...defaultConfig.ecosystems];
   }
 
   if (!Array.isArray(input) || input.length === 0) {
     throw new UsageError("Config ecosystems must be a non-empty array.");
   }
 
+  const ecosystems = new Set<Ecosystem>();
   for (const ecosystem of input) {
-    if (ecosystem !== "npm") {
-      throw new UsageError("V1 only supports the npm ecosystem.");
-    }
+    ecosystems.add(parseEcosystem(ecosystem, "ecosystems[]"));
   }
 
-  return ["npm"];
+  return [...ecosystems].sort();
 }
 
 function parseAllowRules(input: unknown): AllowRule[] {
@@ -186,7 +186,11 @@ function parseAllowRules(input: unknown): AllowRule[] {
     }
 
     const ecosystem = parseEcosystem(entry.ecosystem, `allow[${index}].ecosystem`);
-    const packageName = parsePackage(entry.package, `allow[${index}].package`);
+    const packageName = parsePackage(
+      entry.package,
+      ecosystem,
+      `allow[${index}].package`
+    );
     const reason = parseReason(entry.reason, `allow[${index}].reason`);
     const expires = parseOptionalDate(entry.expires, `allow[${index}].expires`);
 
@@ -212,7 +216,11 @@ function parseIgnoreRules(input: unknown): IgnoreRule[] {
 
     const rule = parseRule(entry.rule, `ignore[${index}].rule`);
     const ecosystem = parseEcosystem(entry.ecosystem, `ignore[${index}].ecosystem`);
-    const packageName = parsePackage(entry.package, `ignore[${index}].package`);
+    const packageName = parsePackage(
+      entry.package,
+      ecosystem,
+      `ignore[${index}].package`
+    );
     const reason = parseReason(entry.reason, `ignore[${index}].reason`);
     const expires = parseOptionalDate(entry.expires, `ignore[${index}].expires`);
 
@@ -260,12 +268,12 @@ function filterExpiredIgnoreRules(
   });
 }
 
-function parseEcosystem(input: unknown, field: string): "npm" {
-  if (input === "npm") {
+function parseEcosystem(input: unknown, field: string): Ecosystem {
+  if (input === "npm" || input === "pypi") {
     return input;
   }
 
-  throw new UsageError(`Config ${field} must be npm.`);
+  throw new UsageError(`Config ${field} must be npm or pypi.`);
 }
 
 function parseRule(input: unknown, field: string): RuleId {
@@ -278,14 +286,16 @@ function parseRule(input: unknown, field: string): RuleId {
   );
 }
 
-function parsePackage(input: unknown, field: string): string {
+function parsePackage(input: unknown, ecosystem: Ecosystem, field: string): string {
   if (typeof input !== "string") {
     throw new UsageError(`Config ${field} must be a package name.`);
   }
 
-  const packageName = normalizeNpmPackageName(input);
+  const packageName = normalizePackageName(ecosystem, input);
   if (packageName === undefined) {
-    throw new UsageError(`Config ${field} is not a valid npm package name.`);
+    throw new UsageError(
+      `Config ${field} is not a valid ${ecosystem} package name.`
+    );
   }
 
   return packageName;

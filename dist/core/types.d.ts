@@ -1,4 +1,4 @@
-export type Ecosystem = "npm";
+export type Ecosystem = "npm" | "pypi";
 export type Severity = "low" | "medium" | "high";
 export type RuleId = "package_not_found" | "package_too_new";
 export type SourceKind = "manifest" | "lockfile" | "docs" | "shell";
@@ -33,7 +33,10 @@ export type RegistryPackageFailure = {
 };
 export type RegistryResult = RegistryPackageFound | RegistryPackageNotFound | RegistryPackageFailure;
 export type RegistryClient = {
-    getPackage(name: string): Promise<RegistryResult>;
+    getPackage(reference: {
+        ecosystem: Ecosystem;
+        name: string;
+    }): Promise<RegistryResult>;
 };
 export type Finding = {
     rule: RuleId;
@@ -85,6 +88,7 @@ export type ScanOptions = {
     rootDir: string;
     changedOnly?: boolean;
     baseRef?: string;
+    ecosystems?: readonly Ecosystem[];
     configPath?: string;
     failOn?: Exclude<Severity, "low">;
     failClosed?: boolean;

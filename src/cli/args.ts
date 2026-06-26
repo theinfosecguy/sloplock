@@ -4,7 +4,7 @@ import {
   InvalidArgumentError
 } from "@commander-js/extra-typings";
 import { UsageError } from "../core/errors.js";
-import type { Severity } from "../core/types.js";
+import type { Ecosystem, Severity } from "../core/types.js";
 
 export type OutputFormat = "text" | "json" | "markdown";
 
@@ -12,6 +12,7 @@ export type CliArgs = {
   path: string;
   format: OutputFormat;
   failOn?: Exclude<Severity, "low">;
+  ecosystem?: Ecosystem;
   changedOnly: boolean;
   base?: string;
   config?: string;
@@ -23,7 +24,7 @@ export type CliArgs = {
 type ProgramOptions = {
   format: OutputFormat;
   failOn?: Exclude<Severity, "low">;
-  ecosystem: "npm";
+  ecosystem?: Ecosystem;
   changedOnly: boolean;
   base?: string;
   config?: string;
@@ -67,6 +68,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     path: pathArg,
     format: options.format,
     ...(options.failOn === undefined ? {} : { failOn: options.failOn }),
+    ...(options.ecosystem === undefined ? {} : { ecosystem: options.ecosystem }),
     changedOnly: options.changedOnly,
     ...(options.base === undefined ? {} : { base: options.base }),
     ...(options.config === undefined ? {} : { config: options.config }),
@@ -84,7 +86,7 @@ function buildProgram(): Command<[string], ProgramOptions> {
   return new Command()
     .name("sloplock")
     .description(
-      "Block nonexistent and too-new npm packages before they enter your repo."
+      "Block nonexistent and too-new package dependencies before they enter your repo."
     )
     .argument("[path]", "directory to scan", ".")
     .allowExcessArguments(false)
@@ -104,9 +106,8 @@ function buildProgram(): Command<[string], ProgramOptions> {
     )
     .option(
       "--ecosystem <ecosystem>",
-      "ecosystem to scan. V1 supports npm only",
-      parseEcosystem,
-      "npm"
+      "ecosystem to scan: npm or pypi",
+      parseEcosystem
     )
     .option(
       "--changed-only",
@@ -134,12 +135,12 @@ function parseFailOn(value: string): "medium" | "high" {
   throw new InvalidArgumentError("must be medium or high.");
 }
 
-function parseEcosystem(value: string): "npm" {
-  if (value === "npm") {
+function parseEcosystem(value: string): Ecosystem {
+  if (value === "npm" || value === "pypi") {
     return value;
   }
 
-  throw new InvalidArgumentError("V1 only supports npm.");
+  throw new InvalidArgumentError("must be npm or pypi.");
 }
 
 function hasFlag(

@@ -2,7 +2,7 @@ import path from "node:path";
 import { loadConfig } from "../config/load-config.js";
 import { discoverDependencyFiles, parseWorkspaceFiles } from "../discovery/find-files.js";
 import { parseChangedDependencyReferences } from "../discovery/git.js";
-import { NpmRegistryClient } from "../registries/npm.js";
+import { DefaultRegistryClient } from "../registries/index.js";
 import { applySuppressions, buildPackageNotFoundFinding, buildPackageTooNewFinding } from "./policy.js";
 const defaultRegistryConcurrency = 8;
 export async function scan(options) {
@@ -24,8 +24,9 @@ export async function scan(options) {
         ...loadedConfig.warnings,
         ...parsed.warnings
     ];
-    const bestReferences = selectBestReferences(parsed.references);
-    const registryClient = options.registryClient ?? new NpmRegistryClient();
+    const activeEcosystems = options.ecosystems ?? loadedConfig.config.ecosystems;
+    const bestReferences = selectBestReferences(parsed.references.filter((reference) => activeEcosystems.includes(reference.ecosystem)));
+    const registryClient = options.registryClient ?? new DefaultRegistryClient();
     const findings = [];
     const registryFailures = [];
     const registryEvaluations = await mapWithConcurrency(bestReferences, normalizedConcurrency(options.registryConcurrency), async (reference) => evaluateReference({
@@ -48,7 +49,10 @@ export async function scan(options) {
     };
 }
 async function evaluateReference(input) {
-    const registryPackage = await input.registryClient.getPackage(input.reference.name);
+    const registryPackage = await input.registryClient.getPackage({
+        ecosystem: input.reference.ecosystem,
+        name: input.reference.name
+    });
     switch (registryPackage.status) {
         case "found": {
             const finding = buildPackageTooNewFinding(input.reference, registryPackage, input.config, input.now);
@@ -96,12 +100,17 @@ async function parseReferences(input) {
 function selectBestReferences(references) {
     const byPackage = new Map();
     for (const reference of references) {
-        const existing = byPackage.get(reference.name);
+        const key = referenceKey(reference);
+        const existing = byPackage.get(key);
         if (existing === undefined || referenceScore(reference) < referenceScore(existing)) {
-            byPackage.set(reference.name, reference);
+            byPackage.set(key, reference);
         }
     }
-    return [...byPackage.values()].sort((left, right) => left.name.localeCompare(right.name));
+    return [...byPackage.values()].sort((left, right) => left.ecosystem.localeCompare(right.ecosystem) ||
+        left.name.localeCompare(right.name));
+}
+function referenceKey(reference) {
+    return `${reference.ecosystem}:${reference.name}`;
 }
 function referenceScore(reference) {
     const sourceKindScore = {
