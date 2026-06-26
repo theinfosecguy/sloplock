@@ -4,6 +4,7 @@ import { parsePackageLock } from "./package-lock.js";
 import { parsePnpmLock } from "./pnpm-lock.js";
 import { parsePyproject } from "./pyproject.js";
 import { parsePythonRequirements } from "./python-requirements.js";
+import { parseUvLock } from "./uv-lock.js";
 import { parseYarnLock } from "./yarn-lock.js";
 const supportedFileNames = new Set([
     "package.json",
@@ -11,6 +12,7 @@ const supportedFileNames = new Set([
     "pnpm-lock.yaml",
     "pyproject.toml",
     "requirements.txt",
+    "uv.lock",
     "yarn.lock"
 ]);
 export function isSupportedDependencyFile(filePath) {
@@ -46,6 +48,8 @@ function parseByFileName(fileName, sourceFile, content) {
             return parsePnpmLock({ sourceFile, content });
         case "pyproject.toml":
             return parsePyproject({ sourceFile, content });
+        case "uv.lock":
+            return parseUvLock({ sourceFile, content });
         case "yarn.lock":
             return parseYarnLock({ sourceFile, content });
         default:

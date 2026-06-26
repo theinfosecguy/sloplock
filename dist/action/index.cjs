@@ -31333,6 +31333,14 @@ function normalizePypiPackageName(name) {
   }
   return trimmed.toLowerCase().replace(/[-_.]+/gu, "-");
 }
+function isPublicPypiRegistryUrl(specifier) {
+  try {
+    const url = new URL(specifier);
+    return url.hostname === "pypi.org" && url.pathname.replace(/\/+$/u, "") === "/simple";
+  } catch {
+    return false;
+  }
+}
 
 // src/core/packages.ts
 function normalizePackageName(ecosystem, packageName) {
@@ -32856,6 +32864,69 @@ function lineNumberInput2(content, pattern) {
   return sourceLine === void 0 ? {} : { sourceLine };
 }
 
+// src/parsers/uv-lock.ts
+function parseUvLock(options) {
+  const parsed = parseTomlObject2(options.content, options.sourceFile);
+  return {
+    references: dedupeReferences3(parsePackages2(parsed.package, options)),
+    warnings: []
+  };
+}
+function parsePackages2(packages, options) {
+  if (!Array.isArray(packages)) {
+    return [];
+  }
+  return packages.flatMap((metadata) => {
+    if (!isPublicPypiPackage(metadata)) {
+      return [];
+    }
+    const packageName = normalizePypiPackageName(metadata.name);
+    if (packageName === void 0) {
+      return [];
+    }
+    return [
+      makePypiReference({
+        name: packageName,
+        ...typeof metadata.version === "string" ? { versionRange: metadata.version } : {},
+        sourceFile: options.sourceFile,
+        sourceKind: "lockfile",
+        isDirect: false,
+        ...lineNumberInput3(options.content, metadata.name)
+      })
+    ];
+  });
+}
+function isPublicPypiPackage(metadata) {
+  if (!isRecord2(metadata) || typeof metadata.name !== "string") {
+    return false;
+  }
+  const source = metadata.source;
+  return isRecord2(source) && typeof source.registry === "string" && isPublicPypiRegistryUrl(source.registry);
+}
+function parseTomlObject2(content, sourceFile) {
+  try {
+    const parsed = parse3(content);
+    if (!isRecord2(parsed)) {
+      throw new Error("expected a TOML table");
+    }
+    return parsed;
+  } catch (error2) {
+    const message = error2 instanceof Error ? error2.message : String(error2);
+    throw new Error(`Invalid TOML in ${sourceFile}: ${message}`);
+  }
+}
+function lineNumberInput3(content, packageName) {
+  const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const sourceLine = lineNumberForPattern(
+    content,
+    new RegExp(`^name\\s*=\\s*["']${escaped}["']`, "mu")
+  );
+  return sourceLine === void 0 ? {} : { sourceLine };
+}
+function dedupeReferences3(references) {
+  return [...new Map(references.map((reference) => [reference.name, reference])).values()];
+}
+
 // src/parsers/yarn-lock.ts
 function parseYarnLock(options) {
   const references = [];
@@ -32881,7 +32952,7 @@ function parseYarnLock(options) {
     }
   }
   return {
-    references: dedupeReferences3(references),
+    references: dedupeReferences4(references),
     warnings: []
   };
 }
@@ -32939,7 +33010,7 @@ function packageNameFromPossibleAliasTarget(value) {
   const match = value.match(/^([a-z0-9][a-z0-9._-]*)@/iu);
   return match?.[1] === void 0 ? void 0 : normalizeNpmPackageName(match[1]);
 }
-function dedupeReferences3(references) {
+function dedupeReferences4(references) {
   return [...new Map(references.map((reference) => [reference.name, reference])).values()];
 }
 
@@ -32950,6 +33021,7 @@ var supportedFileNames = /* @__PURE__ */ new Set([
   "pnpm-lock.yaml",
   "pyproject.toml",
   "requirements.txt",
+  "uv.lock",
   "yarn.lock"
 ]);
 function isSupportedDependencyFile(filePath) {
@@ -32987,6 +33059,8 @@ function parseByFileName(fileName, sourceFile, content) {
       return parsePnpmLock({ sourceFile, content });
     case "pyproject.toml":
       return parsePyproject({ sourceFile, content });
+    case "uv.lock":
+      return parseUvLock({ sourceFile, content });
     case "yarn.lock":
       return parseYarnLock({ sourceFile, content });
     default:
