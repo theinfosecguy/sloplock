@@ -12,6 +12,9 @@ describe("markdown reporting", () => {
 
     expect(comment).toContain(stickyCommentMarker);
     expect(comment).toContain("## SlopLock dependency review");
+    expect(comment).toContain("SlopLock found 1 dependency name that needs review before merge.");
+    expect(comment).toContain("| Scanned dependencies | 3 |");
+    expect(comment).toContain("| Registry failures | 1 |");
     expect(comment).toContain("1. **HIGH** npm package `missing-package`");
     expect(comment).toContain("- Source: `package.json:12`");
     expect(comment).toContain("- Why blocked: npm registry has no package named missing\\-package\\.");

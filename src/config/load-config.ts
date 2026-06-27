@@ -31,6 +31,9 @@ const defaultConfig: SlopLockConfig = {
   go: {
     privateModules: []
   },
+  nuget: {
+    privatePackages: []
+  },
   allow: [],
   ignore: []
 };
@@ -119,12 +122,14 @@ function mergeConfig(input: unknown, failOnOverride: "medium" | "high" | undefin
   const cooldown = parseCooldown(input.cooldown);
   const ecosystems = parseEcosystems(input.ecosystems);
   const go = parseGoConfig(input.go);
+  const nuget = parseNugetOptions(input.nuget);
 
   return {
     failOn,
     ecosystems,
     cooldown,
     go,
+    nuget,
     allow: parseAllowRules(input.allow),
     ignore: parseIgnoreRules(input.ignore)
   };
@@ -373,6 +378,24 @@ function parseGoConfig(input: unknown): SlopLockConfig["go"] {
       input.privateModules,
       "go.privateModules",
       defaultConfig.go.privateModules
+    )
+  };
+}
+
+function parseNugetOptions(input: unknown): SlopLockConfig["nuget"] {
+  if (input === undefined) {
+    return defaultConfig.nuget;
+  }
+
+  if (!isRecord(input)) {
+    throw new UsageError("Config nuget must contain privatePackages.");
+  }
+
+  return {
+    privatePackages: parseStringArray(
+      input.privatePackages,
+      "nuget.privatePackages",
+      defaultConfig.nuget.privatePackages
     )
   };
 }

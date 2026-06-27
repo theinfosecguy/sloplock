@@ -400,6 +400,43 @@ com.acme:old-gradle-lib:1.0.0=runtimeClasspath
     );
   });
 
+  it("skips NuGet packages configured as private", async () => {
+    const rootDir = await tempProject({
+      "sloplock.yml": `
+nuget:
+  privatePackages:
+    - Private.*
+`,
+      "src/App/App.csproj": `
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Public.Package" Version="1.0.0" />
+    <PackageReference Include="Private.Internal.Package" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+`
+    });
+    const calls: string[] = [];
+    const result = await scan({
+      rootDir,
+      registryClient: {
+        getPackage(reference) {
+          calls.push(`${reference.ecosystem}:${reference.name}`);
+          return Promise.resolve(
+            found(reference.name, "2020-01-01T00:00:00.000Z", reference.ecosystem)
+          );
+        }
+      }
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings).toEqual([]);
+    expect(calls).toEqual(["nuget:public.package"]);
+    expect(result.warnings.map((warning) => warning.message)).toContain(
+      "Skipped 1 NuGet package reference configured as private."
+    );
+  });
+
   it("does not query public registries for new ecosystem private sources", async () => {
     const rootDir = await tempProject({
       "NuGet.config": `

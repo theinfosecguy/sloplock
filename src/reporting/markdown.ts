@@ -16,7 +16,15 @@ export function renderPullRequestComment(result: ScanResult): string {
     "",
     "## SlopLock dependency review",
     "",
-    summarySentence(result)
+    summarySentence(result),
+    "",
+    "| Metric | Value |",
+    "| --- | --- |",
+    `| Findings | ${result.findings.length} |`,
+    `| Scanned dependencies | ${result.scannedDependencies} |`,
+    `| Fail threshold | ${result.failOn.toUpperCase()} |`,
+    `| Warnings | ${result.warnings.length} |`,
+    `| Registry failures | ${result.registryFailures.length} |`
   ];
 
   if (result.findings.length > 0) {
@@ -154,7 +162,7 @@ function summarySentence(result: ScanResult): string {
   return `SlopLock found ${result.findings.length} dependency ${plural(
     result.findings.length,
     "name"
-  )} that need review before merge.`;
+  )} that ${result.findings.length === 1 ? "needs" : "need"} review before merge.`;
 }
 
 function formatSource(finding: Finding): string {
