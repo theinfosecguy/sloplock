@@ -6,7 +6,8 @@ It is built for pull request gating: scan only newly introduced dependency names
 
 ## Add SlopLock To A Repository
 
-Create `.github/workflows/sloplock.yml`.
+Use the [GitHub Marketplace listing](https://github.com/marketplace/actions/sloplock)
+or create `.github/workflows/sloplock.yml`.
 
 ```yaml
 name: SlopLock
@@ -98,10 +99,10 @@ steps:
 
 After the workflow runs once, make `SlopLock dependency gate` a required status check in your branch protection rule or repository ruleset. That turns SlopLock from an advisory comment into a merge gate.
 
-The Action accepts the same ecosystem values as the CLI: `all`, `npm`, `pypi`,
-`go`, `crates`, `maven`, `nuget`, `packagist`, and `rubygems`. It works with
-read-only repository permissions through logs, annotations, and the step summary;
-`comment: true` needs `pull-requests: write`.
+Set `ecosystem` to `all`, `npm`, `pypi`, `go`, `crates`, `maven`, `nuget`,
+`packagist`, or `rubygems`. The Action works with read-only repository
+permissions through logs, annotations, and the step summary; `comment: true`
+needs `pull-requests: write`.
 
 ## Supported Inputs
 
@@ -142,46 +143,6 @@ version catalogs.
 - `package_too_new`: the dependency exists, but its first observed publish time is inside the configured cooldown window.
 
 SlopLock is not an SCA scanner, vulnerability scanner, typosquat detector, install-script analyzer, or package reputation score.
-
-## CLI
-
-The CLI is useful for local checks and debugging Action results.
-
-```bash
-npx --yes sloplock@latest .
-```
-
-Scan one ecosystem:
-
-```bash
-npx --yes sloplock@latest . --ecosystem npm
-```
-
-Scan only dependencies introduced since a base ref:
-
-```bash
-npx --yes sloplock@latest . --changed-only --base origin/main
-```
-
-```text
-Usage: sloplock [options] [path]
-
-Options:
-  --format <format>        text, json, or markdown
-  --fail-on <severity>     medium or high
-  --ecosystem <ecosystem>  crates, go, maven, npm, nuget, packagist, pypi, or rubygems
-  --changed-only           scan only dependencies added since --base
-  --base <ref>             base git ref for --changed-only
-  --config <path>          config file. Default: sloplock.yml
-  --fail-closed            exit 3 on registry/network failures
-```
-
-Exit codes:
-
-- `0`: no findings at or above `fail-on`
-- `1`: findings at or above `fail-on`
-- `2`: usage or configuration error
-- `3`: registry/network failure with `--fail-closed`
 
 ## Configuration
 
@@ -243,13 +204,12 @@ In CI, SlopLock warns when `allow` or `ignore` entries do not include `expires`.
 
 ## Output
 
-Use JSON for automation:
+The Action writes annotations, logs, a step summary, and an optional sticky pull
+request comment. JSON output is available for local debugging and automation;
+the report includes a summary, warnings, registry failures, and findings with
+rule, severity, ecosystem, package, source, evidence, and recommendation fields.
 
-```bash
-npx --yes sloplock@latest . --format json
-```
-
-The JSON report includes a summary, warnings, registry failures, and findings with rule, severity, ecosystem, package, source, evidence, and recommendation fields.
+For local reproduction outside GitHub Actions, see [`docs/cli.md`](docs/cli.md).
 
 ## Development
 
@@ -265,7 +225,11 @@ npm run pack:dry-run
 npm run smoke:package
 ```
 
-`npm run smoke:ecosystems` exercises the built CLI and bundled GitHub Action across npm, PyPI, Go, crates.io, Maven Central, NuGet.org, Packagist, and RubyGems.org fixtures. `npm run smoke:package` packs the package, installs the tarball into a temporary project, and verifies the published CLI entry point.
+`npm run smoke:ecosystems` exercises the shared scanner, CLI entry point, and
+bundled GitHub Action across npm, PyPI, Go, crates.io, Maven Central, NuGet.org,
+Packagist, and RubyGems.org fixtures. `npm run smoke:package` packs the package,
+installs the tarball into a temporary project, and verifies the published CLI
+entry point.
 
 Longer repo-maintenance commands live under `scripts/` by domain while
 `package.json` keeps the stable contributor-facing command names.
