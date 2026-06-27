@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish npm package
+    runs-on: ubuntu-latest
+    if: github.repository == 'theinfosecguy/sloplock'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org/
+
+      - name: Ensure npm supports trusted publishing
+        run: |
+          npm install -g npm@11
+          npm --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag matches package version
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+          if (typeof packageJson.version !== "string") {
+            console.error("package.json version must be a string.");
+            process.exit(1);
+          }
+
+          const tag = process.env.GITHUB_REF_NAME ?? "";
+          const expectedTag = `v${packageJson.version}`;
+          if (tag !== expectedTag) {
+            console.error(
+              `Release tag ${tag} does not match package version ${packageJson.version}. Expected ${expectedTag}.`
+            );
+            process.exit(1);
+          }
+
+          console.log(`Release tag ${tag} matches package version ${packageJson.version}.`);
+          NODE
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=low
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify generated artifacts are current
+        run: npm run check:dist-current
+
+      - name: Check package contents
+        run: npm run pack:dry-run
+
+      - name: Verify package smoke
+        run: npm run smoke:package
+
+      - name: Verify smoke left no artifacts
+        run: test -z "$(find . -maxdepth 1 -name '*.tgz' -print)"
+
+      - name: Publish to npm
+        run: npm publish
