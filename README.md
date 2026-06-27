@@ -120,10 +120,12 @@ needs `pull-requests: write`.
 SlopLock skips local, workspace, path, git, editable, alternate-registry, and private-source dependencies where the supported file format exposes that information. Go private modules can also be skipped with `GOPRIVATE`, `GONOPROXY`, or `go.privateModules` in config.
 
 For NuGet, `NuGet.config` package source mappings are used to keep packages
-mapped only to private sources out of NuGet.org checks. Composer repositories and
-Ruby source blocks are handled conservatively: dependencies that are tied to
-non-Packagist or non-RubyGems.org sources are skipped instead of being reported
-as public registry misses.
+mapped only to private sources out of NuGet.org checks. If a private NuGet feed
+does not use package source mapping, configure `nuget.privatePackages` with exact
+package names or `*` patterns. Composer repositories and Ruby source blocks are
+handled conservatively: dependencies that are tied to non-Packagist or
+non-RubyGems.org sources are skipped instead of being reported as public
+registry misses.
 
 For Maven, SlopLock reads raw `pom.xml` files and Gradle dependency lockfiles
 only. It does not run Maven or Gradle, read effective POMs, resolve parents,
@@ -170,14 +172,15 @@ go:
     - github.com/my-org/*
     - corp.example.com
 
+nuget:
+  privatePackages:
+    - MyCompany.*
+    - Internal.Package
+
 allow:
   - ecosystem: npm
     package: known-internal-name
     reason: internal package mirrored outside npm
-    expires: 2026-12-31
-  - ecosystem: nuget
-    package: internal.package
-    reason: private package confirmed by platform team
     expires: 2026-12-31
   - ecosystem: packagist
     package: my-org/internal-package

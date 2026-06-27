@@ -32,3 +32,27 @@ export function isNugetOrgSourceUrl(input: string): boolean {
     return false;
   }
 }
+
+export function matchesNugetPackagePattern(
+  packageName: string,
+  pattern: string
+): boolean {
+  const normalizedName = normalizeNugetPackageName(packageName);
+  if (normalizedName === undefined) {
+    return false;
+  }
+
+  const normalizedPattern = pattern.trim().toLowerCase();
+  if (normalizedPattern.length === 0) {
+    return false;
+  }
+
+  if (normalizedPattern === "*") {
+    return true;
+  }
+
+  const escapedPattern = normalizedPattern
+    .replace(/[.+?^${}()|[\]\\]/gu, "\\$&")
+    .replace(/\*/gu, ".*");
+  return new RegExp(`^${escapedPattern}$`, "iu").test(normalizedName);
+}

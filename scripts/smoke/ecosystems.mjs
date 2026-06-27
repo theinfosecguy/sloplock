@@ -300,6 +300,9 @@ function createMixedSourceFixture(rootDir) {
     `go:
   privateModules:
     - github.com/private-org/*
+nuget:
+  privatePackages:
+    - Private.*
 `
   );
   writeFileSync(
@@ -381,18 +384,9 @@ end
     path.join(rootDir, "NuGet.config"),
     `<configuration>
   <packageSources>
-    <clear />
     <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
     <add key="private" value="https://nuget.example.invalid/v3/index.json" />
   </packageSources>
-  <packageSourceMapping>
-    <packageSource key="nuget.org">
-      <package pattern="Newtonsoft.*" />
-    </packageSource>
-    <packageSource key="private">
-      <package pattern="Private.*" />
-    </packageSource>
-  </packageSourceMapping>
 </configuration>
 `
   );
