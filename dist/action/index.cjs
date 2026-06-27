@@ -29381,6 +29381,9 @@ function setFailed(message) {
   process.exitCode = ExitCode.Failure;
   error(message);
 }
+function debug(message) {
+  issueCommand("debug", {}, message);
+}
 function error(message, properties = {}) {
   issueCommand("error", toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
@@ -33300,6 +33303,21 @@ function isNugetOrgSourceUrl(input) {
     return false;
   }
 }
+function matchesNugetPackagePattern(packageName, pattern) {
+  const normalizedName = normalizeNugetPackageName(packageName);
+  if (normalizedName === void 0) {
+    return false;
+  }
+  const normalizedPattern = pattern.trim().toLowerCase();
+  if (normalizedPattern.length === 0) {
+    return false;
+  }
+  if (normalizedPattern === "*") {
+    return true;
+  }
+  const escapedPattern = normalizedPattern.replace(/[.+?^${}()|[\]\\]/gu, "\\$&").replace(/\*/gu, ".*");
+  return new RegExp(`^${escapedPattern}$`, "iu").test(normalizedName);
+}
 
 // src/core/npm.ts
 var npmPackageNamePattern = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
@@ -33512,6 +33530,9 @@ var defaultConfig = {
   go: {
     privateModules: []
   },
+  nuget: {
+    privatePackages: []
+  },
   allow: [],
   ignore: []
 };
@@ -33572,11 +33593,13 @@ function mergeConfig(input, failOnOverride) {
   const cooldown = parseCooldown(input.cooldown);
   const ecosystems = parseEcosystems(input.ecosystems);
   const go = parseGoConfig(input.go);
+  const nuget = parseNugetOptions(input.nuget);
   return {
     failOn,
     ecosystems,
     cooldown,
     go,
+    nuget,
     allow: parseAllowRules(input.allow),
     ignore: parseIgnoreRules(input.ignore)
   };
@@ -33754,6 +33777,21 @@ function parseGoConfig(input) {
       input.privateModules,
       "go.privateModules",
       defaultConfig.go.privateModules
+    )
+  };
+}
+function parseNugetOptions(input) {
+  if (input === void 0) {
+    return defaultConfig.nuget;
+  }
+  if (!isRecord(input)) {
+    throw new UsageError("Config nuget must contain privatePackages.");
+  }
+  return {
+    privatePackages: parseStringArray(
+      input.privatePackages,
+      "nuget.privatePackages",
+      defaultConfig.nuget.privatePackages
     )
   };
 }
@@ -37127,17 +37165,40 @@ async function filterNugetReferencesBySourcePolicy(input) {
   if (nugetReferences.length === 0) {
     return { references: [...input.references], warnings: [] };
   }
-  const policy = await loadNugetConfigPolicy(input.rootDir);
-  if (policy.mode === "default") {
-    return { references: [...input.references], warnings: [] };
-  }
   const nonNugetReferences = input.references.filter(
     (reference) => reference.ecosystem !== "nuget"
   );
+  const privatePackageReferences = nugetReferences.filter(
+    (reference) => (input.privatePackages ?? []).some(
+      (pattern) => matchesNugetPackagePattern(reference.name, pattern)
+    )
+  );
+  const sourcePolicyNugetReferences = nugetReferences.filter(
+    (reference) => !privatePackageReferences.includes(reference)
+  );
+  const privatePackageWarnings = privatePackageReferences.length === 0 ? [] : [
+    {
+      message: `Skipped ${privatePackageReferences.length} NuGet package reference${privatePackageReferences.length === 1 ? "" : "s"} configured as private.`
+    }
+  ];
+  if (sourcePolicyNugetReferences.length === 0) {
+    return {
+      references: nonNugetReferences,
+      warnings: privatePackageWarnings
+    };
+  }
+  const policy = await loadNugetConfigPolicy(input.rootDir);
+  if (policy.mode === "default") {
+    return {
+      references: [...nonNugetReferences, ...sourcePolicyNugetReferences],
+      warnings: privatePackageWarnings
+    };
+  }
   if (policy.mode === "skip-all") {
     return {
       references: nonNugetReferences,
       warnings: [
+        ...privatePackageWarnings,
         {
           ...policy.file === void 0 ? {} : { file: policy.file },
           message: policy.reason
@@ -37145,11 +37206,12 @@ async function filterNugetReferencesBySourcePolicy(input) {
       ]
     };
   }
-  const filteredNugetReferences = nugetReferences.filter(
+  const filteredNugetReferences = sourcePolicyNugetReferences.filter(
     (reference) => policy.patterns.some((pattern) => nugetPatternMatches(pattern, reference.name))
   );
-  const skippedCount = nugetReferences.length - filteredNugetReferences.length;
-  const warnings = skippedCount === 0 ? [] : [
+  const skippedCount = sourcePolicyNugetReferences.length - filteredNugetReferences.length;
+  const warnings = skippedCount === 0 ? privatePackageWarnings : [
+    ...privatePackageWarnings,
     {
       ...policy.file === void 0 ? {} : { file: policy.file },
       message: `Skipped ${skippedCount} NuGet package reference${skippedCount === 1 ? "" : "s"} not mapped to NuGet.org.`
@@ -37291,15 +37353,7 @@ function lineOffset(content, lineNumber) {
   return content.length;
 }
 function nugetPatternMatches(pattern, packageName) {
-  const normalizedName = normalizeNugetPackageName(packageName);
-  if (normalizedName === void 0) {
-    return false;
-  }
-  if (pattern === "*") {
-    return true;
-  }
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/gu, "\\$&").replace(/\*/gu, ".*");
-  return new RegExp(`^${escaped}$`, "iu").test(normalizedName);
+  return matchesNugetPackagePattern(packageName, pattern);
 }
 
 // src/registries/crates.ts
@@ -39190,7 +39244,8 @@ async function scan(options) {
   ];
   const sourceFiltered = await filterNugetReferencesBySourcePolicy({
     rootDir,
-    references: parsed.references
+    references: parsed.references,
+    privatePackages: loadedConfig.config.nuget.privatePackages
   });
   warnings.push(...sourceFiltered.warnings);
   const activeEcosystems = options.ecosystems ?? loadedConfig.config.ecosystems;
@@ -39365,7 +39420,15 @@ function renderPullRequestComment(result) {
     "",
     "## SlopLock dependency review",
     "",
-    summarySentence(result)
+    summarySentence(result),
+    "",
+    "| Metric | Value |",
+    "| --- | --- |",
+    `| Findings | ${result.findings.length} |`,
+    `| Scanned dependencies | ${result.scannedDependencies} |`,
+    `| Fail threshold | ${result.failOn.toUpperCase()} |`,
+    `| Warnings | ${result.warnings.length} |`,
+    `| Registry failures | ${result.registryFailures.length} |`
   ];
   if (result.findings.length > 0) {
     lines.push("", "### Findings");
@@ -39478,7 +39541,7 @@ function summarySentence(result) {
   return `SlopLock found ${result.findings.length} dependency ${plural(
     result.findings.length,
     "name"
-  )} that need review before merge.`;
+  )} that ${result.findings.length === 1 ? "needs" : "need"} review before merge.`;
 }
 function formatSource(finding) {
   return finding.source.line === void 0 ? finding.source.file : `${finding.source.file}:${finding.source.line}`;
@@ -39656,7 +39719,10 @@ async function run() {
       });
     } catch (error2) {
       const message = error2 instanceof Error ? error2.message : String(error2);
-      warning(`Unable to write SlopLock pull request comment: ${message}`);
+      debug(`Unable to write SlopLock pull request comment: ${message}`);
+      warning(
+        "Unable to write SlopLock pull request comment. Grant `pull-requests: write` or set `comment: false`; scan results are still available in annotations and the step summary."
+      );
     }
   }
   if (inputs.failClosed && result.registryFailures.length > 0) {

@@ -22,6 +22,9 @@ const defaultConfig = {
     go: {
         privateModules: []
     },
+    nuget: {
+        privatePackages: []
+    },
     allow: [],
     ignore: []
 };
@@ -77,11 +80,13 @@ function mergeConfig(input, failOnOverride) {
     const cooldown = parseCooldown(input.cooldown);
     const ecosystems = parseEcosystems(input.ecosystems);
     const go = parseGoConfig(input.go);
+    const nuget = parseNugetOptions(input.nuget);
     return {
         failOn,
         ecosystems,
         cooldown,
         go,
+        nuget,
         allow: parseAllowRules(input.allow),
         ignore: parseIgnoreRules(input.ignore)
     };
@@ -253,6 +258,17 @@ function parseGoConfig(input) {
     }
     return {
         privateModules: parseStringArray(input.privateModules, "go.privateModules", defaultConfig.go.privateModules)
+    };
+}
+function parseNugetOptions(input) {
+    if (input === undefined) {
+        return defaultConfig.nuget;
+    }
+    if (!isRecord(input)) {
+        throw new UsageError("Config nuget must contain privatePackages.");
+    }
+    return {
+        privatePackages: parseStringArray(input.privatePackages, "nuget.privatePackages", defaultConfig.nuget.privatePackages)
     };
 }
 function parseStringArray(input, field, defaultValue) {

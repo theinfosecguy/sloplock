@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { isNugetOrgSourceUrl, normalizeNugetPackageName } from "../core/nuget.js";
+import { isNugetOrgSourceUrl, matchesNugetPackagePattern } from "../core/nuget.js";
 import { toPosixPath } from "../parsers/common.js";
 import { parseXmlElements, xmlAttribute } from "../parsers/xml.js";
 const ignoredDirectories = new Set([
@@ -16,15 +16,34 @@ export async function filterNugetReferencesBySourcePolicy(input) {
     if (nugetReferences.length === 0) {
         return { references: [...input.references], warnings: [] };
     }
+    const nonNugetReferences = input.references.filter((reference) => reference.ecosystem !== "nuget");
+    const privatePackageReferences = nugetReferences.filter((reference) => (input.privatePackages ?? []).some((pattern) => matchesNugetPackagePattern(reference.name, pattern)));
+    const sourcePolicyNugetReferences = nugetReferences.filter((reference) => !privatePackageReferences.includes(reference));
+    const privatePackageWarnings = privatePackageReferences.length === 0
+        ? []
+        : [
+            {
+                message: `Skipped ${privatePackageReferences.length} NuGet package reference${privatePackageReferences.length === 1 ? "" : "s"} configured as private.`
+            }
+        ];
+    if (sourcePolicyNugetReferences.length === 0) {
+        return {
+            references: nonNugetReferences,
+            warnings: privatePackageWarnings
+        };
+    }
     const policy = await loadNugetConfigPolicy(input.rootDir);
     if (policy.mode === "default") {
-        return { references: [...input.references], warnings: [] };
+        return {
+            references: [...nonNugetReferences, ...sourcePolicyNugetReferences],
+            warnings: privatePackageWarnings
+        };
     }
-    const nonNugetReferences = input.references.filter((reference) => reference.ecosystem !== "nuget");
     if (policy.mode === "skip-all") {
         return {
             references: nonNugetReferences,
             warnings: [
+                ...privatePackageWarnings,
                 {
                     ...(policy.file === undefined ? {} : { file: policy.file }),
                     message: policy.reason
@@ -32,11 +51,12 @@ export async function filterNugetReferencesBySourcePolicy(input) {
             ]
         };
     }
-    const filteredNugetReferences = nugetReferences.filter((reference) => policy.patterns.some((pattern) => nugetPatternMatches(pattern, reference.name)));
-    const skippedCount = nugetReferences.length - filteredNugetReferences.length;
+    const filteredNugetReferences = sourcePolicyNugetReferences.filter((reference) => policy.patterns.some((pattern) => nugetPatternMatches(pattern, reference.name)));
+    const skippedCount = sourcePolicyNugetReferences.length - filteredNugetReferences.length;
     const warnings = skippedCount === 0
-        ? []
+        ? privatePackageWarnings
         : [
+            ...privatePackageWarnings,
             {
                 ...(policy.file === undefined ? {} : { file: policy.file }),
                 message: `Skipped ${skippedCount} NuGet package reference${skippedCount === 1 ? "" : "s"} not mapped to NuGet.org.`
@@ -182,14 +202,6 @@ function lineOffset(content, lineNumber) {
     return content.length;
 }
 function nugetPatternMatches(pattern, packageName) {
-    const normalizedName = normalizeNugetPackageName(packageName);
-    if (normalizedName === undefined) {
-        return false;
-    }
-    if (pattern === "*") {
-        return true;
-    }
-    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/gu, "\\$&").replace(/\*/gu, ".*");
-    return new RegExp(`^${escaped}$`, "iu").test(normalizedName);
+    return matchesNugetPackagePattern(packageName, pattern);
 }
 //# sourceMappingURL=nuget-config.js.map

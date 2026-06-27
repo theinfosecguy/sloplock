@@ -78,6 +78,9 @@ export type SlopLockConfig = {
     go: {
         privateModules: readonly string[];
     };
+    nuget: {
+        privatePackages: readonly string[];
+    };
     allow: readonly AllowRule[];
     ignore: readonly IgnoreRule[];
 };
