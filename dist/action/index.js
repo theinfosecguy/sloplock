@@ -36,7 +36,8 @@ async function run() {
         }
         catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            core.warning(`Unable to write SlopLock pull request comment: ${message}`);
+            core.debug(`Unable to write SlopLock pull request comment: ${message}`);
+            core.warning("Unable to write SlopLock pull request comment. Grant `pull-requests: write` or set `comment: false`; scan results are still available in annotations and the step summary.");
         }
     }
     if (inputs.failClosed && result.registryFailures.length > 0) {

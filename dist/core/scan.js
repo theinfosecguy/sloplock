@@ -28,7 +28,8 @@ export async function scan(options) {
     ];
     const sourceFiltered = await filterNugetReferencesBySourcePolicy({
         rootDir,
-        references: parsed.references
+        references: parsed.references,
+        privatePackages: loadedConfig.config.nuget.privatePackages
     });
     warnings.push(...sourceFiltered.warnings);
     const activeEcosystems = options.ecosystems ?? loadedConfig.config.ecosystems;
