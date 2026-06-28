@@ -58,6 +58,11 @@ the root `action.yml` metadata file.
    - category/tags related to security and dependency review
 4. After publication, verify the install snippet in the Marketplace listing still
    uses a full checkout with `fetch-depth: 0`.
+5. Confirm the GitHub Releases page shows the new immutable version tag as the
+   latest release. If npm publish has already succeeded and the release workflow
+   only failed because the package version already exists, create or update the
+   GitHub release from the matching `docs/releases/` notes without republishing
+   npm.
 
 Official references:
 
