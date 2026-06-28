@@ -1069,14 +1069,14 @@ var require_util = __commonJS({
         }
         const port = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
         let origin = url.origin != null ? url.origin : `${url.protocol || ""}//${url.hostname || ""}:${port}`;
-        let path7 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
+        let path8 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
         if (origin[origin.length - 1] === "/") {
           origin = origin.slice(0, origin.length - 1);
         }
-        if (path7 && path7[0] !== "/") {
-          path7 = `/${path7}`;
+        if (path8 && path8[0] !== "/") {
+          path8 = `/${path8}`;
         }
-        return new URL(`${origin}${path7}`);
+        return new URL(`${origin}${path8}`);
       }
       if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
         throw new InvalidArgumentError("Invalid URL protocol: the URL must start with `http:` or `https:`.");
@@ -1527,39 +1527,39 @@ var require_diagnostics = __commonJS({
       });
       diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
         const {
-          request: { method, path: path7, origin }
+          request: { method, path: path8, origin }
         } = evt;
-        debuglog("sending request to %s %s/%s", method, origin, path7);
+        debuglog("sending request to %s %s/%s", method, origin, path8);
       });
       diagnosticsChannel.channel("undici:request:headers").subscribe((evt) => {
         const {
-          request: { method, path: path7, origin },
+          request: { method, path: path8, origin },
           response: { statusCode }
         } = evt;
         debuglog(
           "received response to %s %s/%s - HTTP %d",
           method,
           origin,
-          path7,
+          path8,
           statusCode
         );
       });
       diagnosticsChannel.channel("undici:request:trailers").subscribe((evt) => {
         const {
-          request: { method, path: path7, origin }
+          request: { method, path: path8, origin }
         } = evt;
-        debuglog("trailers received from %s %s/%s", method, origin, path7);
+        debuglog("trailers received from %s %s/%s", method, origin, path8);
       });
       diagnosticsChannel.channel("undici:request:error").subscribe((evt) => {
         const {
-          request: { method, path: path7, origin },
+          request: { method, path: path8, origin },
           error: error2
         } = evt;
         debuglog(
           "request to %s %s/%s errored - %s",
           method,
           origin,
-          path7,
+          path8,
           error2.message
         );
       });
@@ -1608,9 +1608,9 @@ var require_diagnostics = __commonJS({
         });
         diagnosticsChannel.channel("undici:client:sendHeaders").subscribe((evt) => {
           const {
-            request: { method, path: path7, origin }
+            request: { method, path: path8, origin }
           } = evt;
-          debuglog("sending request to %s %s/%s", method, origin, path7);
+          debuglog("sending request to %s %s/%s", method, origin, path8);
         });
       }
       diagnosticsChannel.channel("undici:websocket:open").subscribe((evt) => {
@@ -1673,7 +1673,7 @@ var require_request = __commonJS({
     var kHandler = /* @__PURE__ */ Symbol("handler");
     var Request = class {
       constructor(origin, {
-        path: path7,
+        path: path8,
         method,
         body,
         headers,
@@ -1688,11 +1688,11 @@ var require_request = __commonJS({
         expectContinue,
         servername
       }, handler2) {
-        if (typeof path7 !== "string") {
+        if (typeof path8 !== "string") {
           throw new InvalidArgumentError("path must be a string");
-        } else if (path7[0] !== "/" && !(path7.startsWith("http://") || path7.startsWith("https://")) && method !== "CONNECT") {
+        } else if (path8[0] !== "/" && !(path8.startsWith("http://") || path8.startsWith("https://")) && method !== "CONNECT") {
           throw new InvalidArgumentError("path must be an absolute URL or start with a slash");
-        } else if (invalidPathRegex.test(path7)) {
+        } else if (invalidPathRegex.test(path8)) {
           throw new InvalidArgumentError("invalid request path");
         }
         if (typeof method !== "string") {
@@ -1758,7 +1758,7 @@ var require_request = __commonJS({
         this.completed = false;
         this.aborted = false;
         this.upgrade = upgrade || null;
-        this.path = query ? buildURL(path7, query) : path7;
+        this.path = query ? buildURL(path8, query) : path8;
         this.origin = origin;
         this.idempotent = idempotent == null ? method === "HEAD" || method === "GET" : idempotent;
         this.blocking = blocking == null ? false : blocking;
@@ -6380,7 +6380,7 @@ var require_client_h1 = __commonJS({
       return method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && method !== "TRACE" && method !== "CONNECT";
     }
     function writeH1(client, request2) {
-      const { method, path: path7, host, upgrade, blocking, reset } = request2;
+      const { method, path: path8, host, upgrade, blocking, reset } = request2;
       let { body, headers, contentLength } = request2;
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH" || method === "QUERY" || method === "PROPFIND" || method === "PROPPATCH";
       if (util.isFormDataLike(body)) {
@@ -6447,7 +6447,7 @@ var require_client_h1 = __commonJS({
       if (blocking) {
         socket[kBlocking] = true;
       }
-      let header = `${method} ${path7} HTTP/1.1\r
+      let header = `${method} ${path8} HTTP/1.1\r
 `;
       if (typeof host === "string") {
         header += `host: ${host}\r
@@ -6973,7 +6973,7 @@ var require_client_h2 = __commonJS({
     }
     function writeH2(client, request2) {
       const session = client[kHTTP2Session];
-      const { method, path: path7, host, upgrade, expectContinue, signal, headers: reqHeaders } = request2;
+      const { method, path: path8, host, upgrade, expectContinue, signal, headers: reqHeaders } = request2;
       let { body } = request2;
       if (upgrade) {
         util.errorRequest(client, request2, new Error("Upgrade not supported for H2"));
@@ -7040,7 +7040,7 @@ var require_client_h2 = __commonJS({
         });
         return true;
       }
-      headers[HTTP2_HEADER_PATH] = path7;
+      headers[HTTP2_HEADER_PATH] = path8;
       headers[HTTP2_HEADER_SCHEME] = "https";
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH";
       if (body && typeof body.read === "function") {
@@ -7393,9 +7393,9 @@ var require_redirect_handler = __commonJS({
           return this.handler.onHeaders(statusCode, headers, resume, statusText);
         }
         const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
-        const path7 = search ? `${pathname}${search}` : pathname;
+        const path8 = search ? `${pathname}${search}` : pathname;
         this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin);
-        this.opts.path = path7;
+        this.opts.path = path8;
         this.opts.origin = origin;
         this.opts.maxRedirections = 0;
         this.opts.query = null;
@@ -8630,10 +8630,10 @@ var require_proxy_agent = __commonJS({
         };
         const {
           origin,
-          path: path7 = "/",
+          path: path8 = "/",
           headers = {}
         } = opts;
-        opts.path = origin + path7;
+        opts.path = origin + path8;
         if (!("host" in headers) && !("Host" in headers)) {
           const { host } = new URL2(origin);
           headers.host = host;
@@ -10554,20 +10554,20 @@ var require_mock_utils = __commonJS({
       }
       return true;
     }
-    function safeUrl(path7) {
-      if (typeof path7 !== "string") {
-        return path7;
+    function safeUrl(path8) {
+      if (typeof path8 !== "string") {
+        return path8;
       }
-      const pathSegments = path7.split("?");
+      const pathSegments = path8.split("?");
       if (pathSegments.length !== 2) {
-        return path7;
+        return path8;
       }
       const qp = new URLSearchParams(pathSegments.pop());
       qp.sort();
       return [...pathSegments, qp.toString()].join("?");
     }
-    function matchKey(mockDispatch2, { path: path7, method, body, headers }) {
-      const pathMatch = matchValue(mockDispatch2.path, path7);
+    function matchKey(mockDispatch2, { path: path8, method, body, headers }) {
+      const pathMatch = matchValue(mockDispatch2.path, path8);
       const methodMatch = matchValue(mockDispatch2.method, method);
       const bodyMatch = typeof mockDispatch2.body !== "undefined" ? matchValue(mockDispatch2.body, body) : true;
       const headersMatch = matchHeaders(mockDispatch2, headers);
@@ -10589,7 +10589,7 @@ var require_mock_utils = __commonJS({
     function getMockDispatch(mockDispatches, key) {
       const basePath = key.query ? buildURL(key.path, key.query) : key.path;
       const resolvedPath = typeof basePath === "string" ? safeUrl(basePath) : basePath;
-      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path7 }) => matchValue(safeUrl(path7), resolvedPath));
+      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path8 }) => matchValue(safeUrl(path8), resolvedPath));
       if (matchedMockDispatches.length === 0) {
         throw new MockNotMatchedError(`Mock dispatch not matched for path '${resolvedPath}'`);
       }
@@ -10627,9 +10627,9 @@ var require_mock_utils = __commonJS({
       }
     }
     function buildKey(opts) {
-      const { path: path7, method, body, headers, query } = opts;
+      const { path: path8, method, body, headers, query } = opts;
       return {
-        path: path7,
+        path: path8,
         method,
         body,
         headers,
@@ -10935,7 +10935,7 @@ var require_mock_interceptor = __commonJS({
 var require_mock_client = __commonJS({
   "node_modules/undici/lib/mock/mock-client.js"(exports2, module2) {
     "use strict";
-    var { promisify: promisify2 } = require("node:util");
+    var { promisify: promisify3 } = require("node:util");
     var Client = require_client();
     var { buildMockDispatch } = require_mock_utils();
     var {
@@ -10975,7 +10975,7 @@ var require_mock_client = __commonJS({
         return new MockInterceptor(opts, this[kDispatches]);
       }
       async [kClose]() {
-        await promisify2(this[kOriginalClose])();
+        await promisify3(this[kOriginalClose])();
         this[kConnected] = 0;
         this[kMockAgent][Symbols.kClients].delete(this[kOrigin]);
       }
@@ -10988,7 +10988,7 @@ var require_mock_client = __commonJS({
 var require_mock_pool = __commonJS({
   "node_modules/undici/lib/mock/mock-pool.js"(exports2, module2) {
     "use strict";
-    var { promisify: promisify2 } = require("node:util");
+    var { promisify: promisify3 } = require("node:util");
     var Pool = require_pool();
     var { buildMockDispatch } = require_mock_utils();
     var {
@@ -11028,7 +11028,7 @@ var require_mock_pool = __commonJS({
         return new MockInterceptor(opts, this[kDispatches]);
       }
       async [kClose]() {
-        await promisify2(this[kOriginalClose])();
+        await promisify3(this[kOriginalClose])();
         this[kConnected] = 0;
         this[kMockAgent][Symbols.kClients].delete(this[kOrigin]);
       }
@@ -11092,10 +11092,10 @@ var require_pending_interceptors_formatter = __commonJS({
       }
       format(pendingInterceptors) {
         const withPrettyHeaders = pendingInterceptors.map(
-          ({ method, path: path7, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
+          ({ method, path: path8, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
             Method: method,
             Origin: origin,
-            Path: path7,
+            Path: path8,
             "Status code": statusCode,
             Persistent: persist ? PERSISTENT : NOT_PERSISTENT,
             Invocations: timesInvoked,
@@ -15976,9 +15976,9 @@ var require_util6 = __commonJS({
         }
       }
     }
-    function validateCookiePath(path7) {
-      for (let i = 0; i < path7.length; ++i) {
-        const code = path7.charCodeAt(i);
+    function validateCookiePath(path8) {
+      for (let i = 0; i < path8.length; ++i) {
+        const code = path8.charCodeAt(i);
         if (code < 32 || // exclude CTLs (0-31)
         code === 127 || // DEL
         code === 59) {
@@ -18671,11 +18671,11 @@ var require_undici = __commonJS({
           if (typeof opts.path !== "string") {
             throw new InvalidArgumentError("invalid opts.path");
           }
-          let path7 = opts.path;
+          let path8 = opts.path;
           if (!opts.path.startsWith("/")) {
-            path7 = `/${path7}`;
+            path8 = `/${path8}`;
           }
-          url = new URL(util.parseOrigin(url).origin + path7);
+          url = new URL(util.parseOrigin(url).origin + path8);
         } else {
           if (!opts) {
             opts = typeof url === "object" ? url : {};
@@ -19726,17 +19726,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path7) {
-      const ctrl = callVisitor(key, node, visitor, path7);
+    function visit_(key, node, visitor, path8) {
+      const ctrl = callVisitor(key, node, visitor, path8);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path7, ctrl);
-        return visit_(key, ctrl, visitor, path7);
+        replaceNode(key, path8, ctrl);
+        return visit_(key, ctrl, visitor, path8);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path7 = Object.freeze(path7.concat(node));
+          path8 = Object.freeze(path8.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path7);
+            const ci = visit_(i, node.items[i], visitor, path8);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -19747,13 +19747,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path7 = Object.freeze(path7.concat(node));
-          const ck = visit_("key", node.key, visitor, path7);
+          path8 = Object.freeze(path8.concat(node));
+          const ck = visit_("key", node.key, visitor, path8);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path7);
+          const cv = visit_("value", node.value, visitor, path8);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -19774,17 +19774,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path7) {
-      const ctrl = await callVisitor(key, node, visitor, path7);
+    async function visitAsync_(key, node, visitor, path8) {
+      const ctrl = await callVisitor(key, node, visitor, path8);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path7, ctrl);
-        return visitAsync_(key, ctrl, visitor, path7);
+        replaceNode(key, path8, ctrl);
+        return visitAsync_(key, ctrl, visitor, path8);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path7 = Object.freeze(path7.concat(node));
+          path8 = Object.freeze(path8.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path7);
+            const ci = await visitAsync_(i, node.items[i], visitor, path8);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -19795,13 +19795,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path7 = Object.freeze(path7.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path7);
+          path8 = Object.freeze(path8.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path8);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path7);
+          const cv = await visitAsync_("value", node.value, visitor, path8);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -19828,23 +19828,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path7) {
+    function callVisitor(key, node, visitor, path8) {
       if (typeof visitor === "function")
-        return visitor(key, node, path7);
+        return visitor(key, node, path8);
       if (identity.isMap(node))
-        return visitor.Map?.(key, node, path7);
+        return visitor.Map?.(key, node, path8);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key, node, path7);
+        return visitor.Seq?.(key, node, path8);
       if (identity.isPair(node))
-        return visitor.Pair?.(key, node, path7);
+        return visitor.Pair?.(key, node, path8);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key, node, path7);
+        return visitor.Scalar?.(key, node, path8);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key, node, path7);
+        return visitor.Alias?.(key, node, path8);
       return void 0;
     }
-    function replaceNode(key, path7, node) {
-      const parent = path7[path7.length - 1];
+    function replaceNode(key, path8, node) {
+      const parent = path8[path8.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -20454,10 +20454,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path7, value) {
+    function collectionFromPath(schema, path8, value) {
       let v = value;
-      for (let i = path7.length - 1; i >= 0; --i) {
-        const k = path7[i];
+      for (let i = path8.length - 1; i >= 0; --i) {
+        const k = path8[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -20476,7 +20476,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path7) => path7 == null || typeof path7 === "object" && !!path7[Symbol.iterator]().next().done;
+    var isEmptyPath = (path8) => path8 == null || typeof path8 === "object" && !!path8[Symbol.iterator]().next().done;
     var Collection2 = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -20506,11 +20506,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path7, value) {
-        if (isEmptyPath(path7))
+      addIn(path8, value) {
+        if (isEmptyPath(path8))
           this.add(value);
         else {
-          const [key, ...rest] = path7;
+          const [key, ...rest] = path8;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -20524,8 +20524,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path7) {
-        const [key, ...rest] = path7;
+      deleteIn(path8) {
+        const [key, ...rest] = path8;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -20539,8 +20539,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path7, keepScalar) {
-        const [key, ...rest] = path7;
+      getIn(path8, keepScalar) {
+        const [key, ...rest] = path8;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -20558,8 +20558,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path7) {
-        const [key, ...rest] = path7;
+      hasIn(path8) {
+        const [key, ...rest] = path8;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -20569,8 +20569,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path7, value) {
-        const [key, ...rest] = path7;
+      setIn(path8, value) {
+        const [key, ...rest] = path8;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -23085,9 +23085,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path7, value) {
+      addIn(path8, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path7, value);
+          this.contents.addIn(path8, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -23162,14 +23162,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path7) {
-        if (Collection2.isEmptyPath(path7)) {
+      deleteIn(path8) {
+        if (Collection2.isEmptyPath(path8)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path7) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path8) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -23184,10 +23184,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path7, keepScalar) {
-        if (Collection2.isEmptyPath(path7))
+      getIn(path8, keepScalar) {
+        if (Collection2.isEmptyPath(path8))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path7, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path8, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -23198,10 +23198,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path7) {
-        if (Collection2.isEmptyPath(path7))
+      hasIn(path8) {
+        if (Collection2.isEmptyPath(path8))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path7) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path8) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -23218,13 +23218,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path7, value) {
-        if (Collection2.isEmptyPath(path7)) {
+      setIn(path8, value) {
+        if (Collection2.isEmptyPath(path8)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection2.collectionFromPath(this.schema, Array.from(path7), value);
+          this.contents = Collection2.collectionFromPath(this.schema, Array.from(path8), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path7, value);
+          this.contents.setIn(path8, value);
         }
       }
       /**
@@ -25184,9 +25184,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path7) => {
+    visit.itemAtPath = (cst, path8) => {
       let item = cst;
-      for (const [field, index] of path7) {
+      for (const [field, index] of path8) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -25195,23 +25195,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path7) => {
-      const parent = visit.itemAtPath(cst, path7.slice(0, -1));
-      const field = path7[path7.length - 1][0];
+    visit.parentCollection = (cst, path8) => {
+      const parent = visit.itemAtPath(cst, path8.slice(0, -1));
+      const field = path8[path8.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path7, item, visitor) {
-      let ctrl = visitor(item, path7);
+    function _visit(path8, item, visitor) {
+      let ctrl = visitor(item, path8);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path7.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path8.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -25222,10 +25222,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path7);
+            ctrl = ctrl(item, path8);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path7) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path8) : ctrl;
     }
     exports2.visit = visit;
   }
@@ -28884,6 +28884,11 @@ var require_saxes = __commonJS({
   }
 });
 
+// src/action/index.ts
+var import_node_child_process2 = require("node:child_process");
+var import_node_path7 = __toESM(require("node:path"), 1);
+var import_node_util2 = require("node:util");
+
 // node_modules/@actions/core/lib/command.js
 var os = __toESM(require("os"), 1);
 
@@ -29405,8 +29410,8 @@ var Context = class {
       if ((0, import_fs2.existsSync)(process.env.GITHUB_EVENT_PATH)) {
         this.payload = JSON.parse((0, import_fs2.readFileSync)(process.env.GITHUB_EVENT_PATH, { encoding: "utf8" }));
       } else {
-        const path7 = process.env.GITHUB_EVENT_PATH;
-        process.stdout.write(`GITHUB_EVENT_PATH ${path7} does not exist${import_os3.EOL}`);
+        const path8 = process.env.GITHUB_EVENT_PATH;
+        process.stdout.write(`GITHUB_EVENT_PATH ${path8} does not exist${import_os3.EOL}`);
       }
     }
     this.eventName = process.env.GITHUB_EVENT_NAME;
@@ -39425,7 +39430,7 @@ function renderPullRequestComment(result) {
     "| Metric | Value |",
     "| --- | --- |",
     `| Findings | ${result.findings.length} |`,
-    `| Scanned dependencies | ${result.scannedDependencies} |`,
+    `| Public registry dependencies checked | ${result.scannedDependencies} |`,
     `| Fail threshold | ${result.failOn.toUpperCase()} |`,
     `| Warnings | ${result.warnings.length} |`,
     `| Registry failures | ${result.registryFailures.length} |`
@@ -39472,7 +39477,7 @@ function renderStepSummary(result) {
     "| Metric | Value |",
     "| --- | --- |",
     `| Findings | ${result.findings.length} |`,
-    `| Scanned dependencies | ${result.scannedDependencies} |`,
+    `| Public registry dependencies checked | ${result.scannedDependencies} |`,
     `| Fail threshold | ${result.failOn.toUpperCase()} |`,
     `| Warnings | ${result.warnings.length} |`,
     `| Registry failures | ${result.registryFailures.length} |`
@@ -39481,6 +39486,12 @@ function renderStepSummary(result) {
   appendRegistryFailureSection(lines, result.registryFailures);
   appendWarningSection(lines, result.warnings);
   return lines.join("\n");
+}
+function renderActionFailureComment(input) {
+  return [stickyCommentMarker, "", ...renderActionFailureLines(input)].join("\n");
+}
+function renderActionFailureSummary(input) {
+  return renderActionFailureLines(input).join("\n");
 }
 function appendFindingTable(lines, findings) {
   if (findings.length === 0) {
@@ -39536,6 +39547,9 @@ function appendWarningSection(lines, warnings) {
 }
 function summarySentence(result) {
   if (result.findings.length === 0) {
+    if (result.scannedDependencies === 0) {
+      return "No public registry dependency names were found to review for this pull request.";
+    }
     return "No SlopLock findings were found for this pull request.";
   }
   return `SlopLock found ${result.findings.length} dependency ${plural(
@@ -39563,6 +39577,15 @@ function formatInlineCode(input) {
 }
 function plural(count, singular) {
   return count === 1 ? singular : `${singular}s`;
+}
+function renderActionFailureLines(input) {
+  const lines = [
+    `# ${input.title}`,
+    "",
+    escapeMarkdownText(input.message)
+  ];
+  appendWarningSection(lines, input.warnings ?? []);
+  return lines;
 }
 
 // src/core/severity.ts
@@ -39689,15 +39712,89 @@ function readFailOn(input) {
   throw new Error("Action input fail-on must be medium or high.");
 }
 
+// src/action/setup-warnings.ts
+function buildSetupWarnings(input) {
+  const warnings = [];
+  if (input.inputs.changedOnly && input.baseRef === void 0 && !input.hasPullRequest) {
+    warnings.push({
+      message: "Changed-only mode is running without a pull request base or explicit `base` input. SlopLock will rely on its default base; run on `pull_request` or set `base` for predictable PR gating."
+    });
+  }
+  if (input.inputs.changedOnly && input.isShallowRepository) {
+    warnings.push({
+      message: "The checkout is shallow. Changed-only scans need base history; set `actions/checkout` `fetch-depth: 0`."
+    });
+  }
+  if (input.dependencyFileCount === 0) {
+    warnings.push({
+      message: `No supported dependency files were found under ${formatInlineCode2(
+        input.inputs.path
+      )}. Confirm the Action \`path\` points at the repository root or a supported subdirectory.`
+    });
+    return warnings;
+  }
+  if (!input.inputs.changedOnly && input.result.scannedDependencies === 0) {
+    warnings.push({
+      message: "Supported dependency files were found, but SlopLock found no public registry dependency names to check. If this is unexpected, review private/local dependency declarations and supported file formats."
+    });
+  }
+  return warnings;
+}
+function buildCommentWarnings(input) {
+  if (!input.inputs.comment) {
+    return [];
+  }
+  switch (input.status) {
+    case "disabled":
+    case "created":
+    case "updated":
+      return [];
+    case "skipped":
+      return [
+        {
+          message: "Pull request comment was skipped because this run is not attached to a pull request. Use the `pull_request` event or set `comment: false`."
+        }
+      ];
+    case "failed":
+      return [
+        {
+          message: "Pull request comment could not be written. Grant `pull-requests: write` or set `comment: false`; results are still available in annotations and the step summary."
+        }
+      ];
+  }
+}
+function withWarnings(result, warnings) {
+  if (warnings.length === 0) {
+    return result;
+  }
+  return {
+    ...result,
+    warnings: [...warnings, ...result.warnings]
+  };
+}
+function formatInlineCode2(input) {
+  return `\`${input.replace(/`/gu, "'")}\``;
+}
+
 // src/action/index.ts
+var execFileAsync2 = (0, import_node_util2.promisify)(import_node_child_process2.execFile);
 async function run() {
   const inputs = readActionInputs();
+  try {
+    await runScan(inputs);
+  } catch (error2) {
+    await reportActionFailure({ inputs, error: error2 });
+  }
+}
+async function runScan(inputs) {
+  const rootDir = import_node_path7.default.resolve(inputs.path);
+  const hasPullRequest = context2.payload.pull_request !== void 0;
   const baseRef = resolveChangedOnlyBaseRef({
     ...inputs.base === void 0 ? {} : { inputBase: inputs.base },
     pullRequest: context2.payload.pull_request
   });
   const result = await scan({
-    rootDir: inputs.path,
+    rootDir,
     changedOnly: inputs.changedOnly,
     failOn: inputs.failOn,
     failClosed: inputs.failClosed,
@@ -39708,29 +39805,125 @@ async function run() {
   });
   annotateFindings(result.findings);
   annotateRegistryFailures(result.registryFailures);
-  await summary.addRaw(renderStepSummary(result)).write();
+  const setupWarnings = buildSetupWarnings({
+    inputs,
+    ...baseRef === void 0 ? {} : { baseRef },
+    hasPullRequest,
+    dependencyFileCount: await dependencyFileCount(rootDir),
+    isShallowRepository: await isShallowGitRepository(rootDir),
+    result
+  });
+  const commentResult = await writePullRequestComment({
+    inputs,
+    result: withWarnings(result, setupWarnings)
+  });
+  const commentWarnings = buildCommentWarnings({
+    inputs,
+    status: commentResult.status
+  });
+  if (commentResult.errorMessage !== void 0) {
+    debug(`Unable to write SlopLock pull request comment: ${commentResult.errorMessage}`);
+  }
+  const actionWarnings = [...setupWarnings, ...commentWarnings];
+  annotateSetupWarnings(actionWarnings);
+  const displayResult = withWarnings(result, actionWarnings);
+  await summary.addRaw(renderStepSummary(displayResult)).write();
   setOutput("findings", String(result.findings.length));
   setOutput("highest-severity", highestSeverityOutput(result.findings));
-  if (inputs.comment && inputs.githubToken !== void 0) {
-    try {
-      await upsertStickyComment({
-        token: inputs.githubToken,
-        body: renderPullRequestComment(result)
-      });
-    } catch (error2) {
-      const message = error2 instanceof Error ? error2.message : String(error2);
-      debug(`Unable to write SlopLock pull request comment: ${message}`);
-      warning(
-        "Unable to write SlopLock pull request comment. Grant `pull-requests: write` or set `comment: false`; scan results are still available in annotations and the step summary."
-      );
-    }
-  }
   if (inputs.failClosed && result.registryFailures.length > 0) {
     setFailed("Registry checks failed and fail-closed is enabled.");
     return;
   }
   if (hasFailingFindings(result, result.failOn)) {
     setFailed(`SlopLock found findings at or above ${result.failOn}.`);
+  }
+}
+async function writePullRequestComment(input) {
+  if (!input.inputs.comment || input.inputs.githubToken === void 0) {
+    return { status: input.inputs.comment ? "failed" : "disabled" };
+  }
+  try {
+    return {
+      status: await upsertStickyComment({
+        token: input.inputs.githubToken,
+        body: renderPullRequestComment(input.result)
+      })
+    };
+  } catch (error2) {
+    const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+    return { status: "failed", errorMessage };
+  }
+}
+async function reportActionFailure(input) {
+  const title = "SlopLock setup failed";
+  const message = input.error instanceof Error ? input.error.message : String(input.error);
+  const rootDir = import_node_path7.default.resolve(input.inputs.path);
+  const warnings = await buildActionFailureWarnings({
+    inputs: input.inputs,
+    rootDir
+  });
+  const commentResult = await writeActionFailureComment({
+    inputs: input.inputs,
+    title,
+    message,
+    warnings
+  });
+  const actionWarnings = [
+    ...warnings,
+    ...buildCommentWarnings({
+      inputs: input.inputs,
+      status: commentResult.status
+    })
+  ];
+  if (commentResult.errorMessage !== void 0) {
+    debug(`Unable to write SlopLock pull request comment: ${commentResult.errorMessage}`);
+  }
+  annotateSetupWarnings(actionWarnings);
+  await summary.addRaw(
+    renderActionFailureSummary({
+      title,
+      message,
+      warnings: actionWarnings
+    })
+  ).write();
+  setOutput("findings", "0");
+  setOutput("highest-severity", "");
+  setFailed(message);
+}
+async function buildActionFailureWarnings(input) {
+  const warnings = [];
+  if (input.inputs.changedOnly && await isShallowGitRepository(input.rootDir)) {
+    warnings.push({
+      message: "The checkout is shallow. Changed-only scans need base history; set `actions/checkout` `fetch-depth: 0`."
+    });
+  }
+  return warnings;
+}
+async function writeActionFailureComment(input) {
+  if (!input.inputs.comment || input.inputs.githubToken === void 0) {
+    return { status: input.inputs.comment ? "failed" : "disabled" };
+  }
+  try {
+    return {
+      status: await upsertStickyComment({
+        token: input.inputs.githubToken,
+        body: renderActionFailureComment({
+          title: input.title,
+          message: input.message,
+          warnings: input.warnings
+        })
+      })
+    };
+  } catch (error2) {
+    const errorMessage = error2 instanceof Error ? error2.message : String(error2);
+    return { status: "failed", errorMessage };
+  }
+}
+async function dependencyFileCount(rootDir) {
+  try {
+    return (await discoverDependencyFiles(rootDir)).length;
+  } catch {
+    return 0;
   }
 }
 function annotateFindings(findings) {
@@ -39742,6 +39935,11 @@ function annotateFindings(findings) {
     } else {
       warning(message, properties);
     }
+  }
+}
+function annotateSetupWarnings(warnings) {
+  for (const warning2 of warnings) {
+    warning(warning2.message);
   }
 }
 function annotateRegistryFailures(failures) {
@@ -39762,6 +39960,18 @@ function highestSeverityOutput(findings) {
     return "low";
   }
   return "";
+}
+async function isShallowGitRepository(rootDir) {
+  try {
+    const { stdout } = await execFileAsync2(
+      "git",
+      ["rev-parse", "--is-shallow-repository"],
+      { cwd: rootDir }
+    );
+    return stdout.trim() === "true";
+  } catch {
+    return false;
+  }
 }
 void run().catch((error2) => {
   const message = error2 instanceof Error ? error2.message : String(error2);
