@@ -13,7 +13,7 @@ export function renderPullRequestComment(result) {
         "| Metric | Value |",
         "| --- | --- |",
         `| Findings | ${result.findings.length} |`,
-        `| Scanned dependencies | ${result.scannedDependencies} |`,
+        `| Public registry dependencies checked | ${result.scannedDependencies} |`,
         `| Fail threshold | ${result.failOn.toUpperCase()} |`,
         `| Warnings | ${result.warnings.length} |`,
         `| Registry failures | ${result.registryFailures.length} |`
@@ -40,7 +40,7 @@ export function renderStepSummary(result) {
         "| Metric | Value |",
         "| --- | --- |",
         `| Findings | ${result.findings.length} |`,
-        `| Scanned dependencies | ${result.scannedDependencies} |`,
+        `| Public registry dependencies checked | ${result.scannedDependencies} |`,
         `| Fail threshold | ${result.failOn.toUpperCase()} |`,
         `| Warnings | ${result.warnings.length} |`,
         `| Registry failures | ${result.registryFailures.length} |`
@@ -49,6 +49,12 @@ export function renderStepSummary(result) {
     appendRegistryFailureSection(lines, result.registryFailures);
     appendWarningSection(lines, result.warnings);
     return lines.join("\n");
+}
+export function renderActionFailureComment(input) {
+    return [stickyCommentMarker, "", ...renderActionFailureLines(input)].join("\n");
+}
+export function renderActionFailureSummary(input) {
+    return renderActionFailureLines(input).join("\n");
 }
 function appendFindingTable(lines, findings) {
     if (findings.length === 0) {
@@ -80,6 +86,9 @@ function appendWarningSection(lines, warnings) {
 }
 function summarySentence(result) {
     if (result.findings.length === 0) {
+        if (result.scannedDependencies === 0) {
+            return "No public registry dependency names were found to review for this pull request.";
+        }
         return "No SlopLock findings were found for this pull request.";
     }
     return `SlopLock found ${result.findings.length} dependency ${plural(result.findings.length, "name")} that ${result.findings.length === 1 ? "needs" : "need"} review before merge.`;
@@ -110,5 +119,14 @@ function formatInlineCode(input) {
 }
 function plural(count, singular) {
     return count === 1 ? singular : `${singular}s`;
+}
+function renderActionFailureLines(input) {
+    const lines = [
+        `# ${input.title}`,
+        "",
+        escapeMarkdownText(input.message)
+    ];
+    appendWarningSection(lines, input.warnings ?? []);
+    return lines;
 }
 //# sourceMappingURL=markdown.js.map
