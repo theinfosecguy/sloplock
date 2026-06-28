@@ -1,6 +1,6 @@
 {
   "name": "sloplock",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "GitHub Action that blocks AI-hallucinated, nonexistent, and too-new dependencies in pull requests.",
   "type": "module",
   "repository": {
