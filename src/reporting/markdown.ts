@@ -1,5 +1,6 @@
 import type {
   Finding,
+  ConfigWarning,
   RegistryPackageFailure,
   ScanResult
 } from "../core/types.js";
@@ -21,7 +22,7 @@ export function renderPullRequestComment(result: ScanResult): string {
     "| Metric | Value |",
     "| --- | --- |",
     `| Findings | ${result.findings.length} |`,
-    `| Scanned dependencies | ${result.scannedDependencies} |`,
+    `| Public registry dependencies checked | ${result.scannedDependencies} |`,
     `| Fail threshold | ${result.failOn.toUpperCase()} |`,
     `| Warnings | ${result.warnings.length} |`,
     `| Registry failures | ${result.registryFailures.length} |`
@@ -73,7 +74,7 @@ export function renderStepSummary(result: ScanResult): string {
     "| Metric | Value |",
     "| --- | --- |",
     `| Findings | ${result.findings.length} |`,
-    `| Scanned dependencies | ${result.scannedDependencies} |`,
+    `| Public registry dependencies checked | ${result.scannedDependencies} |`,
     `| Fail threshold | ${result.failOn.toUpperCase()} |`,
     `| Warnings | ${result.warnings.length} |`,
     `| Registry failures | ${result.registryFailures.length} |`
@@ -84,6 +85,22 @@ export function renderStepSummary(result: ScanResult): string {
   appendWarningSection(lines, result.warnings);
 
   return lines.join("\n");
+}
+
+export function renderActionFailureComment(input: {
+  title: string;
+  message: string;
+  warnings?: readonly ConfigWarning[];
+}): string {
+  return [stickyCommentMarker, "", ...renderActionFailureLines(input)].join("\n");
+}
+
+export function renderActionFailureSummary(input: {
+  title: string;
+  message: string;
+  warnings?: readonly ConfigWarning[];
+}): string {
+  return renderActionFailureLines(input).join("\n");
 }
 
 function appendFindingTable(lines: string[], findings: readonly Finding[]): void {
@@ -156,6 +173,10 @@ function appendWarningSection(
 
 function summarySentence(result: ScanResult): string {
   if (result.findings.length === 0) {
+    if (result.scannedDependencies === 0) {
+      return "No public registry dependency names were found to review for this pull request.";
+    }
+
     return "No SlopLock findings were found for this pull request.";
   }
 
@@ -197,4 +218,20 @@ function formatInlineCode(input: string): string {
 
 function plural(count: number, singular: string): string {
   return count === 1 ? singular : `${singular}s`;
+}
+
+function renderActionFailureLines(input: {
+  title: string;
+  message: string;
+  warnings?: readonly ConfigWarning[];
+}): string[] {
+  const lines = [
+    `# ${input.title}`,
+    "",
+    escapeMarkdownText(input.message)
+  ];
+
+  appendWarningSection(lines, input.warnings ?? []);
+
+  return lines;
 }

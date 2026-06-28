@@ -7,13 +7,15 @@ import { scan } from "../core/scan.js";
 import type { ConfigWarning, Finding, RegistryPackageFailure } from "../core/types.js";
 import { discoverDependencyFiles } from "../discovery/find-files.js";
 import {
+  renderActionFailureComment,
+  renderActionFailureSummary,
   renderPullRequestComment,
   renderStepSummary
 } from "../reporting/markdown.js";
 import { hasFailingFindings } from "../reporting/summary.js";
 import { resolveChangedOnlyBaseRef } from "./base-ref.js";
 import { upsertStickyComment } from "./comments.js";
-import { readActionInputs } from "./inputs.js";
+import { readActionInputs, type ActionInputs } from "./inputs.js";
 import {
   buildCommentWarnings,
   buildSetupWarnings,
@@ -25,6 +27,14 @@ const execFileAsync = promisify(execFile);
 
 async function run(): Promise<void> {
   const inputs = readActionInputs();
+  try {
+    await runScan(inputs);
+  } catch (error) {
+    await reportActionFailure({ inputs, error });
+  }
+}
+
+async function runScan(inputs: ActionInputs): Promise<void> {
   const rootDir = path.resolve(inputs.path);
   const hasPullRequest = github.context.payload.pull_request !== undefined;
   const baseRef = resolveChangedOnlyBaseRef({
@@ -84,7 +94,7 @@ async function run(): Promise<void> {
 }
 
 async function writePullRequestComment(input: {
-  inputs: ReturnType<typeof readActionInputs>;
+  inputs: ActionInputs;
   result: Awaited<ReturnType<typeof scan>>;
 }): Promise<{ status: CommentStatus; errorMessage?: string }> {
   if (!input.inputs.comment || input.inputs.githubToken === undefined) {
@@ -96,6 +106,93 @@ async function writePullRequestComment(input: {
       status: await upsertStickyComment({
         token: input.inputs.githubToken,
         body: renderPullRequestComment(input.result)
+      })
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return { status: "failed", errorMessage };
+  }
+}
+
+async function reportActionFailure(input: {
+  inputs: ActionInputs;
+  error: unknown;
+}): Promise<void> {
+  const title = "SlopLock setup failed";
+  const message = input.error instanceof Error ? input.error.message : String(input.error);
+  const rootDir = path.resolve(input.inputs.path);
+  const warnings = await buildActionFailureWarnings({
+    inputs: input.inputs,
+    rootDir
+  });
+  const commentResult = await writeActionFailureComment({
+    inputs: input.inputs,
+    title,
+    message,
+    warnings
+  });
+  const actionWarnings = [
+    ...warnings,
+    ...buildCommentWarnings({
+      inputs: input.inputs,
+      status: commentResult.status
+    })
+  ];
+
+  if (commentResult.errorMessage !== undefined) {
+    core.debug(`Unable to write SlopLock pull request comment: ${commentResult.errorMessage}`);
+  }
+
+  annotateSetupWarnings(actionWarnings);
+  await core.summary
+    .addRaw(
+      renderActionFailureSummary({
+        title,
+        message,
+        warnings: actionWarnings
+      })
+    )
+    .write();
+  core.setOutput("findings", "0");
+  core.setOutput("highest-severity", "");
+  core.setFailed(message);
+}
+
+async function buildActionFailureWarnings(input: {
+  inputs: ActionInputs;
+  rootDir: string;
+}): Promise<ConfigWarning[]> {
+  const warnings: ConfigWarning[] = [];
+
+  if (input.inputs.changedOnly && (await isShallowGitRepository(input.rootDir))) {
+    warnings.push({
+      message:
+        "The checkout is shallow. Changed-only scans need base history; set `actions/checkout` `fetch-depth: 0`."
+    });
+  }
+
+  return warnings;
+}
+
+async function writeActionFailureComment(input: {
+  inputs: ActionInputs;
+  title: string;
+  message: string;
+  warnings: readonly ConfigWarning[];
+}): Promise<{ status: CommentStatus; errorMessage?: string }> {
+  if (!input.inputs.comment || input.inputs.githubToken === undefined) {
+    return { status: input.inputs.comment ? "failed" : "disabled" };
+  }
+
+  try {
+    return {
+      status: await upsertStickyComment({
+        token: input.inputs.githubToken,
+        body: renderActionFailureComment({
+          title: input.title,
+          message: input.message,
+          warnings: input.warnings
+        })
       })
     };
   } catch (error) {
