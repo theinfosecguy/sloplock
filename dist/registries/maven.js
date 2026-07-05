@@ -1,4 +1,5 @@
 import { mavenCoordinateParts } from "../core/maven.js";
+import { sloplockUserAgent } from "../core/version.js";
 const mavenCentralSearchUrl = "https://central.sonatype.com/solrsearch/select";
 const defaultTimeoutMs = 8_000;
 const defaultRetries = 2;
@@ -12,7 +13,7 @@ export class MavenCentralRegistryClient {
     constructor(options = {}) {
         this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
         this.retries = options.retries ?? defaultRetries;
-        this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+        this.userAgent = options.userAgent ?? sloplockUserAgent;
         this.fetchImpl = options.fetchImpl ?? fetch;
     }
     async getPackage(reference) {

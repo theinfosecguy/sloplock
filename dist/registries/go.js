@@ -1,4 +1,5 @@
 import { escapeGoProxyPath } from "../core/go.js";
+import { sloplockUserAgent } from "../core/version.js";
 const defaultProxyUrl = "https://proxy.golang.org";
 const defaultTimeoutMs = 8_000;
 const defaultRetries = 2;
@@ -17,7 +18,7 @@ export class GoProxyRegistryClient {
         this.retries = options.retries ?? defaultRetries;
         this.maxVersionInfoRequests =
             options.maxVersionInfoRequests ?? defaultMaxVersionInfoRequests;
-        this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+        this.userAgent = options.userAgent ?? sloplockUserAgent;
         this.fetchImpl = options.fetchImpl ?? fetch;
     }
     async getPackage(reference) {

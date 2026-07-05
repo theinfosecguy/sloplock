@@ -1,5 +1,6 @@
 import { Command, CommanderError, InvalidArgumentError } from "@commander-js/extra-typings";
 import { UsageError } from "../core/errors.js";
+import { sloplockVersion } from "../core/version.js";
 export function parseCliArgs(argv) {
     if (hasFlag(argv, "--help", "-h")) {
         return defaultArgs({ help: true });
@@ -51,7 +52,7 @@ function buildProgram() {
         .allowExcessArguments(false)
         .showHelpAfterError(false)
         .helpOption("-h, --help", "display help")
-        .version("0.1.0", "-v, --version", "print version")
+        .version(sloplockVersion, "-v, --version", "print version")
         .option("--format <format>", "output format: text, json, or markdown", parseFormat, "text")
         .option("--fail-on <severity>", "minimum severity that fails: medium or high", parseFailOn)
         .option("--ecosystem <ecosystem>", "ecosystem to scan: crates, go, maven, npm, nuget, packagist, pypi, or rubygems", parseEcosystem)
