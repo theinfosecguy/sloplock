@@ -1,3 +1,4 @@
+import { sloplockUserAgent } from "../core/version.js";
 const nugetServiceIndexUrl = "https://api.nuget.org/v3/index.json";
 const defaultTimeoutMs = 8_000;
 const defaultRetries = 2;
@@ -7,11 +8,11 @@ export class NugetRegistryClient {
     userAgent;
     fetchImpl;
     cache = new Map();
-    serviceIndex;
+    serviceIndexRequest;
     constructor(options = {}) {
         this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
         this.retries = options.retries ?? defaultRetries;
-        this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+        this.userAgent = options.userAgent ?? sloplockUserAgent;
         this.fetchImpl = options.fetchImpl ?? fetch;
     }
     async getPackage(reference) {
@@ -69,11 +70,12 @@ export class NugetRegistryClient {
         return this.parseRegistrationIndex(name, indexUrl, indexResult.body);
     }
     async registrationBaseUrl(name) {
-        this.serviceIndex ??= this.fetchServiceIndex(name);
+        this.serviceIndexRequest ??= this.fetchServiceIndex(name);
         try {
-            return await this.serviceIndex;
+            return await this.serviceIndexRequest;
         }
         catch (error) {
+            this.serviceIndexRequest = undefined;
             return failure(name, "network_error", error instanceof Error ? error.message : String(error), true);
         }
     }

@@ -11,7 +11,7 @@ export declare class NugetRegistryClient implements RegistryClient {
     private readonly userAgent;
     private readonly fetchImpl;
     private readonly cache;
-    private serviceIndex;
+    private serviceIndexRequest;
     constructor(options?: NugetRegistryClientOptions);
     getPackage(reference: {
         ecosystem: Ecosystem;

@@ -37361,6 +37361,11 @@ function nugetPatternMatches(pattern, packageName) {
   return matchesNugetPackagePattern(packageName, pattern);
 }
 
+// src/core/version.ts
+var sloplockVersion = "1.0.3";
+var sloplockUserAgent = `sloplock/${sloplockVersion}`;
+var sloplockRepositoryUserAgent = `${sloplockUserAgent} (https://github.com/theinfosecguy/sloplock)`;
+
 // src/registries/crates.ts
 var cratesRegistryUrl = "https://crates.io/api/v1/crates";
 var defaultTimeoutMs = 8e3;
@@ -37374,7 +37379,7 @@ var CratesRegistryClient = class {
   constructor(options = {}) {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
     this.retries = options.retries ?? defaultRetries;
-    this.userAgent = options.userAgent ?? "sloplock/0.1.0 (https://github.com/theinfosecguy/sloplock)";
+    this.userAgent = options.userAgent ?? sloplockRepositoryUserAgent;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
   async getPackage(reference) {
@@ -37559,7 +37564,7 @@ var GoProxyRegistryClient = class {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs2;
     this.retries = options.retries ?? defaultRetries2;
     this.maxVersionInfoRequests = options.maxVersionInfoRequests ?? defaultMaxVersionInfoRequests;
-    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.userAgent = options.userAgent ?? sloplockUserAgent;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
   async getPackage(reference) {
@@ -37843,7 +37848,7 @@ var MavenCentralRegistryClient = class {
   constructor(options = {}) {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs3;
     this.retries = options.retries ?? defaultRetries3;
-    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.userAgent = options.userAgent ?? sloplockUserAgent;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
   async getPackage(reference) {
@@ -38083,11 +38088,11 @@ var NugetRegistryClient = class {
   userAgent;
   fetchImpl;
   cache = /* @__PURE__ */ new Map();
-  serviceIndex;
+  serviceIndexRequest;
   constructor(options = {}) {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs4;
     this.retries = options.retries ?? defaultRetries4;
-    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.userAgent = options.userAgent ?? sloplockUserAgent;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
   async getPackage(reference) {
@@ -38145,10 +38150,11 @@ var NugetRegistryClient = class {
     return this.parseRegistrationIndex(name, indexUrl, indexResult.body);
   }
   async registrationBaseUrl(name) {
-    this.serviceIndex ??= this.fetchServiceIndex(name);
+    this.serviceIndexRequest ??= this.fetchServiceIndex(name);
     try {
-      return await this.serviceIndex;
+      return await this.serviceIndexRequest;
     } catch (error2) {
+      this.serviceIndexRequest = void 0;
       return failure4(
         name,
         "network_error",
@@ -38385,7 +38391,7 @@ var NpmRegistryClient = class {
   constructor(options = {}) {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs5;
     this.retries = options.retries ?? defaultRetries5;
-    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.userAgent = options.userAgent ?? sloplockUserAgent;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
   async getPackage(reference) {
@@ -38556,7 +38562,7 @@ var PackagistRegistryClient = class {
   constructor(options = {}) {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs6;
     this.retries = options.retries ?? defaultRetries6;
-    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.userAgent = options.userAgent ?? sloplockUserAgent;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
   async getPackage(reference) {
@@ -38755,7 +38761,7 @@ var PypiRegistryClient = class {
   constructor(options = {}) {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs7;
     this.retries = options.retries ?? defaultRetries7;
-    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.userAgent = options.userAgent ?? sloplockUserAgent;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
   async getPackage(reference) {
@@ -38952,7 +38958,7 @@ var RubyGemsRegistryClient = class {
   constructor(options = {}) {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs8;
     this.retries = options.retries ?? defaultRetries8;
-    this.userAgent = options.userAgent ?? "sloplock/0.1.0 (https://github.com/theinfosecguy/sloplock)";
+    this.userAgent = options.userAgent ?? sloplockRepositoryUserAgent;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
   async getPackage(reference) {
@@ -39693,6 +39699,21 @@ function readActionInputs() {
     failClosed: getBooleanInput("fail-closed")
   };
 }
+function readActionFailureInputs() {
+  const base = safeInput("base");
+  const config = safeInput("config");
+  const githubToken = safeInput("github-token");
+  return {
+    path: safeInput("path") || ".",
+    failOn: "high",
+    changedOnly: safeBooleanInput("changed-only", true),
+    ...base.trim().length === 0 ? {} : { base },
+    ...config.trim().length === 0 ? {} : { config },
+    comment: safeBooleanInput("comment", true),
+    ...githubToken.trim().length === 0 ? {} : { githubToken },
+    failClosed: safeBooleanInput("fail-closed", false)
+  };
+}
 function ecosystemsInput(input) {
   const trimmed = input.trim();
   if (trimmed.length === 0 || trimmed === "all") {
@@ -39710,6 +39731,20 @@ function readFailOn(input) {
     return input;
   }
   throw new Error("Action input fail-on must be medium or high.");
+}
+function safeInput(name) {
+  try {
+    return getInput(name);
+  } catch {
+    return "";
+  }
+}
+function safeBooleanInput(name, fallback) {
+  try {
+    return getBooleanInput(name);
+  } catch {
+    return fallback;
+  }
 }
 
 // src/action/setup-warnings.ts
@@ -39779,8 +39814,9 @@ function formatInlineCode2(input) {
 // src/action/index.ts
 var execFileAsync2 = (0, import_node_util2.promisify)(import_node_child_process2.execFile);
 async function run() {
-  const inputs = readActionInputs();
+  let inputs = readActionFailureInputs();
   try {
+    inputs = readActionInputs();
     await runScan(inputs);
   } catch (error2) {
     await reportActionFailure({ inputs, error: error2 });

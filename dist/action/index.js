@@ -9,12 +9,13 @@ import { renderActionFailureComment, renderActionFailureSummary, renderPullReque
 import { hasFailingFindings } from "../reporting/summary.js";
 import { resolveChangedOnlyBaseRef } from "./base-ref.js";
 import { upsertStickyComment } from "./comments.js";
-import { readActionInputs } from "./inputs.js";
+import { readActionFailureInputs, readActionInputs } from "./inputs.js";
 import { buildCommentWarnings, buildSetupWarnings, withWarnings } from "./setup-warnings.js";
 const execFileAsync = promisify(execFile);
 async function run() {
-    const inputs = readActionInputs();
+    let inputs = readActionFailureInputs();
     try {
+        inputs = readActionInputs();
         await runScan(inputs);
     }
     catch (error) {
