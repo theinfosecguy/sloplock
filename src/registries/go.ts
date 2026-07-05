@@ -6,6 +6,7 @@ import type {
   RegistryPackageFound,
   RegistryResult
 } from "../core/types.js";
+import { sloplockUserAgent } from "../core/version.js";
 
 const defaultProxyUrl = "https://proxy.golang.org";
 const defaultTimeoutMs = 8_000;
@@ -60,7 +61,7 @@ export class GoProxyRegistryClient implements RegistryClient {
     this.retries = options.retries ?? defaultRetries;
     this.maxVersionInfoRequests =
       options.maxVersionInfoRequests ?? defaultMaxVersionInfoRequests;
-    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.userAgent = options.userAgent ?? sloplockUserAgent;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 

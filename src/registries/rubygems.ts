@@ -5,6 +5,7 @@ import type {
   RegistryPackageFound,
   RegistryResult
 } from "../core/types.js";
+import { sloplockRepositoryUserAgent } from "../core/version.js";
 
 const rubygemsVersionsUrl = "https://rubygems.org/api/v1/versions";
 const rubygemsPackagePageUrl = "https://rubygems.org/gems";
@@ -32,8 +33,7 @@ export class RubyGemsRegistryClient implements RegistryClient {
   constructor(options: RubyGemsRegistryClientOptions = {}) {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
     this.retries = options.retries ?? defaultRetries;
-    this.userAgent =
-      options.userAgent ?? "sloplock/0.1.0 (https://github.com/theinfosecguy/sloplock)";
+    this.userAgent = options.userAgent ?? sloplockRepositoryUserAgent;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 

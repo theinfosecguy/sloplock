@@ -5,6 +5,7 @@ import type {
   RegistryPackageFound,
   RegistryResult
 } from "../core/types.js";
+import { sloplockUserAgent } from "../core/version.js";
 
 const nugetServiceIndexUrl = "https://api.nuget.org/v3/index.json";
 const defaultTimeoutMs = 8_000;
@@ -46,12 +47,12 @@ export class NugetRegistryClient implements RegistryClient {
   private readonly userAgent: string;
   private readonly fetchImpl: typeof fetch;
   private readonly cache = new Map<string, Promise<RegistryResult>>();
-  private serviceIndex: Promise<string> | undefined;
+  private serviceIndexRequest: Promise<string> | undefined;
 
   constructor(options: NugetRegistryClientOptions = {}) {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
     this.retries = options.retries ?? defaultRetries;
-    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.userAgent = options.userAgent ?? sloplockUserAgent;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -129,11 +130,12 @@ export class NugetRegistryClient implements RegistryClient {
   private async registrationBaseUrl(
     name: string
   ): Promise<string | RegistryPackageFailure> {
-    this.serviceIndex ??= this.fetchServiceIndex(name);
+    this.serviceIndexRequest ??= this.fetchServiceIndex(name);
 
     try {
-      return await this.serviceIndex;
+      return await this.serviceIndexRequest;
     } catch (error) {
+      this.serviceIndexRequest = undefined;
       return failure(
         name,
         "network_error",

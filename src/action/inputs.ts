@@ -32,6 +32,23 @@ export function readActionInputs(): ActionInputs {
   };
 }
 
+export function readActionFailureInputs(): ActionInputs {
+  const base = safeInput("base");
+  const config = safeInput("config");
+  const githubToken = safeInput("github-token");
+
+  return {
+    path: safeInput("path") || ".",
+    failOn: "high",
+    changedOnly: safeBooleanInput("changed-only", true),
+    ...(base.trim().length === 0 ? {} : { base }),
+    ...(config.trim().length === 0 ? {} : { config }),
+    comment: safeBooleanInput("comment", true),
+    ...(githubToken.trim().length === 0 ? {} : { githubToken }),
+    failClosed: safeBooleanInput("fail-closed", false)
+  };
+}
+
 export function ecosystemsInput(input: string): { ecosystems?: readonly Ecosystem[] } {
   const trimmed = input.trim();
   if (trimmed.length === 0 || trimmed === "all") {
@@ -62,4 +79,20 @@ function readFailOn(input: string): "medium" | "high" {
   }
 
   throw new Error("Action input fail-on must be medium or high.");
+}
+
+function safeInput(name: string): string {
+  try {
+    return core.getInput(name);
+  } catch {
+    return "";
+  }
+}
+
+function safeBooleanInput(name: string, fallback: boolean): boolean {
+  try {
+    return core.getBooleanInput(name);
+  } catch {
+    return fallback;
+  }
 }

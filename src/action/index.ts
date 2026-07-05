@@ -15,7 +15,11 @@ import {
 import { hasFailingFindings } from "../reporting/summary.js";
 import { resolveChangedOnlyBaseRef } from "./base-ref.js";
 import { upsertStickyComment } from "./comments.js";
-import { readActionInputs, type ActionInputs } from "./inputs.js";
+import {
+  readActionFailureInputs,
+  readActionInputs,
+  type ActionInputs
+} from "./inputs.js";
 import {
   buildCommentWarnings,
   buildSetupWarnings,
@@ -26,8 +30,9 @@ import {
 const execFileAsync = promisify(execFile);
 
 async function run(): Promise<void> {
-  const inputs = readActionInputs();
+  let inputs = readActionFailureInputs();
   try {
+    inputs = readActionInputs();
     await runScan(inputs);
   } catch (error) {
     await reportActionFailure({ inputs, error });
