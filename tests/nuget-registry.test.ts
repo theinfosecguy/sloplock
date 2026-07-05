@@ -110,6 +110,63 @@ describe("NugetRegistryClient", () => {
     });
   });
 
+  it("retries service index lookup after a retryable failure", async () => {
+    let serviceIndexRequests = 0;
+    const client = new NugetRegistryClient({
+      retries: 1,
+      fetchImpl: (input) => {
+        const url = requestUrl(input);
+        if (url === "https://api.nuget.org/v3/index.json") {
+          serviceIndexRequests += 1;
+          if (serviceIndexRequests === 1) {
+            return Promise.resolve(new Response("server error", { status: 500 }));
+          }
+
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                resources: [
+                  {
+                    "@id": "https://api.nuget.org/v3/registration5-semver1/",
+                    "@type": "RegistrationsBaseUrl/3.6.0"
+                  }
+                ]
+              }),
+              { status: 200 }
+            )
+          );
+        }
+
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              items: [
+                {
+                  items: [
+                    {
+                      catalogEntry: {
+                        published: "2020-01-01T00:00:00Z"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }),
+            { status: 200 }
+          )
+        );
+      }
+    });
+
+    const result = await client.getPackage({
+      ecosystem: "nuget",
+      name: "Recovered.Package"
+    });
+
+    expect(result.status).toBe("found");
+    expect(serviceIndexRequests).toBe(2);
+  });
+
   it("reports invalid registration metadata as a registry failure", async () => {
     const client = new NugetRegistryClient({
       fetchImpl: (input) => {

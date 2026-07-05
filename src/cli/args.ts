@@ -5,6 +5,7 @@ import {
 } from "@commander-js/extra-typings";
 import { UsageError } from "../core/errors.js";
 import type { Ecosystem, Severity } from "../core/types.js";
+import { sloplockVersion } from "../core/version.js";
 
 export type OutputFormat = "text" | "json" | "markdown";
 
@@ -92,7 +93,7 @@ function buildProgram(): Command<[string], ProgramOptions> {
     .allowExcessArguments(false)
     .showHelpAfterError(false)
     .helpOption("-h, --help", "display help")
-    .version("0.1.0", "-v, --version", "print version")
+    .version(sloplockVersion, "-v, --version", "print version")
     .option(
       "--format <format>",
       "output format: text, json, or markdown",

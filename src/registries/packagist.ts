@@ -5,6 +5,7 @@ import type {
   RegistryPackageFound,
   RegistryResult
 } from "../core/types.js";
+import { sloplockUserAgent } from "../core/version.js";
 
 const packagistApiUrl = "https://packagist.org/packages";
 const defaultTimeoutMs = 8_000;
@@ -39,7 +40,7 @@ export class PackagistRegistryClient implements RegistryClient {
   constructor(options: PackagistRegistryClientOptions = {}) {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
     this.retries = options.retries ?? defaultRetries;
-    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.userAgent = options.userAgent ?? sloplockUserAgent;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 

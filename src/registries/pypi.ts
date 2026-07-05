@@ -5,6 +5,7 @@ import type {
   RegistryPackageFound,
   RegistryResult
 } from "../core/types.js";
+import { sloplockUserAgent } from "../core/version.js";
 
 const pypiRegistryUrl = "https://pypi.org/pypi";
 const defaultTimeoutMs = 8_000;
@@ -37,7 +38,7 @@ export class PypiRegistryClient implements RegistryClient {
   constructor(options: PypiRegistryClientOptions = {}) {
     this.timeoutMs = options.timeoutMs ?? defaultTimeoutMs;
     this.retries = options.retries ?? defaultRetries;
-    this.userAgent = options.userAgent ?? "sloplock/0.1.0";
+    this.userAgent = options.userAgent ?? sloplockUserAgent;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
