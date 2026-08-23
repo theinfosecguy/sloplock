@@ -9,18 +9,24 @@ import { sloplockVersion } from "../core/version.js";
 
 export type OutputFormat = "text" | "json" | "markdown";
 
-export type CliArgs = {
-  path: string;
-  format: OutputFormat;
-  failOn?: Exclude<Severity, "low">;
-  ecosystem?: Ecosystem;
-  changedOnly: boolean;
-  base?: string;
-  config?: string;
-  failClosed: boolean;
-  help: boolean;
-  version: boolean;
-};
+export type CliArgs =
+  | { command: "help" }
+  | { command: "version" }
+  | {
+      command: "scan";
+      path: string;
+      format: OutputFormat;
+      failOn?: Exclude<Severity, "low">;
+      ecosystem?: Ecosystem;
+      changedOnly: boolean;
+      base?: string;
+      config?: string;
+      failClosed: boolean;
+    }
+  | {
+      command: "init";
+      path: string;
+    };
 
 type ProgramOptions = {
   format: OutputFormat;
@@ -32,13 +38,28 @@ type ProgramOptions = {
   failClosed: boolean;
 };
 
+const defaultScanPath = ".";
+
 export function parseCliArgs(argv: readonly string[]): CliArgs {
   if (hasFlag(argv, "--help", "-h")) {
-    return defaultArgs({ help: true });
+    return { command: "help" };
   }
 
   if (hasFlag(argv, "--version", "-v")) {
-    return defaultArgs({ version: true });
+    return { command: "version" };
+  }
+
+  if (argv[0] === "init") {
+    const targetDir = argv[1];
+
+    if (targetDir !== undefined && targetDir.startsWith("-")) {
+      throw new UsageError(`Unexpected option '${targetDir}' after 'init'.`);
+    }
+    if (argv[2] !== undefined) {
+      throw new UsageError("Unexpected extra arguments after 'init <dir>'.");
+    }
+
+    return { command: "init", path: targetDir ?? defaultScanPath };
   }
 
   const program = buildProgram();
@@ -63,9 +84,10 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
   }
 
   const options = program.opts();
-  const pathArg = program.args[0] ?? ".";
+  const pathArg = program.args[0] ?? defaultScanPath;
 
   return {
+    command: "scan",
     path: pathArg,
     format: options.format,
     ...(options.failOn === undefined ? {} : { failOn: options.failOn }),
@@ -73,9 +95,7 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     changedOnly: options.changedOnly,
     ...(options.base === undefined ? {} : { base: options.base }),
     ...(options.config === undefined ? {} : { config: options.config }),
-    failClosed: options.failClosed,
-    help: false,
-    version: false
+    failClosed: options.failClosed
   };
 }
 
@@ -161,16 +181,4 @@ function hasFlag(
   shortFlag: string
 ): boolean {
   return argv.some((arg) => arg === longFlag || arg === shortFlag);
-}
-
-function defaultArgs(overrides: Partial<CliArgs>): CliArgs {
-  return {
-    path: ".",
-    format: "text",
-    changedOnly: false,
-    failClosed: false,
-    help: false,
-    version: false,
-    ...overrides
-  };
 }

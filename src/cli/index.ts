@@ -4,23 +4,29 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { RegistryFailureError, SlopLockError } from "../core/errors.js";
 import { scan } from "../core/scan.js";
+import type { ScanResult } from "../core/types.js";
 import { renderJson } from "../reporting/json.js";
 import { renderMarkdown } from "../reporting/markdown.js";
 import { hasFailingFindings } from "../reporting/summary.js";
 import { renderText } from "../reporting/text.js";
 import { helpText, parseCliArgs, type OutputFormat } from "./args.js";
+import { renderInitOutcome, runInit } from "./init.js";
 
 async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
 
-  if (args.help) {
-    process.stdout.write(helpText());
-    return;
-  }
-
-  if (args.version) {
-    process.stdout.write(`${await packageVersion()}\n`);
-    return;
+  switch (args.command) {
+    case "help":
+      process.stdout.write(helpText());
+      return;
+    case "version":
+      process.stdout.write(`${await packageVersion()}\n`);
+      return;
+    case "init":
+      process.stdout.write(renderInitOutcome(await runInit(args.path)));
+      return;
+    case "scan":
+      break;
   }
 
   const result = await scan({
@@ -49,10 +55,7 @@ async function main(): Promise<void> {
   }
 }
 
-function renderResult(
-  format: OutputFormat,
-  result: Awaited<ReturnType<typeof scan>>
-): string {
+function renderResult(format: OutputFormat, result: ScanResult): string {
   switch (format) {
     case "json":
       return renderJson(result);

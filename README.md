@@ -6,8 +6,20 @@ It is built for pull request gating: scan only newly introduced dependency names
 
 ## Add SlopLock To A Repository
 
-Use the [GitHub Marketplace listing](https://github.com/marketplace/actions/sloplock)
-or create `.github/workflows/sloplock.yml`.
+Run the init command from the repository root to write the starter workflow and
+config:
+
+```bash
+npx --yes sloplock@latest init
+```
+
+This creates `.github/workflows/sloplock.yml` and `sloplock.yml`. Existing files
+are kept as they are, so it is safe to run more than once. Commit both files and
+SlopLock reviews your next pull request.
+
+Alternatively, use the
+[GitHub Marketplace listing](https://github.com/marketplace/actions/sloplock)
+or create `.github/workflows/sloplock.yml` by hand.
 
 ```yaml
 name: SlopLock

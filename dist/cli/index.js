@@ -9,15 +9,21 @@ import { renderMarkdown } from "../reporting/markdown.js";
 import { hasFailingFindings } from "../reporting/summary.js";
 import { renderText } from "../reporting/text.js";
 import { helpText, parseCliArgs } from "./args.js";
+import { renderInitOutcome, runInit } from "./init.js";
 async function main() {
     const args = parseCliArgs(process.argv.slice(2));
-    if (args.help) {
-        process.stdout.write(helpText());
-        return;
-    }
-    if (args.version) {
-        process.stdout.write(`${await packageVersion()}\n`);
-        return;
+    switch (args.command) {
+        case "help":
+            process.stdout.write(helpText());
+            return;
+        case "version":
+            process.stdout.write(`${await packageVersion()}\n`);
+            return;
+        case "init":
+            process.stdout.write(renderInitOutcome(await runInit(args.path)));
+            return;
+        case "scan":
+            break;
     }
     const result = await scan({
         rootDir: args.path,

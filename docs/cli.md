@@ -28,6 +28,17 @@ Emit JSON:
 npx --yes sloplock@latest . --format json
 ```
 
+## Initialize A Repository
+
+```bash
+npx --yes sloplock@latest init [dir]
+```
+
+Writes `.github/workflows/sloplock.yml` and `sloplock.yml` into `dir`
+(default: the current directory). Existing files are kept untouched, so the
+command is safe to run more than once. It also lists top-level dependency
+manifests it noticed, as a hint for which ecosystems to keep in the config.
+
 ## Options
 
 ```text
