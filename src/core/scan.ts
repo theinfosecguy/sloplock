@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { loadConfig } from "../config/load-config.js";
 import {
@@ -7,6 +8,7 @@ import {
 import { parseChangedDependencyReferences } from "../discovery/git.js";
 import { filterNugetReferencesBySourcePolicy } from "../discovery/nuget-config.js";
 import { DefaultRegistryClient } from "../registries/index.js";
+import { UsageError } from "./errors.js";
 import {
   goPrivatePatternsFromEnvironment,
   matchesGoPrivateModulePattern,
@@ -30,7 +32,7 @@ import type {
 const defaultRegistryConcurrency = 8;
 
 export async function scan(options: ScanOptions): Promise<ScanResult> {
-  const rootDir = path.resolve(options.rootDir);
+  const rootDir = await resolveScanRoot(options.rootDir);
   const now = options.now ?? new Date();
   const loadedConfig = await loadConfig({
     rootDir,
@@ -94,6 +96,22 @@ export async function scan(options: ScanOptions): Promise<ScanResult> {
     scannedDependencies: bestReferences.length,
     failOn: loadedConfig.config.failOn
   };
+}
+
+async function resolveScanRoot(rootDir: string): Promise<string> {
+  const resolved = path.resolve(rootDir);
+
+  try {
+    if ((await stat(resolved)).isDirectory()) {
+      return resolved;
+    }
+  } catch {
+    // Reported below alongside the non-directory case.
+  }
+
+  throw new UsageError(
+    `Scan path '${rootDir}' does not exist or is not a readable directory.`
+  );
 }
 
 async function evaluateReference(input: {

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
+import { UsageError } from "../src/core/errors.js";
 import { scan } from "../src/core/scan.js";
 import type { Ecosystem, RegistryClient, RegistryResult } from "../src/core/types.js";
 
@@ -2080,6 +2081,19 @@ version = "1.0.0"
     await expect(scan({ rootDir })).rejects.toThrow(
       "Config cooldown.highDays (365) must be <= cooldown.mediumDays (30)."
     );
+  });
+
+  it("rejects a scan path that is not a readable directory", async () => {
+    const rootDir = await tempProject({ "package.json": "{}" });
+    const missingPath = path.join(rootDir, "does-not-exist");
+
+    await expect(scan({ rootDir: missingPath })).rejects.toThrow(UsageError);
+    await expect(scan({ rootDir: missingPath })).rejects.toThrow(
+      `Scan path '${missingPath}' does not exist or is not a readable directory.`
+    );
+    await expect(
+      scan({ rootDir: path.join(rootDir, "package.json") })
+    ).rejects.toThrow(UsageError);
   });
 });
 
