@@ -203,7 +203,7 @@ ignore:
     expires: 2026-12-31
 ```
 
-In CI, SlopLock warns when `allow` or `ignore` entries do not include `expires`.
+SlopLock warns when `allow` or `ignore` entries do not include `expires`.
 
 ## Output
 

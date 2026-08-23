@@ -138,5 +138,4 @@ export type ScanOptions = {
   registryConcurrency?: number;
   registryClient?: RegistryClient;
   now?: Date;
-  isCi?: boolean;
 };

@@ -2119,6 +2119,31 @@ version = "1.0.0"
       hint: "Pass --base, fetch git history with actions/checkout fetch-depth: 0, or run a full scan."
     });
   });
+
+  it("warns about allow and ignore entries without an expires date", async () => {
+    const rootDir = await tempProject({
+      "package.json": JSON.stringify({
+        dependencies: { "missing-package": "^1.0.0" }
+      }),
+      "sloplock.yml": `
+allow:
+  - ecosystem: npm
+    package: missing-package
+    reason: verified fixture
+`
+    });
+    const result = await scan({
+      rootDir,
+      registryClient: fakeRegistry({})
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        file: "sloplock.yml",
+        message: "Allow or ignore entry for missing-package should include an expires date."
+      }
+    ]);
+  });
 });
 
 async function tempProject(files: Record<string, string>): Promise<string> {

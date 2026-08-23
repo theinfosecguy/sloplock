@@ -96,7 +96,7 @@ function scanResult(overrides: Partial<ScanResult> = {}): ScanResult {
     warnings: [
       {
         file: "sloplock.yml",
-        message: "Allow entry should include an expires date in CI."
+        message: "Allow entry should include an expires date."
       }
     ],
     registryFailures: [
