@@ -38,8 +38,7 @@ export async function scan(options: ScanOptions): Promise<ScanResult> {
     rootDir,
     ...(options.configPath === undefined ? {} : { configPath: options.configPath }),
     ...(options.failOn === undefined ? {} : { failOn: options.failOn }),
-    now,
-    ...(options.isCi === undefined ? {} : { isCi: options.isCi })
+    now
   });
   const parsed = await parseReferences({
     rootDir,

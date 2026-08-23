@@ -43,7 +43,6 @@ type LoadConfigOptions = {
   configPath?: string;
   failOn?: "medium" | "high";
   now: Date;
-  isCi?: boolean;
 };
 
 type LoadedConfig = {
@@ -83,14 +82,12 @@ export async function loadConfig(
     options.now
   );
 
-  if (options.isCi === true) {
-    for (const rule of [...filteredAllow, ...filteredIgnore]) {
-      if (rule.expires === undefined) {
-        warnings.push({
-          file: configFile,
-          message: `Allow or ignore entry for ${rule.package} should include an expires date in CI.`
-        });
-      }
+  for (const rule of [...filteredAllow, ...filteredIgnore]) {
+    if (rule.expires === undefined) {
+      warnings.push({
+        file: configFile,
+        message: `Allow or ignore entry for ${rule.package} should include an expires date.`
+      });
     }
   }
 
