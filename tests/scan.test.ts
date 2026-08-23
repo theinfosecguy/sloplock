@@ -2050,6 +2050,37 @@ version = "1.0.0"
       "delta-package"
     ]);
   });
+
+  it("defaults the omitted cooldown key instead of rejecting the config", async () => {
+    const rootDir = await tempProject({
+      "package.json": JSON.stringify({
+        dependencies: { "fresh-package": "^1.0.0" }
+      }),
+      "sloplock.yml": "cooldown:\n  mediumDays: 90\n"
+    });
+    const result = await scan({
+      rootDir,
+      now: new Date("2026-06-24T00:00:00.000Z"),
+      registryClient: fakeRegistry({
+        "fresh-package": found("fresh-package", "2026-05-01T00:00:00.000Z")
+      })
+    });
+
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]?.severity).toBe("medium");
+    expect(result.findings[0]?.evidence).toContain("Cooldown policy is 90 days.");
+  });
+
+  it("rejects a cooldown window whose high days exceed its medium days", async () => {
+    const rootDir = await tempProject({
+      "package.json": JSON.stringify({ dependencies: {} }),
+      "sloplock.yml": "cooldown:\n  highDays: 365\n"
+    });
+
+    await expect(scan({ rootDir })).rejects.toThrow(
+      "Config cooldown.highDays (365) must be <= cooldown.mediumDays (30)."
+    );
+  });
 });
 
 async function tempProject(files: Record<string, string>): Promise<string> {

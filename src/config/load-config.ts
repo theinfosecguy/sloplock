@@ -163,11 +163,21 @@ function parseCooldown(input: unknown): SlopLockConfig["cooldown"] {
     throw new UsageError("Config cooldown must contain highDays and mediumDays.");
   }
 
-  const highDays = parsePositiveInteger(input.highDays, "cooldown.highDays");
-  const mediumDays = parsePositiveInteger(input.mediumDays, "cooldown.mediumDays");
+  const highDays = parsePositiveInteger(
+    input.highDays,
+    "cooldown.highDays",
+    defaultConfig.cooldown.highDays
+  );
+  const mediumDays = parsePositiveInteger(
+    input.mediumDays,
+    "cooldown.mediumDays",
+    defaultConfig.cooldown.mediumDays
+  );
 
   if (highDays > mediumDays) {
-    throw new UsageError("Config cooldown.highDays must be <= cooldown.mediumDays.");
+    throw new UsageError(
+      `Config cooldown.highDays (${highDays}) must be <= cooldown.mediumDays (${mediumDays}).`
+    );
   }
 
   return { highDays, mediumDays };
@@ -356,7 +366,15 @@ function parseOptionalDate(input: unknown, field: string): Date | undefined {
   return date;
 }
 
-function parsePositiveInteger(input: unknown, field: string): number {
+function parsePositiveInteger(
+  input: unknown,
+  field: string,
+  defaultValue: number
+): number {
+  if (input === undefined) {
+    return defaultValue;
+  }
+
   if (!Number.isInteger(input) || typeof input !== "number" || input < 0) {
     throw new UsageError(`Config ${field} must be a non-negative integer.`);
   }
