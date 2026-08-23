@@ -2095,6 +2095,30 @@ version = "1.0.0"
       scan({ rootDir: path.join(rootDir, "package.json") })
     ).rejects.toThrow(UsageError);
   });
+
+  it("reports an unresolvable changed-only base ref as a machine-readable usage error", async () => {
+    const rootDir = await tempProject({
+      "package.json": JSON.stringify({
+        dependencies: { "missing-package": "^1.0.0" }
+      })
+    });
+    await initGitRepository(rootDir);
+
+    const error = await scan({
+      rootDir,
+      changedOnly: true,
+      baseRef: "does-not-exist",
+      registryClient: fakeRegistry({})
+    }).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(UsageError);
+    expect(error).toMatchObject({
+      code: "cannot_compute_diff",
+      exitCode: 2,
+      message: "Unable to compute changed files against does-not-exist.",
+      hint: "Pass --base, fetch git history with actions/checkout fetch-depth: 0, or run a full scan."
+    });
+  });
 });
 
 async function tempProject(files: Record<string, string>): Promise<string> {

@@ -1,13 +1,23 @@
 import type { Finding, ScanResult } from "../core/types.js";
 import { summarizeFindings } from "./summary.js";
 
+const schemaVersion = "1.0";
+
 export function renderJson(result: ScanResult): string {
   return `${JSON.stringify(toJsonReport(result), null, 2)}\n`;
 }
 
+export function renderJsonError(error: {
+  code: string;
+  message: string;
+  hint?: string;
+}): string {
+  return `${JSON.stringify({ schemaVersion, error }, null, 2)}\n`;
+}
+
 function toJsonReport(result: ScanResult): unknown {
   return {
-    schemaVersion: "1.0",
+    schemaVersion,
     summary: {
       ...summarizeFindings(result.findings),
       scannedDependencies: result.scannedDependencies,

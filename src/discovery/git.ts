@@ -180,9 +180,10 @@ async function getChangedSupportedFiles(
       return [];
     }
 
-    throw new UsageError(
-      `Unable to compute changed files against ${baseRef}. Pass --base, fetch git history with actions/checkout fetch-depth: 0, or run a full scan.`
-    );
+    throw new UsageError(`Unable to compute changed files against ${baseRef}.`, {
+      code: "cannot_compute_diff",
+      hint: "Pass --base, fetch git history with actions/checkout fetch-depth: 0, or run a full scan."
+    });
   }
 }
 
