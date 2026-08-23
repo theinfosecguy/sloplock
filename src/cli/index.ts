@@ -4,7 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { RegistryFailureError, SlopLockError } from "../core/errors.js";
 import { scan } from "../core/scan.js";
-import { renderJson } from "../reporting/json.js";
+import type { ScanResult } from "../core/types.js";
+import { renderJson, renderJsonError } from "../reporting/json.js";
 import { renderMarkdown } from "../reporting/markdown.js";
 import { hasFailingFindings } from "../reporting/summary.js";
 import { renderText } from "../reporting/text.js";
@@ -23,16 +24,24 @@ async function main(): Promise<void> {
     return;
   }
 
-  const result = await scan({
-    rootDir: args.path,
-    changedOnly: args.changedOnly,
-    failClosed: args.failClosed,
-    isCi: process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true",
-    ...(args.base === undefined ? {} : { baseRef: args.base }),
-    ...(args.config === undefined ? {} : { configPath: args.config }),
-    ...(args.ecosystem === undefined ? {} : { ecosystems: [args.ecosystem] }),
-    ...(args.failOn === undefined ? {} : { failOn: args.failOn })
-  });
+  let result: ScanResult;
+  try {
+    result = await scan({
+      rootDir: args.path,
+      changedOnly: args.changedOnly,
+      failClosed: args.failClosed,
+      isCi: process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true",
+      ...(args.base === undefined ? {} : { baseRef: args.base }),
+      ...(args.config === undefined ? {} : { configPath: args.config }),
+      ...(args.ecosystem === undefined ? {} : { ecosystems: [args.ecosystem] }),
+      ...(args.failOn === undefined ? {} : { failOn: args.failOn })
+    });
+  } catch (error) {
+    // Rendered here rather than by the top-level handler so that a JSON error
+    // document is only ever written in place of a report, never after one.
+    writeError(args.format, error);
+    return;
+  }
 
   const output = renderResult(args.format, result);
   process.stdout.write(output);
@@ -49,10 +58,7 @@ async function main(): Promise<void> {
   }
 }
 
-function renderResult(
-  format: OutputFormat,
-  result: Awaited<ReturnType<typeof scan>>
-): string {
+function renderResult(format: OutputFormat, result: ScanResult): string {
   switch (format) {
     case "json":
       return renderJson(result);
@@ -61,6 +67,25 @@ function renderResult(
     case "text":
       return renderText(result);
   }
+}
+
+function writeError(format: OutputFormat, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const hint = error instanceof SlopLockError ? error.hint : undefined;
+
+  if (format === "json") {
+    process.stdout.write(
+      renderJsonError({
+        code: error instanceof SlopLockError ? error.code : "internal_error",
+        message,
+        ...(hint === undefined ? {} : { hint })
+      })
+    );
+  } else {
+    process.stderr.write(`${hint === undefined ? message : `${message} ${hint}`}\n`);
+  }
+
+  process.exitCode = error instanceof SlopLockError ? error.exitCode : 2;
 }
 
 async function packageVersion(): Promise<string> {
@@ -78,14 +103,5 @@ async function packageVersion(): Promise<string> {
 try {
   await main();
 } catch (error) {
-  if (error instanceof SlopLockError) {
-    process.stderr.write(`${error.message}\n`);
-    process.exitCode = error.exitCode;
-  } else if (error instanceof Error) {
-    process.stderr.write(`${error.message}\n`);
-    process.exitCode = 2;
-  } else {
-    process.stderr.write(`${String(error)}\n`);
-    process.exitCode = 2;
-  }
+  writeError("text", error);
 }
