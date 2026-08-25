@@ -134,7 +134,6 @@ export type ScanOptions = {
   ecosystems?: readonly Ecosystem[];
   configPath?: string;
   failOn?: Exclude<Severity, "low">;
-  failClosed?: boolean;
   registryConcurrency?: number;
   registryClient?: RegistryClient;
   now?: Date;
