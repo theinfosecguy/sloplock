@@ -9,6 +9,5 @@
   "homepage": "https://github.com/theinfosecguy/sloplock",
   "repository": "https://github.com/theinfosecguy/sloplock",
   "license": "MIT",
-  "keywords": ["security", "supply-chain", "dependencies", "slopsquatting"],
-  "hooks": "./hooks/hooks.json"
+  "keywords": ["security", "supply-chain", "dependencies", "slopsquatting"]
 }

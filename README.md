@@ -11,6 +11,7 @@ AI coding agents suggest package names that do not exist. Attackers register tho
 - [Use It](#use-it)
   - [In CI](#in-ci)
   - [Locally And In Your Agent's Loop](#locally-and-in-your-agents-loop)
+  - [Before An Agent Installs](#before-an-agent-installs)
   - [As A Library](#as-a-library)
 - [What A Finding Looks Like](#what-a-finding-looks-like)
 - [What It Checks](#what-it-checks)
@@ -67,6 +68,25 @@ an allow entry for a package you did not verify by hand.
 ```
 
 The full option list is in [`docs/cli.md`](docs/cli.md).
+
+### Before An Agent Installs
+
+Install the SlopLock plugin to check package-install commands before anything is
+downloaded or executed. From inside Claude Code:
+
+```text
+/plugin marketplace add theinfosecguy/sloplock
+/plugin install sloplock@sloplock
+```
+
+Nonexistent or too-new public packages are denied or sent to you for
+confirmation. Private registries, local paths, git sources, and other
+non-public package sources are skipped. The plugin uses the committed bundle,
+so it starts without downloading the npm package. Node.js 22 or newer is
+required.
+
+See the [hook guide](docs/hook.md) for recognized commands, decision behavior,
+configuration, and known limitations.
 
 ### As A Library
 

@@ -18,6 +18,7 @@ should optimize for `theinfosecguy/sloplock@v2`.
    npm test
    npm run build
    npm run check:dist-current
+   claude plugin validate . --strict
    npm run smoke:ecosystems
    npm run pack:dry-run
    npm run smoke:package
@@ -26,7 +27,9 @@ should optimize for `theinfosecguy/sloplock@v2`.
    test -z "$(find . -maxdepth 1 -name '*.tgz' -print)"
    ```
 
-4. Verify `package.json`, `package-lock.json`, and `src/core/version.ts` use the release version.
+4. Verify `package.json`, `package-lock.json`, `src/core/version.ts`, and
+   `.claude-plugin/plugin.json` use the release version. If the marketplace
+   entry declares a version, verify that it matches too.
 
 ## Tagging
 
@@ -65,6 +68,26 @@ the root `action.yml` metadata file.
    only failed because the package version already exists, create or update the
    GitHub release from the matching `docs/releases/` notes without republishing
    npm.
+
+## Plugin Marketplace
+
+For releases that change the bundled install hook:
+
+1. Confirm `.claude-plugin/marketplace.json`, `.claude-plugin/plugin.json`,
+   `hooks/hooks.json`, and `dist/hook/index.cjs` are present on the release tag.
+2. Run `claude plugin validate . --strict` from the repository root.
+3. Add the marketplace and install the plugin from a clean temporary
+   configuration:
+
+   ```text
+   /plugin marketplace add theinfosecguy/sloplock
+   /plugin install sloplock@sloplock
+   ```
+
+4. Confirm an ordinary shell command is unaffected, a known public package is
+   checked, and a deliberately nonexistent package is denied before execution.
+5. Confirm the README and `docs/hook.md` installation commands match the
+   marketplace and plugin names.
 
 Official references:
 

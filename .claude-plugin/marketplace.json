@@ -1,0 +1,16 @@
+{
+  "name": "sloplock",
+  "description": "Dependency guards for agent-driven development workflows.",
+  "owner": {
+    "name": "theinfosecguy"
+  },
+  "plugins": [
+    {
+      "name": "sloplock",
+      "source": "./",
+      "description": "Checks package-install commands against public registries before they run.",
+      "version": "2.1.0",
+      "strict": true
+    }
+  ]
+}
