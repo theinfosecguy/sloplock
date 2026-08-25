@@ -4,13 +4,13 @@ import { promisify } from "node:util";
 import { UsageError } from "../core/errors.js";
 import { isSupportedDependencyFile, parseDependencyFile } from "../parsers/index.js";
 import { toPosixPath } from "../parsers/common.js";
-import { discoverDependencyFiles, parseWorkspaceFiles } from "./find-files.js";
+import { discoverDependencyFiles, isIgnoredPath, parseWorkspaceFiles } from "./find-files.js";
 const execFileAsync = promisify(execFile);
 export async function parseChangedDependencyReferences(input) {
-    const baseRef = input.baseRef ?? "origin/main";
     if (!(await isGitRepository(input.rootDir))) {
         throw new UsageError("--changed-only requires a git repository.");
     }
+    const baseRef = input.baseRef ?? (await getDefaultBaseRef(input.rootDir));
     const mergeBase = await getMergeBase(input.rootDir, baseRef);
     const changedFiles = await getChangedSupportedFiles(input.rootDir, mergeBase);
     if (changedFiles.length === 0) {
@@ -102,6 +102,15 @@ async function isGitRepository(rootDir) {
         return false;
     }
 }
+async function getDefaultBaseRef(rootDir) {
+    try {
+        const ref = await execGit(rootDir, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]);
+        return ref.trim() || "origin/main";
+    }
+    catch {
+        return "origin/main";
+    }
+}
 async function getMergeBase(rootDir, baseRef) {
     try {
         const output = await execGit(rootDir, ["merge-base", baseRef, "HEAD"]);
@@ -122,7 +131,7 @@ async function getChangedSupportedFiles(rootDir, baseRef) {
         return output
             .split(/\r?\n/u)
             .map((file) => file.trim())
-            .filter((file) => file.length > 0 && isSupportedDependencyFile(file))
+            .filter((file) => file.length > 0 && !isIgnoredPath(file) && isSupportedDependencyFile(file))
             .sort();
     }
     catch {
@@ -130,7 +139,10 @@ async function getChangedSupportedFiles(rootDir, baseRef) {
         if (files.length === 0) {
             return [];
         }
-        throw new UsageError(`Unable to compute changed files against ${baseRef}. Pass --base, fetch git history with actions/checkout fetch-depth: 0, or run a full scan.`);
+        throw new UsageError(`Unable to compute changed files against ${baseRef}.`, {
+            code: "cannot_compute_diff",
+            hint: "Pass --base, fetch git history with actions/checkout fetch-depth: 0, or run a full scan."
+        });
     }
 }
 async function readGitFile(rootDir, ref, file) {

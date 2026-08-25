@@ -8,8 +8,29 @@ const ignoredDirectories = new Set([
     "dist",
     "coverage",
     ".next",
-    ".turbo"
+    ".turbo",
+    ".venv",
+    "venv",
+    "site-packages",
+    "__pycache__",
+    ".tox",
+    ".nox",
+    "vendor",
+    "target",
+    "build",
+    "out",
+    ".gradle",
+    "bin",
+    "obj",
+    ".yarn",
+    ".pnpm-store",
+    "bower_components"
 ]);
+export function isIgnoredPath(relativePosixPath) {
+    return relativePosixPath
+        .split("/")
+        .some((segment) => ignoredDirectories.has(segment));
+}
 export async function discoverDependencyFiles(rootDir) {
     const files = [];
     await walk(rootDir, rootDir, files);
@@ -82,17 +103,17 @@ function resolveIncludedFile(input) {
 async function walk(rootDir, currentDir, files) {
     const entries = await readdir(currentDir, { withFileTypes: true });
     for (const entry of entries) {
+        const absolutePath = path.join(currentDir, entry.name);
+        const relativePath = toPosixPath(path.relative(rootDir, absolutePath));
         if (entry.isDirectory()) {
-            if (!ignoredDirectories.has(entry.name)) {
-                await walk(rootDir, path.join(currentDir, entry.name), files);
+            if (!isIgnoredPath(relativePath)) {
+                await walk(rootDir, absolutePath, files);
             }
             continue;
         }
         if (!entry.isFile()) {
             continue;
         }
-        const absolutePath = path.join(currentDir, entry.name);
-        const relativePath = toPosixPath(path.relative(rootDir, absolutePath));
         if (isSupportedDependencyFile(relativePath)) {
             files.push(relativePath);
         }

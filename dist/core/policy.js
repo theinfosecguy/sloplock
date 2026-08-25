@@ -1,17 +1,11 @@
 import { normalizePackageName, registryDisplayName } from "./packages.js";
 const millisecondsPerDay = 24 * 60 * 60 * 1000;
 export function buildPackageNotFoundFinding(reference) {
-    const source = reference.sourceLine === undefined
-        ? { file: reference.sourceFile }
-        : { file: reference.sourceFile, line: reference.sourceLine };
     return {
         rule: "package_not_found",
-        severity: reference.sourceKind === "docs" || reference.sourceKind === "shell"
-            ? "medium"
-            : "high",
+        severity: "high",
         ecosystem: reference.ecosystem,
         package: reference.name,
-        source,
         evidence: `Package does not exist in the ${registryDisplayName(reference.ecosystem)} registry.`,
         recommendation: "Verify the intended package name before installing or merging."
     };
@@ -33,18 +27,11 @@ export function buildPackageTooNewFinding(reference, registryPackage, config, no
     if (severity === undefined) {
         return undefined;
     }
-    const cappedSeverity = reference.sourceKind === "docs" || reference.sourceKind === "shell"
-        ? "medium"
-        : severity;
-    const source = reference.sourceLine === undefined
-        ? { file: reference.sourceFile }
-        : { file: reference.sourceFile, line: reference.sourceLine };
     return {
         rule: "package_too_new",
-        severity: cappedSeverity,
+        severity,
         ecosystem: reference.ecosystem,
         package: reference.name,
-        source,
         evidence: `Package was first published ${ageDays} days ago. Cooldown policy is ${config.cooldown.mediumDays} days.`,
         recommendation: "Wait for cooldown or add an explicit temporary allow rule."
     };

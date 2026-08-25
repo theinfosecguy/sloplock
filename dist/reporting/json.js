@@ -1,10 +1,14 @@
 import { summarizeFindings } from "./summary.js";
+const schemaVersion = "1.0";
 export function renderJson(result) {
     return `${JSON.stringify(toJsonReport(result), null, 2)}\n`;
 }
+export function renderJsonError(error) {
+    return `${JSON.stringify({ schemaVersion, error }, null, 2)}\n`;
+}
 function toJsonReport(result) {
     return {
-        schemaVersion: "1.0",
+        schemaVersion,
         summary: {
             ...summarizeFindings(result.findings),
             scannedDependencies: result.scannedDependencies,
