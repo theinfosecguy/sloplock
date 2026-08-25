@@ -214,6 +214,20 @@ rule, severity, ecosystem, package, source, evidence, and recommendation fields.
 
 For local reproduction outside GitHub Actions, see [`docs/cli.md`](docs/cli.md).
 
+### Library
+
+Check package names directly from Node.js without a checkout:
+
+```ts
+import { checkPackages } from "sloplock";
+
+const { findings, results } = await checkPackages({
+  packages: [{ ecosystem: "npm", name: "react-codeshift" }]
+});
+```
+
+`checkPackages` reads `sloplock.yml` from `rootDir` (default `.`) for cooldown and allow rules. `scan()` is also exported for directory scans.
+
 ## Development
 
 ```bash

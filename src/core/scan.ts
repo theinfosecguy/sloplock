@@ -14,19 +14,26 @@ import {
   matchesGoPrivateModulePattern,
   splitGoPrivatePatternList
 } from "./go.js";
+import { normalizePackageName } from "./packages.js";
 import {
   applySuppressions,
   buildPackageNotFoundFinding,
-  buildPackageTooNewFinding
+  buildPackageTooNewFinding,
+  type UnsourcedFinding
 } from "./policy.js";
 import type {
+  CheckPackagesOptions,
+  CheckPackagesResult,
   ConfigWarning,
   DependencyReference,
   Finding,
+  PackageCheckFinding,
   RegistryClient,
   RegistryPackageFailure,
+  RegistryResult,
   ScanOptions,
-  ScanResult
+  ScanResult,
+  SlopLockConfig
 } from "./types.js";
 
 const defaultRegistryConcurrency = 8;
@@ -67,32 +74,85 @@ export async function scan(options: ScanOptions): Promise<ScanResult> {
         !isPrivateGoModuleReference(reference, goPrivatePatterns)
     )
   );
-  const registryClient = options.registryClient ?? new DefaultRegistryClient();
-  const findings: Finding[] = [];
-  const registryFailures: RegistryPackageFailure[] = [];
-  const registryEvaluations = await mapWithConcurrency(
-    bestReferences,
-    normalizedConcurrency(options.registryConcurrency),
-    async (reference) =>
-      evaluateReference({
-        reference,
-        registryClient,
-        now,
-        config: loadedConfig.config
-      })
-  );
-
-  for (const evaluation of registryEvaluations) {
-    findings.push(...evaluation.findings);
-    warnings.push(...evaluation.warnings);
-    registryFailures.push(...evaluation.registryFailures);
-  }
+  const evaluations = await evaluateReferences({
+    references: bestReferences,
+    options,
+    now,
+    config: loadedConfig.config
+  });
 
   return {
-    findings: applySuppressions(findings, loadedConfig.config),
-    warnings,
-    registryFailures,
+    findings: applySuppressions(
+      evaluations.flatMap(({ reference, findings }) =>
+        findings.map((finding) => ({
+          ...finding,
+          source: findingSource(reference.sourceFile, reference.sourceLine)
+        }))
+      ),
+      loadedConfig.config
+    ),
+    warnings: [...warnings, ...evaluations.flatMap((evaluation) => evaluation.warnings)],
+    registryFailures: evaluations.flatMap((evaluation) => evaluation.registryFailures),
     scannedDependencies: bestReferences.length,
+    failOn: loadedConfig.config.failOn
+  };
+}
+
+export async function checkPackages(
+  options: CheckPackagesOptions
+): Promise<CheckPackagesResult> {
+  const references = new Map<string, PackageCheckReference>();
+  for (const input of options.packages) {
+    const name = normalizePackageName(input.ecosystem, input.name);
+    if (name === undefined) {
+      throw new UsageError(
+        `Package '${input.name}' is not a valid ${input.ecosystem} package name.`
+      );
+    }
+
+    const reference: PackageCheckReference = {
+      ecosystem: input.ecosystem,
+      name,
+      ...(input.sourceFile === undefined
+        ? {}
+        : { source: findingSource(input.sourceFile, input.sourceLine) })
+    };
+    const key = referenceKey(reference);
+    if (!references.has(key)) {
+      references.set(key, reference);
+    }
+  }
+
+  const now = options.now ?? new Date();
+  const loadedConfig = await loadConfig({
+    rootDir: options.rootDir ?? ".",
+    ...(options.configPath === undefined ? {} : { configPath: options.configPath }),
+    ...(options.failOn === undefined ? {} : { failOn: options.failOn }),
+    now
+  });
+  const evaluations = await evaluateReferences({
+    references: [...references.values()],
+    options,
+    now,
+    config: loadedConfig.config
+  });
+
+  return {
+    results: evaluations.map((evaluation) => evaluation.result),
+    findings: applySuppressions(
+      evaluations.flatMap(({ reference, findings }) =>
+        findings.map(
+          (finding): PackageCheckFinding =>
+            reference.source === undefined ? finding : { ...finding, source: reference.source }
+        )
+      ),
+      loadedConfig.config
+    ),
+    warnings: [
+      ...loadedConfig.warnings,
+      ...evaluations.flatMap((evaluation) => evaluation.warnings)
+    ],
+    registryFailures: evaluations.flatMap((evaluation) => evaluation.registryFailures),
     failOn: loadedConfig.config.failOn
   };
 }
@@ -113,16 +173,52 @@ async function resolveScanRoot(rootDir: string): Promise<string> {
   );
 }
 
-async function evaluateReference(input: {
-  reference: DependencyReference;
-  registryClient: RegistryClient;
-  now: Date;
-  config: Parameters<typeof buildPackageTooNewFinding>[2];
-}): Promise<{
-  findings: Finding[];
+type EvaluatedReference = Pick<DependencyReference, "ecosystem" | "name" | "registrySource">;
+
+type PackageCheckReference = Pick<DependencyReference, "ecosystem" | "name"> & {
+  source?: Finding["source"];
+};
+
+type ReferenceEvaluation = {
+  result: RegistryResult;
+  findings: UnsourcedFinding[];
   warnings: ConfigWarning[];
   registryFailures: RegistryPackageFailure[];
-}> {
+};
+
+function evaluateReferences<Reference extends EvaluatedReference>(input: {
+  references: readonly Reference[];
+  options: Pick<ScanOptions, "registryClient" | "registryConcurrency">;
+  now: Date;
+  config: SlopLockConfig;
+}): Promise<Array<ReferenceEvaluation & { reference: Reference }>> {
+  const registryClient = input.options.registryClient ?? new DefaultRegistryClient();
+
+  return mapWithConcurrency(
+    input.references,
+    normalizedConcurrency(input.options.registryConcurrency),
+    async (reference) => ({
+      reference,
+      ...(await evaluateReference({
+        reference,
+        registryClient,
+        now: input.now,
+        config: input.config
+      }))
+    })
+  );
+}
+
+function findingSource(file: string, line: number | undefined): Finding["source"] {
+  return line === undefined ? { file } : { file, line };
+}
+
+async function evaluateReference(input: {
+  reference: EvaluatedReference;
+  registryClient: RegistryClient;
+  now: Date;
+  config: SlopLockConfig;
+}): Promise<ReferenceEvaluation> {
   const registryPackage = await input.registryClient.getPackage({
     ecosystem: input.reference.ecosystem,
     name: input.reference.name
@@ -146,6 +242,7 @@ async function evaluateReference(input: {
           : [];
 
       return {
+        result: registryPackage,
         findings: finding === undefined ? [] : [finding],
         warnings,
         registryFailures: []
@@ -158,6 +255,7 @@ async function evaluateReference(input: {
             ? "Gradle lockfiles do not record repository source"
             : "pom.xml declares custom repositories";
         return {
+          result: registryPackage,
           findings: [],
           warnings: [
             {
@@ -169,12 +267,14 @@ async function evaluateReference(input: {
       }
 
       return {
+        result: registryPackage,
         findings: [buildPackageNotFoundFinding(input.reference)],
         warnings: [],
         registryFailures: []
       };
     default:
       return {
+        result: registryPackage,
         findings: [],
         warnings: [
           {
@@ -239,7 +339,7 @@ function selectBestReferences(
   );
 }
 
-function referenceKey(reference: DependencyReference): string {
+function referenceKey(reference: Pick<DependencyReference, "ecosystem" | "name">): string {
   return `${reference.ecosystem}:${reference.name}`;
 }
 
@@ -256,7 +356,7 @@ function referenceScore(reference: DependencyReference): number {
   return sourceKindScore[reference.sourceKind] * 10 + registrySourceScore;
 }
 
-function isAmbiguousMavenSource(reference: DependencyReference): boolean {
+function isAmbiguousMavenSource(reference: EvaluatedReference): boolean {
   return (
     reference.ecosystem === "maven" &&
     (reference.registrySource === "ambiguous-custom-repository" ||

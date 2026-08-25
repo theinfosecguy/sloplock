@@ -1,35 +1,27 @@
 import { normalizePackageName, registryDisplayName } from "./packages.js";
 import type {
   AllowRule,
+  DependencyReference,
   Ecosystem,
   Finding,
   IgnoreRule,
   RegistryPackageFound,
   RuleId,
-  SourceKind,
   SlopLockConfig
 } from "./types.js";
 
 const millisecondsPerDay = 24 * 60 * 60 * 1000;
 
-export function buildPackageNotFoundFinding(reference: {
-  ecosystem: Ecosystem;
-  name: string;
-  sourceFile: string;
-  sourceLine?: number;
-  sourceKind: SourceKind;
-}): Finding {
-  const source =
-    reference.sourceLine === undefined
-      ? { file: reference.sourceFile }
-      : { file: reference.sourceFile, line: reference.sourceLine };
+type FindingReference = Pick<DependencyReference, "ecosystem" | "name">;
 
+export type UnsourcedFinding = Omit<Finding, "source">;
+
+export function buildPackageNotFoundFinding(reference: FindingReference): UnsourcedFinding {
   return {
     rule: "package_not_found",
     severity: "high",
     ecosystem: reference.ecosystem,
     package: reference.name,
-    source,
     evidence: `Package does not exist in the ${registryDisplayName(
       reference.ecosystem
     )} registry.`,
@@ -38,17 +30,11 @@ export function buildPackageNotFoundFinding(reference: {
 }
 
 export function buildPackageTooNewFinding(
-  reference: {
-    ecosystem: Ecosystem;
-    name: string;
-    sourceFile: string;
-    sourceLine?: number;
-    sourceKind: SourceKind;
-  },
+  reference: FindingReference,
   registryPackage: RegistryPackageFound,
   config: SlopLockConfig,
   now: Date
-): Finding | undefined {
+): UnsourcedFinding | undefined {
   if (registryPackage.firstPublishedAt === undefined) {
     return undefined;
   }
@@ -73,26 +59,19 @@ export function buildPackageTooNewFinding(
     return undefined;
   }
 
-  const source =
-    reference.sourceLine === undefined
-      ? { file: reference.sourceFile }
-      : { file: reference.sourceFile, line: reference.sourceLine };
-
   return {
     rule: "package_too_new",
     severity,
     ecosystem: reference.ecosystem,
     package: reference.name,
-    source,
     evidence: `Package was first published ${ageDays} days ago. Cooldown policy is ${config.cooldown.mediumDays} days.`,
     recommendation: "Wait for cooldown or add an explicit temporary allow rule."
   };
 }
 
-export function applySuppressions(
-  findings: readonly Finding[],
-  config: SlopLockConfig
-): Finding[] {
+export function applySuppressions<
+  T extends Pick<Finding, "ecosystem" | "package" | "rule">
+>(findings: readonly T[], config: SlopLockConfig): T[] {
   return findings.filter((finding) => {
     if (matchesAllow(finding.ecosystem, finding.package, config.allow)) {
       return false;
