@@ -1,21 +1,23 @@
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { loadConfig } from "../config/load-config.js";
 import { discoverDependencyFiles, parseWorkspaceFiles } from "../discovery/find-files.js";
 import { parseChangedDependencyReferences } from "../discovery/git.js";
 import { filterNugetReferencesBySourcePolicy } from "../discovery/nuget-config.js";
 import { DefaultRegistryClient } from "../registries/index.js";
+import { UsageError } from "./errors.js";
 import { goPrivatePatternsFromEnvironment, matchesGoPrivateModulePattern, splitGoPrivatePatternList } from "./go.js";
+import { normalizePackageName } from "./packages.js";
 import { applySuppressions, buildPackageNotFoundFinding, buildPackageTooNewFinding } from "./policy.js";
 const defaultRegistryConcurrency = 8;
 export async function scan(options) {
-    const rootDir = path.resolve(options.rootDir);
+    const rootDir = await resolveScanRoot(options.rootDir);
     const now = options.now ?? new Date();
     const loadedConfig = await loadConfig({
         rootDir,
         ...(options.configPath === undefined ? {} : { configPath: options.configPath }),
         ...(options.failOn === undefined ? {} : { failOn: options.failOn }),
-        now,
-        ...(options.isCi === undefined ? {} : { isCi: options.isCi })
+        now
     });
     const parsed = await parseReferences({
         rootDir,
@@ -39,27 +41,92 @@ export async function scan(options) {
     ];
     const bestReferences = selectBestReferences(sourceFiltered.references.filter((reference) => activeEcosystems.includes(reference.ecosystem) &&
         !isPrivateGoModuleReference(reference, goPrivatePatterns)));
-    const registryClient = options.registryClient ?? new DefaultRegistryClient();
-    const findings = [];
-    const registryFailures = [];
-    const registryEvaluations = await mapWithConcurrency(bestReferences, normalizedConcurrency(options.registryConcurrency), async (reference) => evaluateReference({
-        reference,
-        registryClient,
+    const evaluations = await evaluateReferences({
+        references: bestReferences,
+        options,
         now,
         config: loadedConfig.config
-    }));
-    for (const evaluation of registryEvaluations) {
-        findings.push(...evaluation.findings);
-        warnings.push(...evaluation.warnings);
-        registryFailures.push(...evaluation.registryFailures);
-    }
+    });
     return {
-        findings: applySuppressions(findings, loadedConfig.config),
-        warnings,
-        registryFailures,
+        findings: applySuppressions(evaluations.flatMap(({ reference, findings }) => findings.map((finding) => ({
+            ...finding,
+            source: findingSource(reference.sourceFile, reference.sourceLine)
+        }))), loadedConfig.config),
+        warnings: [...warnings, ...evaluations.flatMap((evaluation) => evaluation.warnings)],
+        registryFailures: evaluations.flatMap((evaluation) => evaluation.registryFailures),
         scannedDependencies: bestReferences.length,
         failOn: loadedConfig.config.failOn
     };
+}
+export async function checkPackages(options) {
+    const references = new Map();
+    for (const input of options.packages) {
+        const name = normalizePackageName(input.ecosystem, input.name);
+        if (name === undefined) {
+            throw new UsageError(`Package '${input.name}' is not a valid ${input.ecosystem} package name.`);
+        }
+        const reference = {
+            ecosystem: input.ecosystem,
+            name,
+            ...(input.sourceFile === undefined
+                ? {}
+                : { source: findingSource(input.sourceFile, input.sourceLine) })
+        };
+        const key = referenceKey(reference);
+        if (!references.has(key)) {
+            references.set(key, reference);
+        }
+    }
+    const now = options.now ?? new Date();
+    const loadedConfig = await loadConfig({
+        rootDir: options.rootDir ?? ".",
+        ...(options.configPath === undefined ? {} : { configPath: options.configPath }),
+        ...(options.failOn === undefined ? {} : { failOn: options.failOn }),
+        now
+    });
+    const evaluations = await evaluateReferences({
+        references: [...references.values()],
+        options,
+        now,
+        config: loadedConfig.config
+    });
+    return {
+        results: evaluations.map((evaluation) => evaluation.result),
+        findings: applySuppressions(evaluations.flatMap(({ reference, findings }) => findings.map((finding) => reference.source === undefined ? finding : { ...finding, source: reference.source })), loadedConfig.config),
+        warnings: [
+            ...loadedConfig.warnings,
+            ...evaluations.flatMap((evaluation) => evaluation.warnings)
+        ],
+        registryFailures: evaluations.flatMap((evaluation) => evaluation.registryFailures),
+        failOn: loadedConfig.config.failOn
+    };
+}
+async function resolveScanRoot(rootDir) {
+    const resolved = path.resolve(rootDir);
+    try {
+        if ((await stat(resolved)).isDirectory()) {
+            return resolved;
+        }
+    }
+    catch {
+        // Reported below alongside the non-directory case.
+    }
+    throw new UsageError(`Scan path '${rootDir}' does not exist or is not a readable directory.`);
+}
+function evaluateReferences(input) {
+    const registryClient = input.options.registryClient ?? new DefaultRegistryClient();
+    return mapWithConcurrency(input.references, normalizedConcurrency(input.options.registryConcurrency), async (reference) => ({
+        reference,
+        ...(await evaluateReference({
+            reference,
+            registryClient,
+            now: input.now,
+            config: input.config
+        }))
+    }));
+}
+function findingSource(file, line) {
+    return line === undefined ? { file } : { file, line };
 }
 async function evaluateReference(input) {
     const registryPackage = await input.registryClient.getPackage({
@@ -77,6 +144,7 @@ async function evaluateReference(input) {
                 ]
                 : [];
             return {
+                result: registryPackage,
                 findings: finding === undefined ? [] : [finding],
                 warnings,
                 registryFailures: []
@@ -88,6 +156,7 @@ async function evaluateReference(input) {
                     ? "Gradle lockfiles do not record repository source"
                     : "pom.xml declares custom repositories";
                 return {
+                    result: registryPackage,
                     findings: [],
                     warnings: [
                         {
@@ -98,12 +167,14 @@ async function evaluateReference(input) {
                 };
             }
             return {
+                result: registryPackage,
                 findings: [buildPackageNotFoundFinding(input.reference)],
                 warnings: [],
                 registryFailures: []
             };
         default:
             return {
+                result: registryPackage,
                 findings: [],
                 warnings: [
                     {
@@ -146,9 +217,7 @@ function referenceKey(reference) {
 function referenceScore(reference) {
     const sourceKindScore = {
         manifest: 0,
-        lockfile: reference.isDirect ? 1 : 2,
-        shell: 3,
-        docs: 4
+        lockfile: reference.isDirect ? 1 : 2
     };
     const registrySourceScore = isAmbiguousMavenSource(reference)
         ? 1

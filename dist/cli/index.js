@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { RegistryFailureError, SlopLockError } from "../core/errors.js";
 import { scan } from "../core/scan.js";
-import { renderJson } from "../reporting/json.js";
+import { sloplockVersion } from "../core/version.js";
+import { renderJson, renderJsonError } from "../reporting/json.js";
 import { renderMarkdown } from "../reporting/markdown.js";
 import { hasFailingFindings } from "../reporting/summary.js";
 import { renderText } from "../reporting/text.js";
@@ -16,19 +14,26 @@ async function main() {
         return;
     }
     if (args.version) {
-        process.stdout.write(`${await packageVersion()}\n`);
+        process.stdout.write(`${sloplockVersion}\n`);
         return;
     }
-    const result = await scan({
-        rootDir: args.path,
-        changedOnly: args.changedOnly,
-        failClosed: args.failClosed,
-        isCi: process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true",
-        ...(args.base === undefined ? {} : { baseRef: args.base }),
-        ...(args.config === undefined ? {} : { configPath: args.config }),
-        ...(args.ecosystem === undefined ? {} : { ecosystems: [args.ecosystem] }),
-        ...(args.failOn === undefined ? {} : { failOn: args.failOn })
-    });
+    let result;
+    try {
+        result = await scan({
+            rootDir: args.path,
+            changedOnly: args.changedOnly,
+            ...(args.base === undefined ? {} : { baseRef: args.base }),
+            ...(args.config === undefined ? {} : { configPath: args.config }),
+            ...(args.ecosystem === undefined ? {} : { ecosystems: [args.ecosystem] }),
+            ...(args.failOn === undefined ? {} : { failOn: args.failOn })
+        });
+    }
+    catch (error) {
+        // Rendered here rather than by the top-level handler so that a JSON error
+        // document is only ever written in place of a report, never after one.
+        writeError(args.format, error);
+        return;
+    }
     const output = renderResult(args.format, result);
     process.stdout.write(output);
     if (!output.endsWith("\n")) {
@@ -51,26 +56,25 @@ function renderResult(format, result) {
             return renderText(result);
     }
 }
-async function packageVersion() {
-    const packageJsonPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../package.json");
-    const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
-    return typeof packageJson.version === "string" ? packageJson.version : "0.0.0";
+function writeError(format, error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const hint = error instanceof SlopLockError ? error.hint : undefined;
+    if (format === "json") {
+        process.stdout.write(renderJsonError({
+            code: error instanceof SlopLockError ? error.code : "internal_error",
+            message,
+            ...(hint === undefined ? {} : { hint })
+        }));
+    }
+    else {
+        process.stderr.write(`${hint === undefined ? message : `${message} ${hint}`}\n`);
+    }
+    process.exitCode = error instanceof SlopLockError ? error.exitCode : 2;
 }
 try {
     await main();
 }
 catch (error) {
-    if (error instanceof SlopLockError) {
-        process.stderr.write(`${error.message}\n`);
-        process.exitCode = error.exitCode;
-    }
-    else if (error instanceof Error) {
-        process.stderr.write(`${error.message}\n`);
-        process.exitCode = 2;
-    }
-    else {
-        process.stderr.write(`${String(error)}\n`);
-        process.exitCode = 2;
-    }
+    writeError("text", error);
 }
 //# sourceMappingURL=index.js.map

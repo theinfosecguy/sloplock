@@ -1,3 +1,3 @@
-export declare const sloplockVersion = "1.0.3";
-export declare const sloplockUserAgent = "sloplock/1.0.3";
-export declare const sloplockRepositoryUserAgent = "sloplock/1.0.3 (https://github.com/theinfosecguy/sloplock)";
+export declare const sloplockVersion = "2.0.0";
+export declare const sloplockUserAgent = "sloplock/2.0.0";
+export declare const sloplockRepositoryUserAgent = "sloplock/2.0.0 (https://github.com/theinfosecguy/sloplock)";

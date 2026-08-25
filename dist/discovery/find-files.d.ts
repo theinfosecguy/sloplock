@@ -1,4 +1,5 @@
 import type { ConfigWarning, DependencyReference } from "../core/types.js";
+export declare function isIgnoredPath(relativePosixPath: string): boolean;
 export declare function discoverDependencyFiles(rootDir: string): Promise<string[]>;
 export declare function parseWorkspaceFiles(input: {
     rootDir: string;

@@ -4,7 +4,6 @@ type LoadConfigOptions = {
     configPath?: string;
     failOn?: "medium" | "high";
     now: Date;
-    isCi?: boolean;
 };
 type LoadedConfig = {
     config: SlopLockConfig;

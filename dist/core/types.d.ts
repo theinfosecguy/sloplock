@@ -1,8 +1,7 @@
 export type Ecosystem = "crates" | "go" | "maven" | "npm" | "nuget" | "packagist" | "pypi" | "rubygems";
 export type Severity = "low" | "medium" | "high";
 export type RuleId = "package_not_found" | "package_too_new";
-export type SourceKind = "manifest" | "lockfile" | "docs" | "shell";
-export type ScanMode = "full" | "changed-only";
+export type SourceKind = "manifest" | "lockfile";
 export type DependencyReference = {
     ecosystem: Ecosystem;
     name: string;
@@ -98,9 +97,32 @@ export type ScanOptions = {
     ecosystems?: readonly Ecosystem[];
     configPath?: string;
     failOn?: Exclude<Severity, "low">;
-    failClosed?: boolean;
     registryConcurrency?: number;
     registryClient?: RegistryClient;
     now?: Date;
-    isCi?: boolean;
+};
+export type PackageCheckInput = {
+    ecosystem: Ecosystem;
+    name: string;
+    sourceFile?: string;
+    sourceLine?: number;
+};
+export type PackageCheckFinding = Omit<Finding, "source"> & {
+    source?: Finding["source"];
+};
+export type CheckPackagesOptions = {
+    packages: readonly PackageCheckInput[];
+    rootDir?: string;
+    configPath?: string;
+    failOn?: Exclude<Severity, "low">;
+    registryConcurrency?: number;
+    registryClient?: RegistryClient;
+    now?: Date;
+};
+export type CheckPackagesResult = {
+    results: RegistryResult[];
+    findings: PackageCheckFinding[];
+    warnings: ConfigWarning[];
+    registryFailures: RegistryPackageFailure[];
+    failOn: Exclude<Severity, "low">;
 };

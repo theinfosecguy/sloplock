@@ -1925,7 +1925,11 @@ var require_request = __commonJS({
           } else if (typeof val[i] === "object") {
             throw new InvalidArgumentError(`invalid ${key} header`);
           } else {
-            arr.push(`${val[i]}`);
+            const str = `${val[i]}`;
+            if (!isValidHeaderValue(str)) {
+              throw new InvalidArgumentError(`invalid ${key} header`);
+            }
+            arr.push(str);
           }
         }
         val = arr;
@@ -1937,6 +1941,9 @@ var require_request = __commonJS({
         val = "";
       } else {
         val = `${val}`;
+        if (!isValidHeaderValue(val)) {
+          throw new InvalidArgumentError(`invalid ${key} header`);
+        }
       }
       if (headerName === "host") {
         if (request2.host !== null) {
@@ -5667,6 +5674,7 @@ var require_client_h1 = __commonJS({
       RequestContentLengthMismatchError,
       ResponseContentLengthMismatchError,
       RequestAbortedError,
+      InvalidArgumentError,
       HeadersTimeoutError,
       HeadersOverflowError,
       SocketError,
@@ -6393,8 +6401,16 @@ var require_client_h1 = __commonJS({
         }
         body = bodyStream.stream;
         contentLength = bodyStream.length;
-      } else if (util.isBlobLike(body) && request2.contentType == null && body.type) {
-        headers.push("content-type", body.type);
+      } else if (util.isBlobLike(body) && request2.contentType == null) {
+        const contentType = body.type;
+        if (contentType) {
+          const contentTypeValue = `${contentType}`;
+          if (!util.isValidHeaderValue(contentTypeValue)) {
+            util.errorRequest(client, request2, new InvalidArgumentError("invalid content-type header"));
+            return false;
+          }
+          headers.push("content-type", contentTypeValue);
+        }
       }
       if (body && typeof body.read === "function") {
         body.read(0);
@@ -8946,6 +8962,24 @@ var require_retry_handler = __commonJS({
       const current = Date.now();
       return new Date(retryAfter).getTime() - current;
     }
+    function validatePartialResponseContentLength(headers, range, statusCode, retryCount) {
+      const contentLength = headers["content-length"];
+      if (contentLength == null) {
+        return null;
+      }
+      if (!Number.isFinite(range.start) || !Number.isFinite(range.end)) {
+        return null;
+      }
+      const length = Number(contentLength);
+      const expectedLength = range.end - range.start + 1;
+      if (!Number.isFinite(length) || length !== expectedLength) {
+        return new RequestRetryError("Content-Length mismatch", statusCode, {
+          headers,
+          data: { count: retryCount }
+        });
+      }
+      return null;
+    }
     var RetryHandler = class _RetryHandler {
       constructor(opts, handlers) {
         const { retryOptions, ...dispatchOpts } = opts;
@@ -9118,6 +9152,11 @@ var require_retry_handler = __commonJS({
             );
             return false;
           }
+          const contentLengthError = validatePartialResponseContentLength(headers, contentRange, statusCode, this.retryCount);
+          if (contentLengthError != null) {
+            this.abort(contentLengthError);
+            return false;
+          }
           const { start, size, end = size - 1 } = contentRange;
           assert(this.start === start, "content-range mismatch");
           assert(this.end == null || this.end === end, "content-range mismatch");
@@ -9134,6 +9173,11 @@ var require_retry_handler = __commonJS({
                 resume,
                 statusMessage
               );
+            }
+            const contentLengthError = validatePartialResponseContentLength(headers, range, statusCode, this.retryCount);
+            if (contentLengthError != null) {
+              this.abort(contentLengthError);
+              return false;
             }
             const { start, size, end = size - 1 } = range;
             assert(
@@ -15980,14 +16024,48 @@ var require_util6 = __commonJS({
       for (let i = 0; i < path8.length; ++i) {
         const code = path8.charCodeAt(i);
         if (code < 32 || // exclude CTLs (0-31)
-        code === 127 || // DEL
+        code > 126 || // exclude DEL and non-ascii
         code === 59) {
           throw new Error("Invalid cookie path");
         }
       }
     }
+    function isLetterOrDigit(code) {
+      return code >= 48 && code <= 57 || // 0-9
+      code >= 65 && code <= 90 || // A-Z
+      code >= 97 && code <= 122;
+    }
     function validateCookieDomain(domain) {
-      if (domain.startsWith("-") || domain.endsWith(".") || domain.endsWith("-")) {
+      if (domain === " ") {
+        return;
+      }
+      if (domain.length > 255) {
+        throw new Error("Invalid cookie domain");
+      }
+      let labelLength = 0;
+      for (let i = 0; i < domain.length; ++i) {
+        const code = domain.charCodeAt(i);
+        if (code === 46) {
+          if (labelLength === 0) {
+            throw new Error("Invalid cookie domain");
+          }
+          if (domain.charCodeAt(i - 1) === 45) {
+            throw new Error("Invalid cookie domain");
+          }
+          labelLength = 0;
+          continue;
+        }
+        if (labelLength === 0 && !isLetterOrDigit(code)) {
+          throw new Error("Invalid cookie domain");
+        }
+        if (!isLetterOrDigit(code) && code !== 45) {
+          throw new Error("Invalid cookie domain");
+        }
+        if (++labelLength > 63) {
+          throw new Error("Invalid cookie domain");
+        }
+      }
+      if (labelLength === 0 || domain.charCodeAt(domain.length - 1) === 45) {
         throw new Error("Invalid cookie domain");
       }
     }
@@ -16070,7 +16148,11 @@ var require_util6 = __commonJS({
           throw new Error("Invalid unparsed");
         }
         const [key, ...value] = part.split("=");
-        out.push(`${key.trim()}=${value.join("=")}`);
+        const trimmedKey = key.trim();
+        const joinedValue = value.join("=");
+        validateCookieName(trimmedKey);
+        validateCookieValue(joinedValue);
+        out.push(`${trimmedKey}=${joinedValue}`);
       }
       return out.join("; ");
     }
@@ -33142,6 +33224,7 @@ function getOctokit(token, options, ...additionalPlugins) {
 }
 
 // src/core/scan.ts
+var import_promises4 = require("node:fs/promises");
 var import_node_path6 = __toESM(require("node:path"), 1);
 
 // src/config/load-config.ts
@@ -33152,15 +33235,19 @@ var import_yaml = __toESM(require_dist2(), 1);
 // src/core/errors.ts
 var SlopLockError = class extends Error {
   exitCode;
-  constructor(message, exitCode) {
+  code;
+  hint;
+  constructor(message, exitCode, code, hint) {
     super(message);
     this.name = "SlopLockError";
     this.exitCode = exitCode;
+    this.code = code;
+    this.hint = hint;
   }
 };
 var UsageError = class extends SlopLockError {
-  constructor(message) {
-    super(message, 2);
+  constructor(message, options = {}) {
+    super(message, 2, options.code ?? "usage_error", options.hint);
     this.name = "UsageError";
   }
 };
@@ -33563,14 +33650,12 @@ async function loadConfig(options) {
     configFile,
     options.now
   );
-  if (options.isCi === true) {
-    for (const rule of [...filteredAllow, ...filteredIgnore]) {
-      if (rule.expires === void 0) {
-        warnings.push({
-          file: configFile,
-          message: `Allow or ignore entry for ${rule.package} should include an expires date in CI.`
-        });
-      }
+  for (const rule of [...filteredAllow, ...filteredIgnore]) {
+    if (rule.expires === void 0) {
+      warnings.push({
+        file: configFile,
+        message: `Allow or ignore entry for ${rule.package} should include an expires date.`
+      });
     }
   }
   return {
@@ -33628,10 +33713,20 @@ function parseCooldown(input) {
   if (!isRecord(input)) {
     throw new UsageError("Config cooldown must contain highDays and mediumDays.");
   }
-  const highDays = parsePositiveInteger(input.highDays, "cooldown.highDays");
-  const mediumDays = parsePositiveInteger(input.mediumDays, "cooldown.mediumDays");
+  const highDays = parsePositiveInteger(
+    input.highDays,
+    "cooldown.highDays",
+    defaultConfig.cooldown.highDays
+  );
+  const mediumDays = parsePositiveInteger(
+    input.mediumDays,
+    "cooldown.mediumDays",
+    defaultConfig.cooldown.mediumDays
+  );
   if (highDays > mediumDays) {
-    throw new UsageError("Config cooldown.highDays must be <= cooldown.mediumDays.");
+    throw new UsageError(
+      `Config cooldown.highDays (${highDays}) must be <= cooldown.mediumDays (${mediumDays}).`
+    );
   }
   return { highDays, mediumDays };
 }
@@ -33764,7 +33859,10 @@ function parseOptionalDate(input, field) {
   }
   return date;
 }
-function parsePositiveInteger(input, field) {
+function parsePositiveInteger(input, field, defaultValue) {
+  if (input === void 0) {
+    return defaultValue;
+  }
   if (!Number.isInteger(input) || typeof input !== "number" || input < 0) {
     throw new UsageError(`Config ${field} must be a non-negative integer.`);
   }
@@ -36920,8 +37018,27 @@ var ignoredDirectories = /* @__PURE__ */ new Set([
   "dist",
   "coverage",
   ".next",
-  ".turbo"
+  ".turbo",
+  ".venv",
+  "venv",
+  "site-packages",
+  "__pycache__",
+  ".tox",
+  ".nox",
+  "vendor",
+  "target",
+  "build",
+  "out",
+  ".gradle",
+  "bin",
+  "obj",
+  ".yarn",
+  ".pnpm-store",
+  "bower_components"
 ]);
+function isIgnoredPath(relativePosixPath) {
+  return relativePosixPath.split("/").some((segment) => ignoredDirectories.has(segment));
+}
 async function discoverDependencyFiles(rootDir) {
   const files = [];
   await walk(rootDir, rootDir, files);
@@ -36993,17 +37110,17 @@ function resolveIncludedFile(input) {
 async function walk(rootDir, currentDir, files) {
   const entries = await (0, import_promises2.readdir)(currentDir, { withFileTypes: true });
   for (const entry of entries) {
+    const absolutePath = import_node_path3.default.join(currentDir, entry.name);
+    const relativePath = toPosixPath2(import_node_path3.default.relative(rootDir, absolutePath));
     if (entry.isDirectory()) {
-      if (!ignoredDirectories.has(entry.name)) {
-        await walk(rootDir, import_node_path3.default.join(currentDir, entry.name), files);
+      if (!isIgnoredPath(relativePath)) {
+        await walk(rootDir, absolutePath, files);
       }
       continue;
     }
     if (!entry.isFile()) {
       continue;
     }
-    const absolutePath = import_node_path3.default.join(currentDir, entry.name);
-    const relativePath = toPosixPath2(import_node_path3.default.relative(rootDir, absolutePath));
     if (isSupportedDependencyFile(relativePath)) {
       files.push(relativePath);
     }
@@ -37016,10 +37133,10 @@ var import_node_path4 = __toESM(require("node:path"), 1);
 var import_node_util = require("node:util");
 var execFileAsync = (0, import_node_util.promisify)(import_node_child_process.execFile);
 async function parseChangedDependencyReferences(input) {
-  const baseRef = input.baseRef ?? "origin/main";
   if (!await isGitRepository(input.rootDir)) {
     throw new UsageError("--changed-only requires a git repository.");
   }
+  const baseRef = input.baseRef ?? await getDefaultBaseRef(input.rootDir);
   const mergeBase = await getMergeBase(input.rootDir, baseRef);
   const changedFiles = await getChangedSupportedFiles(input.rootDir, mergeBase);
   if (changedFiles.length === 0) {
@@ -37110,6 +37227,14 @@ async function isGitRepository(rootDir) {
     return false;
   }
 }
+async function getDefaultBaseRef(rootDir) {
+  try {
+    const ref = await execGit(rootDir, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]);
+    return ref.trim() || "origin/main";
+  } catch {
+    return "origin/main";
+  }
+}
 async function getMergeBase(rootDir, baseRef) {
   try {
     const output = await execGit(rootDir, ["merge-base", baseRef, "HEAD"]);
@@ -37126,15 +37251,18 @@ async function getChangedSupportedFiles(rootDir, baseRef) {
       "--diff-filter=AMRT",
       `${baseRef}...HEAD`
     ]);
-    return output.split(/\r?\n/u).map((file) => file.trim()).filter((file) => file.length > 0 && isSupportedDependencyFile(file)).sort();
+    return output.split(/\r?\n/u).map((file) => file.trim()).filter(
+      (file) => file.length > 0 && !isIgnoredPath(file) && isSupportedDependencyFile(file)
+    ).sort();
   } catch {
     const files = await discoverDependencyFiles(rootDir);
     if (files.length === 0) {
       return [];
     }
-    throw new UsageError(
-      `Unable to compute changed files against ${baseRef}. Pass --base, fetch git history with actions/checkout fetch-depth: 0, or run a full scan.`
-    );
+    throw new UsageError(`Unable to compute changed files against ${baseRef}.`, {
+      code: "cannot_compute_diff",
+      hint: "Pass --base, fetch git history with actions/checkout fetch-depth: 0, or run a full scan."
+    });
   }
 }
 async function readGitFile(rootDir, ref, file) {
@@ -37362,7 +37490,7 @@ function nugetPatternMatches(pattern, packageName) {
 }
 
 // src/core/version.ts
-var sloplockVersion = "1.0.3";
+var sloplockVersion = "2.0.0";
 var sloplockUserAgent = `sloplock/${sloplockVersion}`;
 var sloplockRepositoryUserAgent = `${sloplockUserAgent} (https://github.com/theinfosecguy/sloplock)`;
 
@@ -39167,13 +39295,11 @@ var DefaultRegistryClient = class {
 // src/core/policy.ts
 var millisecondsPerDay = 24 * 60 * 60 * 1e3;
 function buildPackageNotFoundFinding(reference) {
-  const source = reference.sourceLine === void 0 ? { file: reference.sourceFile } : { file: reference.sourceFile, line: reference.sourceLine };
   return {
     rule: "package_not_found",
-    severity: reference.sourceKind === "docs" || reference.sourceKind === "shell" ? "medium" : "high",
+    severity: "high",
     ecosystem: reference.ecosystem,
     package: reference.name,
-    source,
     evidence: `Package does not exist in the ${registryDisplayName(
       reference.ecosystem
     )} registry.`,
@@ -39194,14 +39320,11 @@ function buildPackageTooNewFinding(reference, registryPackage, config, now) {
   if (severity === void 0) {
     return void 0;
   }
-  const cappedSeverity = reference.sourceKind === "docs" || reference.sourceKind === "shell" ? "medium" : severity;
-  const source = reference.sourceLine === void 0 ? { file: reference.sourceFile } : { file: reference.sourceFile, line: reference.sourceLine };
   return {
     rule: "package_too_new",
-    severity: cappedSeverity,
+    severity,
     ecosystem: reference.ecosystem,
     package: reference.name,
-    source,
     evidence: `Package was first published ${ageDays} days ago. Cooldown policy is ${config.cooldown.mediumDays} days.`,
     recommendation: "Wait for cooldown or add an explicit temporary allow rule."
   };
@@ -39235,14 +39358,13 @@ function matchesIgnore(ecosystem, packageName, ruleId, rules) {
 // src/core/scan.ts
 var defaultRegistryConcurrency = 8;
 async function scan(options) {
-  const rootDir = import_node_path6.default.resolve(options.rootDir);
+  const rootDir = await resolveScanRoot(options.rootDir);
   const now = options.now ?? /* @__PURE__ */ new Date();
   const loadedConfig = await loadConfig({
     rootDir,
     ...options.configPath === void 0 ? {} : { configPath: options.configPath },
     ...options.failOn === void 0 ? {} : { failOn: options.failOn },
-    now,
-    ...options.isCi === void 0 ? {} : { isCi: options.isCi }
+    now
   });
   const parsed = await parseReferences({
     rootDir,
@@ -39269,31 +39391,58 @@ async function scan(options) {
       (reference) => activeEcosystems.includes(reference.ecosystem) && !isPrivateGoModuleReference(reference, goPrivatePatterns)
     )
   );
-  const registryClient = options.registryClient ?? new DefaultRegistryClient();
-  const findings = [];
-  const registryFailures = [];
-  const registryEvaluations = await mapWithConcurrency(
-    bestReferences,
-    normalizedConcurrency(options.registryConcurrency),
-    async (reference) => evaluateReference({
-      reference,
-      registryClient,
-      now,
-      config: loadedConfig.config
-    })
-  );
-  for (const evaluation of registryEvaluations) {
-    findings.push(...evaluation.findings);
-    warnings.push(...evaluation.warnings);
-    registryFailures.push(...evaluation.registryFailures);
-  }
+  const evaluations = await evaluateReferences({
+    references: bestReferences,
+    options,
+    now,
+    config: loadedConfig.config
+  });
   return {
-    findings: applySuppressions(findings, loadedConfig.config),
-    warnings,
-    registryFailures,
+    findings: applySuppressions(
+      evaluations.flatMap(
+        ({ reference, findings }) => findings.map((finding) => ({
+          ...finding,
+          source: findingSource(reference.sourceFile, reference.sourceLine)
+        }))
+      ),
+      loadedConfig.config
+    ),
+    warnings: [...warnings, ...evaluations.flatMap((evaluation) => evaluation.warnings)],
+    registryFailures: evaluations.flatMap((evaluation) => evaluation.registryFailures),
     scannedDependencies: bestReferences.length,
     failOn: loadedConfig.config.failOn
   };
+}
+async function resolveScanRoot(rootDir) {
+  const resolved = import_node_path6.default.resolve(rootDir);
+  try {
+    if ((await (0, import_promises4.stat)(resolved)).isDirectory()) {
+      return resolved;
+    }
+  } catch {
+  }
+  throw new UsageError(
+    `Scan path '${rootDir}' does not exist or is not a readable directory.`
+  );
+}
+function evaluateReferences(input) {
+  const registryClient = input.options.registryClient ?? new DefaultRegistryClient();
+  return mapWithConcurrency(
+    input.references,
+    normalizedConcurrency(input.options.registryConcurrency),
+    async (reference) => ({
+      reference,
+      ...await evaluateReference({
+        reference,
+        registryClient,
+        now: input.now,
+        config: input.config
+      })
+    })
+  );
+}
+function findingSource(file, line) {
+  return line === void 0 ? { file } : { file, line };
 }
 async function evaluateReference(input) {
   const registryPackage = await input.registryClient.getPackage({
@@ -39314,6 +39463,7 @@ async function evaluateReference(input) {
         }
       ] : [];
       return {
+        result: registryPackage,
         findings: finding === void 0 ? [] : [finding],
         warnings,
         registryFailures: []
@@ -39323,6 +39473,7 @@ async function evaluateReference(input) {
       if (isAmbiguousMavenSource(input.reference)) {
         const reason = input.reference.registrySource === "ambiguous-lockfile-source" ? "Gradle lockfiles do not record repository source" : "pom.xml declares custom repositories";
         return {
+          result: registryPackage,
           findings: [],
           warnings: [
             {
@@ -39333,12 +39484,14 @@ async function evaluateReference(input) {
         };
       }
       return {
+        result: registryPackage,
         findings: [buildPackageNotFoundFinding(input.reference)],
         warnings: [],
         registryFailures: []
       };
     default:
       return {
+        result: registryPackage,
         findings: [],
         warnings: [
           {
@@ -39385,9 +39538,7 @@ function referenceKey2(reference) {
 function referenceScore(reference) {
   const sourceKindScore = {
     manifest: 0,
-    lockfile: reference.isDirect ? 1 : 2,
-    shell: 3,
-    docs: 4
+    lockfile: reference.isDirect ? 1 : 2
   };
   const registrySourceScore = isAmbiguousMavenSource(reference) ? 1 : 0;
   return sourceKindScore[reference.sourceKind] * 10 + registrySourceScore;
@@ -39833,8 +39984,6 @@ async function runScan(inputs) {
     rootDir,
     changedOnly: inputs.changedOnly,
     failOn: inputs.failOn,
-    failClosed: inputs.failClosed,
-    isCi: true,
     ...baseRef === void 0 ? {} : { baseRef },
     ...inputs.ecosystems === void 0 ? {} : { ecosystems: inputs.ecosystems },
     ...inputs.config === void 0 ? {} : { configPath: inputs.config }

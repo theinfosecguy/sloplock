@@ -44,14 +44,12 @@ export async function loadConfig(options) {
     const config = mergeConfig(configInput, options.failOn);
     const filteredAllow = filterExpiredAllowRules(config.allow, warnings, configFile, options.now);
     const filteredIgnore = filterExpiredIgnoreRules(config.ignore, warnings, configFile, options.now);
-    if (options.isCi === true) {
-        for (const rule of [...filteredAllow, ...filteredIgnore]) {
-            if (rule.expires === undefined) {
-                warnings.push({
-                    file: configFile,
-                    message: `Allow or ignore entry for ${rule.package} should include an expires date in CI.`
-                });
-            }
+    for (const rule of [...filteredAllow, ...filteredIgnore]) {
+        if (rule.expires === undefined) {
+            warnings.push({
+                file: configFile,
+                message: `Allow or ignore entry for ${rule.package} should include an expires date.`
+            });
         }
     }
     return {
@@ -110,10 +108,10 @@ function parseCooldown(input) {
     if (!isRecord(input)) {
         throw new UsageError("Config cooldown must contain highDays and mediumDays.");
     }
-    const highDays = parsePositiveInteger(input.highDays, "cooldown.highDays");
-    const mediumDays = parsePositiveInteger(input.mediumDays, "cooldown.mediumDays");
+    const highDays = parsePositiveInteger(input.highDays, "cooldown.highDays", defaultConfig.cooldown.highDays);
+    const mediumDays = parsePositiveInteger(input.mediumDays, "cooldown.mediumDays", defaultConfig.cooldown.mediumDays);
     if (highDays > mediumDays) {
-        throw new UsageError("Config cooldown.highDays must be <= cooldown.mediumDays.");
+        throw new UsageError(`Config cooldown.highDays (${highDays}) must be <= cooldown.mediumDays (${mediumDays}).`);
     }
     return { highDays, mediumDays };
 }
@@ -243,7 +241,10 @@ function parseOptionalDate(input, field) {
     }
     return date;
 }
-function parsePositiveInteger(input, field) {
+function parsePositiveInteger(input, field, defaultValue) {
+    if (input === undefined) {
+        return defaultValue;
+    }
     if (!Number.isInteger(input) || typeof input !== "number" || input < 0) {
         throw new UsageError(`Config ${field} must be a non-negative integer.`);
     }
