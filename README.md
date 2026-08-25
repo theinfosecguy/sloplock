@@ -117,7 +117,7 @@ needs `pull-requests: write`.
 | PHP | Packagist | `composer.json`, `composer.lock` |
 | Ruby | RubyGems.org | `Gemfile`, `Gemfile.lock` |
 
-SlopLock skips local, workspace, path, git, editable, alternate-registry, and private-source dependencies where the supported file format exposes that information. Go private modules can also be skipped with `GOPRIVATE`, `GONOPROXY`, or `go.privateModules` in config.
+SlopLock skips local, workspace, path, git, editable, alternate-registry, and private-source dependencies where the supported file format exposes that information. Go private modules can also be skipped with `GOPRIVATE`, `GONOPROXY`, or `go.privateModules` in config. Directories such as `node_modules`, `vendor`, `.venv`, `target`, and `build` are skipped during file discovery.
 
 For NuGet, `NuGet.config` package source mappings are used to keep packages
 mapped only to private sources out of NuGet.org checks. If a private NuGet feed
