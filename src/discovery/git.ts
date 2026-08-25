@@ -5,7 +5,11 @@ import { UsageError } from "../core/errors.js";
 import type { ConfigWarning, DependencyReference } from "../core/types.js";
 import { isSupportedDependencyFile, parseDependencyFile } from "../parsers/index.js";
 import { toPosixPath } from "../parsers/common.js";
-import { discoverDependencyFiles, parseWorkspaceFiles } from "./find-files.js";
+import {
+  discoverDependencyFiles,
+  isIgnoredPath,
+  parseWorkspaceFiles
+} from "./find-files.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -172,7 +176,10 @@ async function getChangedSupportedFiles(
     return output
       .split(/\r?\n/u)
       .map((file) => file.trim())
-      .filter((file) => file.length > 0 && isSupportedDependencyFile(file))
+      .filter(
+        (file) =>
+          file.length > 0 && !isIgnoredPath(file) && isSupportedDependencyFile(file)
+      )
       .sort();
   } catch {
     const files = await discoverDependencyFiles(rootDir);
