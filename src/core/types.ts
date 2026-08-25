@@ -12,9 +12,7 @@ export type Severity = "low" | "medium" | "high";
 
 export type RuleId = "package_not_found" | "package_too_new";
 
-export type SourceKind = "manifest" | "lockfile" | "docs" | "shell";
-
-export type ScanMode = "full" | "changed-only";
+export type SourceKind = "manifest" | "lockfile";
 
 export type DependencyReference = {
   ecosystem: Ecosystem;

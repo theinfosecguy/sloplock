@@ -26,10 +26,7 @@ export function buildPackageNotFoundFinding(reference: {
 
   return {
     rule: "package_not_found",
-    severity:
-      reference.sourceKind === "docs" || reference.sourceKind === "shell"
-        ? "medium"
-        : "high",
+    severity: "high",
     ecosystem: reference.ecosystem,
     package: reference.name,
     source,
@@ -76,11 +73,6 @@ export function buildPackageTooNewFinding(
     return undefined;
   }
 
-  const cappedSeverity =
-    reference.sourceKind === "docs" || reference.sourceKind === "shell"
-      ? "medium"
-      : severity;
-
   const source =
     reference.sourceLine === undefined
       ? { file: reference.sourceFile }
@@ -88,7 +80,7 @@ export function buildPackageTooNewFinding(
 
   return {
     rule: "package_too_new",
-    severity: cappedSeverity,
+    severity,
     ecosystem: reference.ecosystem,
     package: reference.name,
     source,

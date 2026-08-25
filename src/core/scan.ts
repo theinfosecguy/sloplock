@@ -246,9 +246,7 @@ function referenceKey(reference: DependencyReference): string {
 function referenceScore(reference: DependencyReference): number {
   const sourceKindScore = {
     manifest: 0,
-    lockfile: reference.isDirect ? 1 : 2,
-    shell: 3,
-    docs: 4
+    lockfile: reference.isDirect ? 1 : 2
   } satisfies Record<DependencyReference["sourceKind"], number>;
   const registrySourceScore =
     isAmbiguousMavenSource(reference)
