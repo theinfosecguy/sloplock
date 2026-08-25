@@ -28,7 +28,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: theinfosecguy/sloplock@v1
+      - uses: theinfosecguy/sloplock@v2
 ```
 
 That default workflow:
@@ -54,7 +54,7 @@ steps:
     with:
       fetch-depth: 0
 
-  - uses: theinfosecguy/sloplock@v1
+  - uses: theinfosecguy/sloplock@v2
     with:
       comment: false
 ```
@@ -71,7 +71,7 @@ steps:
     with:
       fetch-depth: 0
 
-  - uses: theinfosecguy/sloplock@v1
+  - uses: theinfosecguy/sloplock@v2
     with:
       fail-on: medium
       fail-closed: true
@@ -89,7 +89,7 @@ steps:
     with:
       fetch-depth: 0
 
-  - uses: theinfosecguy/sloplock@v1
+  - uses: theinfosecguy/sloplock@v2
     with:
       path: packages/api
       ecosystem: npm

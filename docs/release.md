@@ -2,7 +2,7 @@
 
 SlopLock is promoted as a GitHub Action first. The npm package exists so the
 Action and local CLI can share one implementation, but the public release path
-should optimize for `theinfosecguy/sloplock@v1`.
+should optimize for `theinfosecguy/sloplock@v2`.
 
 ## Before Tagging
 
@@ -36,12 +36,14 @@ Create an immutable version tag and update the moving major tag:
 git tag -a vX.Y.Z -m "Release vX.Y.Z"
 git push origin vX.Y.Z
 
-git tag -fa v1 vX.Y.Z -m "Move v1 to vX.Y.Z"
-git push origin refs/tags/v1 --force
+git tag -fa vX vX.Y.Z -m "Move vX to vX.Y.Z"
+git push origin refs/tags/vX --force
 ```
 
-Use the immutable version tag for exact pinning and `v1` for normal Action
-installation.
+Replace `vX` with the matching moving major tag, such as `v2` for a `v2.0.0`
+release. Use the immutable version tag for exact pinning and the moving major
+tag for normal Action installation. Do not move an older major tag to a newer
+major release.
 
 ## GitHub Release And Marketplace
 
@@ -54,7 +56,7 @@ the root `action.yml` metadata file.
 2. Use the matching file under `docs/releases/` as the release notes.
 3. Confirm the Marketplace listing shows:
    - action name: `SlopLock`
-   - install ref: `theinfosecguy/sloplock@v1`
+   - install ref: `theinfosecguy/sloplock@v2`
    - category/tags related to security and dependency review
 4. After publication, verify the install snippet in the Marketplace listing still
    uses a full checkout with `fetch-depth: 0`.
