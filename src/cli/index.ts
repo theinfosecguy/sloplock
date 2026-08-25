@@ -29,7 +29,6 @@ async function main(): Promise<void> {
     result = await scan({
       rootDir: args.path,
       changedOnly: args.changedOnly,
-      failClosed: args.failClosed,
       ...(args.base === undefined ? {} : { baseRef: args.base }),
       ...(args.config === undefined ? {} : { configPath: args.config }),
       ...(args.ecosystem === undefined ? {} : { ecosystems: [args.ecosystem] }),

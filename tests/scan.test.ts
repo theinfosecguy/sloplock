@@ -46,6 +46,33 @@ describe("scan", () => {
     ]);
   });
 
+  it("reports registry failures in the result instead of failing closed", async () => {
+    const rootDir = await tempProject({
+      "package.json": JSON.stringify({
+        dependencies: {
+          "flaky-package": "^1.0.0"
+        }
+      })
+    });
+    const result = await scan({
+      rootDir,
+      registryClient: fakeRegistry({
+        "flaky-package": {
+          status: "network_error",
+          ecosystem: "npm",
+          name: "flaky-package",
+          message: "socket hang up",
+          retryable: true
+        }
+      })
+    });
+
+    expect(result.findings).toEqual([]);
+    expect(result.registryFailures).toEqual([
+      expect.objectContaining({ status: "network_error", name: "flaky-package" })
+    ]);
+  });
+
   it("applies allow and ignore config rules", async () => {
     const rootDir = await tempProject({
       "package.json": JSON.stringify({

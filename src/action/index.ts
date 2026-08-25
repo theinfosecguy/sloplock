@@ -50,7 +50,6 @@ async function runScan(inputs: ActionInputs): Promise<void> {
     rootDir,
     changedOnly: inputs.changedOnly,
     failOn: inputs.failOn,
-    failClosed: inputs.failClosed,
     ...(baseRef === undefined ? {} : { baseRef }),
     ...(inputs.ecosystems === undefined ? {} : { ecosystems: inputs.ecosystems }),
     ...(inputs.config === undefined ? {} : { configPath: inputs.config })
