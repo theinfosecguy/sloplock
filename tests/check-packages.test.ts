@@ -114,6 +114,32 @@ allow:
     expect(result.results.map((entry) => entry.status)).toEqual(["not_found"]);
   });
 
+  it("skips Go modules matched by go.privateModules in sloplock.yml", async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), "sloplock-"));
+    tempDirs.push(rootDir);
+    await writeFile(
+      path.join(rootDir, "sloplock.yml"),
+      `
+go:
+  privateModules:
+    - github.com/acme/*
+`
+    );
+
+    const result = await checkPackages({
+      packages: [
+        { ecosystem: "go", name: "github.com/acme/internal" },
+        { ecosystem: "go", name: "github.com/public/missing" }
+      ],
+      rootDir,
+      now,
+      registryClient: fakeRegistry({})
+    });
+
+    expect(result.results.map((entry) => entry.name)).toEqual(["github.com/public/missing"]);
+    expect(result.findings.map((finding) => finding.package)).toEqual(["github.com/public/missing"]);
+  });
+
   it("rejects invalid package names with a usage error", async () => {
     const error = await checkPackages({
       packages: [{ ecosystem: "npm", name: "not a valid name" }],

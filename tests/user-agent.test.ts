@@ -27,4 +27,12 @@ describe("user agent metadata", () => {
       `sloplock/${packageJson.version} (https://github.com/theinfosecguy/sloplock)`
     );
   });
+
+  it("keeps the Claude Code plugin manifest on the package version", () => {
+    const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+    const read = (file: string): { version?: unknown } =>
+      JSON.parse(readFileSync(path.join(root, file), "utf8")) as { version?: unknown };
+
+    expect(read(".claude-plugin/plugin.json").version).toBe(read("package.json").version);
+  });
 });
