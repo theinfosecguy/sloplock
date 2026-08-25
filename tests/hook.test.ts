@@ -205,6 +205,17 @@ allow:
     expect(outcome).toEqual({ exitCode: 0, stdout: "", stderr: "" });
   });
 
+  it("skips installs whose registry is overridden in the hook environment", async () => {
+    const outcome = await runHook({
+      stdin: event({ tool_name: "Bash", tool_input: { command: "pip install private-package" } }),
+      cwd: "/tmp",
+      env: { PIP_INDEX_URL: "https://pypi.example.com/simple" },
+      registryClient: fakeRegistry({})
+    });
+
+    expect(outcome).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+  });
+
   it("reports invalid stdin as a non-blocking error", async () => {
     const outcome = await runHook({ stdin: "not json", cwd: "/tmp", registryClient: fakeRegistry({}) });
 

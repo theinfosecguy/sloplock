@@ -7,7 +7,8 @@ anything is downloaded or executed.
 
 ## Install
 
-Requires SlopLock 2.1.0 or newer.
+Requires SlopLock 2.1.0 or newer; the plugin marketplace is published with that
+release.
 
 As a plugin, from inside Claude Code:
 

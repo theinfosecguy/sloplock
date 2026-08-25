@@ -14,6 +14,7 @@ const silent: HookOutcome = { exitCode: 0, stdout: "", stderr: "" };
 export async function runHook(input: {
   stdin: string;
   cwd: string;
+  env?: NodeJS.ProcessEnv;
   registryClient?: RegistryClient;
   now?: Date;
 }): Promise<HookOutcome> {
@@ -29,7 +30,7 @@ export async function runHook(input: {
     return silent;
   }
 
-  const packages = extractInstallPackages(command);
+  const packages = extractInstallPackages(command, input.env);
   if (packages.length === 0) {
     return silent;
   }

@@ -68,6 +68,8 @@ const cases: [string, PackageCheckInput[]][] = [
   ["uvx ruff check .", [pypi("ruff")]],
   ["uvx --from httpie http GET example.com", [pypi("httpie")]],
   ["uvx --with requests hallucinated-cli", [pypi("requests"), pypi("hallucinated-cli")]],
+  ["uvx -w requests hallucinated-cli", [pypi("requests"), pypi("hallucinated-cli")]],
+  ["uvx --with=requests hallucinated-cli", [pypi("requests"), pypi("hallucinated-cli")]],
   ["uvx --from httpie --with extra-plugin http", [pypi("extra-plugin"), pypi("httpie")]],
   ["pipx install foo", [pypi("foo")]],
   ["pipx run foo --help", [pypi("foo")]],
@@ -162,6 +164,37 @@ const cases: [string, PackageCheckInput[]][] = [
   ["ls -la", []],
   ["", []],
 
+  // Registry variables that persist for the rest of the line
+  ["export PIP_INDEX_URL=https://pypi.example.com/simple; pip install private-pkg", []],
+  ["export PIP_INDEX_URL=https://pypi.example.com/simple && npm install foo", [npm("foo")]],
+  ["PIP_INDEX_URL=https://pypi.example.com/simple; pip install private-pkg", []],
+  ["PIP_INDEX_URL=x pip install a; pip install b", [pypi("b")]],
+  ["NPM_CONFIG_REGISTRY=https://npm.example.com\nexport NPM_CONFIG_REGISTRY\nnpm install private-pkg", []],
+  ["export GOPROXY=direct GOFLAGS=-mod=mod; go get example.com/private/mod", []],
+  ["declare -x CARGO_REGISTRIES_INTERNAL_INDEX=https://x; cargo add private-crate", []],
+
+  // Quoted command substitutions still execute
+  ["echo \"$(npm install foo)\"", [npm("foo")]],
+  ["echo \"`npm install foo`\"", [npm("foo")]],
+  ["echo \"prefix $(pip install bar) suffix\"", [pypi("bar")]],
+  ["echo \"$(npm install foo) and $(pip install bar)\"", [npm("foo"), pypi("bar")]],
+  ["echo \"$(echo $(npm install foo))\"", [npm("foo")]],
+  ["OUT=\"$(npm install foo)\"", [npm("foo")]],
+  ["echo '$(npm install foo)'", []],
+  ["echo \"\\$(npm install foo)\"", []],
+  ["echo \"\\`npm install foo\\`\"", []],
+
+  // Heredoc bodies and here-strings are data, not commands
+  ["cat > setup.sh <<'EOF'\nnpm install example-package\nEOF", []],
+  ["cat > setup.sh <<EOF\npip install example-package\nEOF", []],
+  ["cat > setup.sh << \"EOF\"\nnpm install example-package\nEOF", []],
+  ["cat <<-EOF\n\tnpm install example-package\n\tEOF", []],
+  ["cat <<EOF\nnpm install example-package\nEOF\nnpm install real-package", [npm("real-package")]],
+  ["cat <<A <<B\nnpm install x\nA\npip install y\nB\nnpm install z", [npm("z")]],
+  ["tee script.sh <<'EOF' > /dev/null\nnpm install example-package\nEOF", []],
+  ["grep install <<< \"npm install foo\"", []],
+  ["cat <<EOF\nno delimiter line, body runs to the end\nnpm install example-package", []],
+
   // Shell control flow, grouping, comments, continuations
   ["if test -f package.json; then npm install foo; fi", [npm("foo")]],
   ["if ! npm install foo; then exit 1; fi", [npm("foo")]],
@@ -182,6 +215,14 @@ const cases: [string, PackageCheckInput[]][] = [
 
 describe("extractInstallPackages", () => {
   it.each(cases)("%s", (command, expected) => {
-    expect(extractInstallPackages(command)).toEqual(expected);
+    expect(extractInstallPackages(command, {})).toEqual(expected);
+  });
+
+  it("skips ecosystems whose registry is overridden in the inherited environment", () => {
+    const env = { PIP_INDEX_URL: "https://pypi.example.com/simple", npm_config_registry: "https://npm.example.com" };
+    expect(extractInstallPackages("pip install a && npm install b && cargo add c", env)).toEqual([
+      pkg("crates", "c")
+    ]);
+    expect(extractInstallPackages("pip install a", { PIP_INDEX_URL: "" })).toEqual([pypi("a")]);
   });
 });
