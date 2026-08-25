@@ -54,6 +54,17 @@ The default workflow scans only dependency names the pull request introduces, ch
 
 ### Locally And In Your Agent's Loop
 
+Block installs at the source. In Claude Code, install the plugin and every `npm install`, `pip install`, `uv add`, `cargo add`, `go get`, `gem install`, `composer require`, `dotnet add package`, and `npx` the agent runs is checked first:
+
+```text
+/plugin marketplace add theinfosecguy/sloplock
+/plugin install sloplock@sloplock
+```
+
+Nonexistent packages are denied with the reason handed back to the agent; packages inside the cooldown window prompt you. See [`docs/hook.md`](docs/hook.md) for the manual `settings.json` form and the full list of recognized commands.
+
+To scan a checkout:
+
 ```bash
 npx sloplock@latest .
 ```

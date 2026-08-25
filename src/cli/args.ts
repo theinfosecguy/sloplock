@@ -18,6 +18,7 @@ export type CliArgs = {
   base?: string;
   config?: string;
   failClosed: boolean;
+  hook: boolean;
   help: boolean;
   version: boolean;
 };
@@ -41,15 +42,20 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     return defaultArgs({ version: true });
   }
 
-  const program = buildProgram();
+  const state = { hook: false };
+  const program = buildProgram(() => {
+    state.hook = true;
+  });
   let errorOutput = "";
 
-  program.exitOverride();
-  program.configureOutput({
-    writeErr: (message) => {
-      errorOutput += message;
-    }
-  });
+  for (const command of [program, ...program.commands]) {
+    command.exitOverride();
+    command.configureOutput({
+      writeErr: (message) => {
+        errorOutput += message;
+      }
+    });
+  }
 
   try {
     program.parse([...argv], { from: "user" });
@@ -60,6 +66,10 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     }
 
     throw error;
+  }
+
+  if (state.hook) {
+    return defaultArgs({ hook: true });
   }
 
   const options = program.opts();
@@ -74,17 +84,18 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     ...(options.base === undefined ? {} : { base: options.base }),
     ...(options.config === undefined ? {} : { config: options.config }),
     failClosed: options.failClosed,
+    hook: false,
     help: false,
     version: false
   };
 }
 
 export function helpText(): string {
-  return buildProgram().helpInformation();
+  return buildProgram(() => undefined).helpInformation();
 }
 
-function buildProgram(): Command<[string], ProgramOptions> {
-  return new Command()
+function buildProgram(onHook: () => void): Command<[string], ProgramOptions> {
+  const program = new Command()
     .name("sloplock")
     .description(
       "Block nonexistent and too-new package dependencies before they enter your repo."
@@ -120,7 +131,16 @@ function buildProgram(): Command<[string], ProgramOptions> {
       "base git ref for --changed-only. Default: the remote default branch, or origin/main"
     )
     .option("--config <path>", "config file. Default: sloplock.yml")
-    .option("--fail-closed", "exit 3 on registry/network failures", false);
+    .option("--fail-closed", "exit 3 on registry/network failures", false)
+    .action(() => undefined);
+
+  program
+    .command("hook")
+    .description("run as a Claude Code PreToolUse hook: reads the hook event on stdin")
+    .allowExcessArguments(false)
+    .action(onHook);
+
+  return program;
 }
 
 function parseFormat(value: string): OutputFormat {
@@ -172,6 +192,7 @@ function defaultArgs(overrides: Partial<CliArgs>): CliArgs {
     format: "text",
     changedOnly: false,
     failClosed: false,
+    hook: false,
     help: false,
     version: false,
     ...overrides

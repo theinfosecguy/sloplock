@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { UsageError } from "../src/core/errors.js";
-import { parseCliArgs } from "../src/cli/args.js";
+import { helpText, parseCliArgs } from "../src/cli/args.js";
 
 describe("parseCliArgs", () => {
   it("parses supported CLI flags", () => {
@@ -29,9 +29,20 @@ describe("parseCliArgs", () => {
       base: "origin/main",
       config: "sloplock.yml",
       failClosed: true,
+      hook: false,
       help: false,
       version: false
     });
+  });
+
+  it("parses the hook subcommand", () => {
+    expect(parseCliArgs(["hook"]).hook).toBe(true);
+    expect(parseCliArgs(["./hook"]).path).toBe("./hook");
+    expect(() => parseCliArgs(["hook", "extra"])).toThrow(UsageError);
+  });
+
+  it("lists the hook subcommand in help", () => {
+    expect(helpText()).toMatch(/^\s+hook\s+run as a Claude Code PreToolUse hook/mu);
   });
 
   it("rejects unsupported ecosystems", () => {

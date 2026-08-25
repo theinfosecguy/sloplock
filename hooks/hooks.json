@@ -1,0 +1,17 @@
+{
+  "description": "Check package install commands against public registries before they run.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hook/index.cjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

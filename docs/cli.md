@@ -43,6 +43,12 @@ Options:
   --fail-closed            exit 3 on registry/network failures
 ```
 
+## Commands
+
+- `sloplock hook`: run as a Claude Code `PreToolUse` hook. Reads the hook event
+  on stdin and blocks package installs that fail the checks. See
+  [`hook.md`](hook.md).
+
 ## Exit Codes
 
 - `0`: no findings at or above `fail-on`

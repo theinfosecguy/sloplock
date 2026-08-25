@@ -1,0 +1,145 @@
+import { describe, expect, it } from "vitest";
+import { extractInstallPackages } from "../src/hook/install-commands.js";
+import type { Ecosystem, PackageCheckInput } from "../src/core/types.js";
+
+const pkg = (ecosystem: Ecosystem, name: string): PackageCheckInput => ({ ecosystem, name });
+const npm = (name: string): PackageCheckInput => pkg("npm", name);
+const pypi = (name: string): PackageCheckInput => pkg("pypi", name);
+
+const cases: [string, PackageCheckInput[]][] = [
+  // npm family
+  ["npm install fastapi-auth-helper", [npm("fastapi-auth-helper")]],
+  ["npm i -D @types/left-pad@^1 left-pad@latest", [npm("@types/left-pad"), npm("left-pad")]],
+  ["npm add foo --save-exact", [npm("foo")]],
+  ["npm install foo@1.0.0 --registry https://npm.example.com", [npm("foo")]],
+  ["npm install --registry=https://npm.example.com foo", [npm("foo")]],
+  ["npm install my-alias@npm:real-package@1.0.0", [npm("real-package")]],
+  ["npm install", []],
+  ["npm ci", []],
+  ["npm run build", []],
+  ["npm install ./local-pkg", []],
+  ["npm install ../sibling", []],
+  ["npm install /abs/path", []],
+  ["npm install file:../pkg", []],
+  ["npm install git+https://github.com/x/y.git", []],
+  ["npm install github:user/repo", []],
+  ["npm install user/repo", []],
+  ["npm install https://example.com/pkg.tgz", []],
+  ["npm install pkg.tgz", []],
+  ["npm install workspace:foo", []],
+  ["pnpm add -D foo", [npm("foo")]],
+  ["pnpm install foo", [npm("foo")]],
+  ["pnpm i", []],
+  ["pnpm add --filter api foo", [npm("foo")]],
+  ["pnpm dlx create-thing@latest my-app", [npm("create-thing")]],
+  ["yarn add foo bar", [npm("foo"), npm("bar")]],
+  ["yarn dlx foo --flag", [npm("foo")]],
+  ["yarn install", []],
+  ["bun add foo", [npm("foo")]],
+  ["bun install foo", [npm("foo")]],
+  ["bun x foo", [npm("foo")]],
+  ["bunx foo --version", [npm("foo")]],
+  ["npx -y create-next-app@latest my-app --ts", [npm("create-next-app")]],
+  ["npx --yes fastapi-auth-helper", [npm("fastapi-auth-helper")]],
+  ["npx -p typescript tsc --init", [npm("typescript")]],
+  ["npx --package=foo bar", [npm("foo")]],
+  ["npx -c 'echo hi' foo", [npm("foo")]],
+
+  // PyPI family
+  ["pip install requests==2.32.3", [pypi("requests")]],
+  ["pip install 'fastapi-auth-helper>=0.3' Flask", [pypi("fastapi-auth-helper"), pypi("flask")]],
+  ["pip3 install foo[extra]~=1.0", [pypi("foo")]],
+  ["pip install -r requirements.txt", []],
+  ["pip install -e .", []],
+  ["pip install .", []],
+  ["pip install ./dist/foo-1.0-py3-none-any.whl", []],
+  ["pip install foo @ https://example.com/foo.whl", []],
+  ["pip install git+https://github.com/x/y", []],
+  ["pip install --index-url https://x.example/simple foo", [pypi("foo")]],
+  ["pip install --upgrade pip", [pypi("pip")]],
+  ["python -m pip install foo", [pypi("foo")]],
+  ["python3 -m pip install --user foo", [pypi("foo")]],
+  ["python -m venv .venv", []],
+  ["uv add 'foo>=1' --group dev", [pypi("foo")]],
+  ["uv add --git https://github.com/x/y foo", []],
+  ["uv add --path ../local foo", []],
+  ["uv pip install foo bar", [pypi("foo"), pypi("bar")]],
+  ["uv sync", []],
+  ["uv tool install ruff", [pypi("ruff")]],
+  ["uv tool run ruff check .", [pypi("ruff")]],
+  ["uvx ruff check .", [pypi("ruff")]],
+  ["uvx --from httpie http GET example.com", [pypi("httpie")]],
+  ["pipx install foo", [pypi("foo")]],
+  ["pipx run foo --help", [pypi("foo")]],
+  ["poetry add foo@^1 --group dev", [pypi("foo")]],
+  ["poetry install", []],
+  ["pdm add foo", [pypi("foo")]],
+
+  // crates
+  ["cargo add serde --features derive tokio@1", [pkg("crates", "serde"), pkg("crates", "tokio")]],
+  ["cargo add --path ../local mycrate", []],
+  ["cargo add --git https://github.com/x/y mycrate", []],
+  ["cargo install cargo-audit", [pkg("crates", "cargo-audit")]],
+  ["cargo install --path .", []],
+  ["cargo build --release", []],
+
+  // Go
+  ["go get github.com/foo/bar@v1.2.3", [pkg("go", "github.com/foo/bar")]],
+  ["go get -u golang.org/x/tools/cmd/goimports@latest", [pkg("go", "golang.org/x/tools")]],
+  ["go install github.com/foo/bar/cmd/tool@latest", [pkg("go", "github.com/foo/bar")]],
+  ["go get gopkg.in/yaml.v3", [pkg("go", "gopkg.in/yaml.v3")]],
+  ["go get -tags netgo example.com/mod/pkg", [pkg("go", "example.com/mod/pkg")]],
+  ["go get ./...", []],
+  ["go get .", []],
+  ["go build ./...", []],
+  ["go mod tidy", []],
+
+  // RubyGems
+  ["gem install rails -v 7.1", [pkg("rubygems", "rails")]],
+  ["gem install foo:1.2 bar", [pkg("rubygems", "foo"), pkg("rubygems", "bar")]],
+  ["gem install --source https://gems.example.com foo", [pkg("rubygems", "foo")]],
+  ["bundle add rspec --group test", [pkg("rubygems", "rspec")]],
+  ["bundle add foo --git https://github.com/x/y", []],
+  ["bundle install", []],
+
+  // Packagist
+  ["composer require vendor/pkg:^1.0 --dev", [pkg("packagist", "vendor/pkg")]],
+  ["composer require vendor/pkg ^1.0", [pkg("packagist", "vendor/pkg")]],
+  ["composer require vendor/pkg=1.2", [pkg("packagist", "vendor/pkg")]],
+  ["composer install", []],
+
+  // NuGet
+  ["dotnet add package Newtonsoft.Json --version 13.0.3", [pkg("nuget", "newtonsoft.json")]],
+  ["dotnet add src/App/App.csproj package Foo.Bar", [pkg("nuget", "foo.bar")]],
+  ["dotnet package add Foo.Bar --project x.csproj", [pkg("nuget", "foo.bar")]],
+  ["dotnet build", []],
+
+  // Chains, prefixes, redirections, quoting
+  ["cd app && npm install foo; pip install bar || true", [npm("foo"), pypi("bar")]],
+  ["npm install foo | tee log", [npm("foo")]],
+  ["npm install foo > install.log 2>&1", [npm("foo")]],
+  ["npm install foo >> log 2> err", [npm("foo")]],
+  ["npm install foo &> log", [npm("foo")]],
+  ["FOO=1 npm install foo", [npm("foo")]],
+  ["sudo npm install -g foo", [npm("foo")]],
+  ["sudo -u deploy npm install foo", [npm("foo")]],
+  ["env CI=1 npm i foo", [npm("foo")]],
+  ["command npm install foo", [npm("foo")]],
+  ["/usr/local/bin/npm install foo", [npm("foo")]],
+  ["npm install foo\npip install bar", [npm("foo"), pypi("bar")]],
+  ["npm install foo foo", [npm("foo")]],
+  ["npm install \"foo\" 'bar'", [npm("foo"), npm("bar")]],
+  ["npm install 'foo; rm -rf /'", []],
+  ["npm install -- foo", [npm("foo")]],
+  ["echo 'npm install foo'", []],
+  ["git commit -m 'npm install foo'", []],
+  ["cat package.json", []],
+  ["ls -la", []],
+  ["", []]
+];
+
+describe("extractInstallPackages", () => {
+  it.each(cases)("%s", (command, expected) => {
+    expect(extractInstallPackages(command)).toEqual(expected);
+  });
+});

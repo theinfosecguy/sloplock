@@ -31,8 +31,9 @@
   },
   "scripts": {
     "clean": "rm -rf dist coverage",
-    "build": "npm run clean && tsc -p tsconfig.json && node -e \"require('node:fs').chmodSync('dist/cli/index.js', 0o755)\" && npm run bundle:action",
+    "build": "npm run clean && tsc -p tsconfig.json && node -e \"require('node:fs').chmodSync('dist/cli/index.js', 0o755)\" && npm run bundle:action && npm run bundle:hook",
     "bundle:action": "esbuild src/action/index.ts --bundle --platform=node --target=node24 --format=cjs --sourcemap --outfile=dist/action/index.cjs --banner:js='// Bundled action entrypoint. Do not edit directly.'",
+    "bundle:hook": "esbuild src/hook/index.ts --bundle --platform=node --target=node22 --format=cjs --sourcemap --outfile=dist/hook/index.cjs --banner:js='// Bundled hook entrypoint. Do not edit directly.'",
     "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
