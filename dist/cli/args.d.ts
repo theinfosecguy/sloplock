@@ -9,6 +9,7 @@ export type CliArgs = {
     base?: string;
     config?: string;
     failClosed: boolean;
+    hook: boolean;
     help: boolean;
     version: boolean;
 };

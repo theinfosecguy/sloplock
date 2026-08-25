@@ -2,6 +2,7 @@
 import { RegistryFailureError, SlopLockError } from "../core/errors.js";
 import { scan } from "../core/scan.js";
 import { sloplockVersion } from "../core/version.js";
+import { hookMain } from "../hook/main.js";
 import { renderJson, renderJsonError } from "../reporting/json.js";
 import { renderMarkdown } from "../reporting/markdown.js";
 import { hasFailingFindings } from "../reporting/summary.js";
@@ -15,6 +16,10 @@ async function main() {
     }
     if (args.version) {
         process.stdout.write(`${sloplockVersion}\n`);
+        return;
+    }
+    if (args.hook) {
+        await hookMain();
         return;
     }
     let result;
