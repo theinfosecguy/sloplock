@@ -38,7 +38,7 @@ Options:
   --fail-on <severity>     medium or high
   --ecosystem <ecosystem>  crates, go, maven, npm, nuget, packagist, pypi, or rubygems
   --changed-only           scan only dependencies added since --base
-  --base <ref>             base git ref for --changed-only
+  --base <ref>             base git ref for --changed-only. Default: the remote default branch, or origin/main
   --config <path>          config file. Default: sloplock.yml
   --fail-closed            exit 3 on registry/network failures
 ```

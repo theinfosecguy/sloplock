@@ -115,7 +115,10 @@ function buildProgram(): Command<[string], ProgramOptions> {
       "scan only dependencies added since --base",
       false
     )
-    .option("--base <ref>", "base git ref for --changed-only")
+    .option(
+      "--base <ref>",
+      "base git ref for --changed-only. Default: the remote default branch, or origin/main"
+    )
     .option("--config <path>", "config file. Default: sloplock.yml")
     .option("--fail-closed", "exit 3 on registry/network failures", false);
 }
