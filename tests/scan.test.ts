@@ -2147,6 +2147,43 @@ version = "1.0.0"
     });
   });
 
+  it("changed-only defaults to the remote default branch when no base ref is given", async () => {
+    const rootDir = await tempProject({
+      "package.json": JSON.stringify({
+        dependencies: { "old-package": "^1.0.0" }
+      })
+    });
+    await initGitRepository(rootDir);
+    await git(rootDir, ["update-ref", "refs/remotes/origin/master", "HEAD"]);
+    await git(rootDir, [
+      "symbolic-ref",
+      "refs/remotes/origin/HEAD",
+      "refs/remotes/origin/master"
+    ]);
+    await writeFile(
+      path.join(rootDir, "package.json"),
+      JSON.stringify({
+        dependencies: {
+          "old-package": "^1.0.0",
+          "new-missing-package": "^1.0.0"
+        }
+      })
+    );
+    await commitAll(rootDir, "add dependency");
+
+    const result = await scan({
+      rootDir,
+      changedOnly: true,
+      registryClient: fakeRegistry({
+        "old-package": found("old-package", "2020-01-01T00:00:00.000Z")
+      })
+    });
+
+    expect(result.scannedDependencies).toBe(1);
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]?.package).toBe("new-missing-package");
+  });
+
   it("warns about allow and ignore entries without an expires date", async () => {
     const rootDir = await tempProject({
       "package.json": JSON.stringify({

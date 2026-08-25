@@ -20,11 +20,11 @@ export async function parseChangedDependencyReferences(input: {
   references: DependencyReference[];
   warnings: ConfigWarning[];
 }> {
-  const baseRef = input.baseRef ?? "origin/main";
-
   if (!(await isGitRepository(input.rootDir))) {
     throw new UsageError("--changed-only requires a git repository.");
   }
+
+  const baseRef = input.baseRef ?? (await getDefaultBaseRef(input.rootDir));
 
   const mergeBase = await getMergeBase(input.rootDir, baseRef);
   const changedFiles = await getChangedSupportedFiles(input.rootDir, mergeBase);
@@ -149,6 +149,15 @@ async function isGitRepository(rootDir: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+async function getDefaultBaseRef(rootDir: string): Promise<string> {
+  try {
+    const ref = await execGit(rootDir, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]);
+    return ref.trim() || "origin/main";
+  } catch {
+    return "origin/main";
   }
 }
 
