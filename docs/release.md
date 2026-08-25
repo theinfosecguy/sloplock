@@ -26,7 +26,7 @@ should optimize for `theinfosecguy/sloplock@v1`.
    test -z "$(find . -maxdepth 1 -name '*.tgz' -print)"
    ```
 
-4. Verify `package.json` and `package-lock.json` use the release version.
+4. Verify `package.json`, `package-lock.json`, and `src/core/version.ts` use the release version.
 
 ## Tagging
 
