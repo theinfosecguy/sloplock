@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { RegistryFailureError, SlopLockError } from "../core/errors.js";
 import { scan } from "../core/scan.js";
 import type { ScanResult } from "../core/types.js";
+import { sloplockVersion } from "../core/version.js";
 import { renderJson, renderJsonError } from "../reporting/json.js";
 import { renderMarkdown } from "../reporting/markdown.js";
 import { hasFailingFindings } from "../reporting/summary.js";
@@ -20,7 +18,7 @@ async function main(): Promise<void> {
   }
 
   if (args.version) {
-    process.stdout.write(`${await packageVersion()}\n`);
+    process.stdout.write(`${sloplockVersion}\n`);
     return;
   }
 
@@ -84,18 +82,6 @@ function writeError(format: OutputFormat, error: unknown): void {
   }
 
   process.exitCode = error instanceof SlopLockError ? error.exitCode : 2;
-}
-
-async function packageVersion(): Promise<string> {
-  const packageJsonPath = path.join(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "../../package.json"
-  );
-  const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as {
-    version?: unknown;
-  };
-
-  return typeof packageJson.version === "string" ? packageJson.version : "0.0.0";
 }
 
 try {
