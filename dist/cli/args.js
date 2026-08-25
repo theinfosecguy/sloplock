@@ -8,14 +8,19 @@ export function parseCliArgs(argv) {
     if (hasFlag(argv, "--version", "-v")) {
         return defaultArgs({ version: true });
     }
-    const program = buildProgram();
-    let errorOutput = "";
-    program.exitOverride();
-    program.configureOutput({
-        writeErr: (message) => {
-            errorOutput += message;
-        }
+    const state = { hook: false };
+    const program = buildProgram(() => {
+        state.hook = true;
     });
+    let errorOutput = "";
+    for (const command of [program, ...program.commands]) {
+        command.exitOverride();
+        command.configureOutput({
+            writeErr: (message) => {
+                errorOutput += message;
+            }
+        });
+    }
     try {
         program.parse([...argv], { from: "user" });
     }
@@ -25,6 +30,9 @@ export function parseCliArgs(argv) {
             throw new UsageError(message);
         }
         throw error;
+    }
+    if (state.hook) {
+        return defaultArgs({ hook: true });
     }
     const options = program.opts();
     const pathArg = program.args[0] ?? ".";
@@ -37,15 +45,16 @@ export function parseCliArgs(argv) {
         ...(options.base === undefined ? {} : { base: options.base }),
         ...(options.config === undefined ? {} : { config: options.config }),
         failClosed: options.failClosed,
+        hook: false,
         help: false,
         version: false
     };
 }
 export function helpText() {
-    return buildProgram().helpInformation();
+    return buildProgram(() => undefined).helpInformation();
 }
-function buildProgram() {
-    return new Command()
+function buildProgram(onHook) {
+    const program = new Command()
         .name("sloplock")
         .description("Block nonexistent and too-new package dependencies before they enter your repo.")
         .argument("[path]", "directory to scan", ".")
@@ -59,7 +68,14 @@ function buildProgram() {
         .option("--changed-only", "scan only dependencies added since --base", false)
         .option("--base <ref>", "base git ref for --changed-only. Default: the remote default branch, or origin/main")
         .option("--config <path>", "config file. Default: sloplock.yml")
-        .option("--fail-closed", "exit 3 on registry/network failures", false);
+        .option("--fail-closed", "exit 3 on registry/network failures", false)
+        .action(() => undefined);
+    program
+        .command("hook")
+        .description("run as a Claude Code PreToolUse hook: reads the hook event on stdin")
+        .allowExcessArguments(false)
+        .action(onHook);
+    return program;
 }
 function parseFormat(value) {
     if (value === "text" || value === "json" || value === "markdown") {
@@ -95,6 +111,7 @@ function defaultArgs(overrides) {
         format: "text",
         changedOnly: false,
         failClosed: false,
+        hook: false,
         help: false,
         version: false,
         ...overrides
