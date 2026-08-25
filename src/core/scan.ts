@@ -130,8 +130,14 @@ export async function checkPackages(
     ...(options.failOn === undefined ? {} : { failOn: options.failOn }),
     now
   });
+  const goPrivatePatterns = [
+    ...loadedConfig.config.go.privateModules,
+    ...goPrivatePatternsFromEnvironment()
+  ];
   const evaluations = await evaluateReferences({
-    references: [...references.values()],
+    references: [...references.values()].filter(
+      (reference) => !isPrivateGoModuleReference(reference, goPrivatePatterns)
+    ),
     options,
     now,
     config: loadedConfig.config
@@ -306,7 +312,7 @@ async function parseReferences(input: {
 }
 
 function isPrivateGoModuleReference(
-  reference: DependencyReference,
+  reference: Pick<DependencyReference, "ecosystem" | "name">,
   patterns: readonly string[]
 ): boolean {
   return (

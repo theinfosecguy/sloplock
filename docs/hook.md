@@ -81,12 +81,17 @@ subshells, and command substitutions, and in chains joined with `&&`, `||`,
 paths, URLs, git sources, tarballs, workspace links, and `--git`/`--path` style
 sources are skipped, as are `pip install -r` and `-e` targets.
 
-A command that names an alternate registry is not checked at all, because the
-package may legitimately exist only there and a public-registry answer would be
-wrong in both directions. This covers `--registry`, `--index-url`, `-i`,
+A command that points at an alternate registry is not checked at all, because
+the package may legitimately exist only there and a public-registry answer would
+be wrong in both directions. This covers `--registry`, `--index-url`, `-i`,
 `--extra-index-url`, `--find-links`, `--index`, `--source`, `-s`, `--local`, and
-environment variables such as `npm_config_registry`, `PIP_INDEX_URL`,
-`UV_INDEX_URL`, `CARGO_REGISTRIES_*`, `GOPROXY`, and `GOPRIVATE`.
+registry variables such as `npm_config_registry`, `PIP_INDEX_URL`,
+`UV_INDEX_URL`, `CARGO_REGISTRY_DEFAULT`, and `GOPROXY`, whether they come from
+the hook's environment, a prefix assignment, or an `export` earlier on the
+line. Values that name the public registry (`https://registry.npmjs.org`,
+`https://pypi.org/simple`, `crates-io`, `https://proxy.golang.org,direct`) do
+not count, and `unset` restores checking. `GOPRIVATE` and `GONOPROXY` are
+applied per module path, exactly as the scanner applies them.
 
 ## Limitations
 

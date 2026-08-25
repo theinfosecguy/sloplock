@@ -1,4 +1,5 @@
 import path from "node:path";
+import { matchesGoPrivateModulePattern, splitGoPrivatePatternList } from "../core/go.js";
 import { normalizePackageName } from "../core/packages.js";
 import type { Ecosystem, PackageCheckInput } from "../core/types.js";
 
@@ -7,7 +8,8 @@ type Extracted = { ecosystem: Ecosystem; names: readonly string[] };
 type Flags = {
   // Flags that consume the following token.
   value: ReadonlySet<string>;
-  // Flags that point the command at a non-public source; the command is skipped.
+  // Flags whose value points at a source; unless that source is a public
+  // registry, the command is skipped.
   source: ReadonlySet<string>;
 };
 
@@ -20,7 +22,9 @@ type PackageFlags = {
 
 type Quote = "'" | '"';
 type Frame = { quote: Quote | undefined; kind: "paren" | "backtick"; depth: number };
-type Heredoc = { delimiter: string; stripTabs: boolean };
+type Heredoc = { delimiter: string; stripTabs: boolean; expands: boolean };
+type Variables = Map<string, string>;
+type VariableRule = { ecosystem: Ecosystem; overrides: (value: string) => boolean };
 
 const shellPrefixes = new Set([
   "sudo",
@@ -41,25 +45,53 @@ const shellPrefixes = new Set([
 ]);
 const prefixesWithFlags = new Set(["sudo", "env", "nohup", "time"]);
 const sudoValueFlags = new Set(["-u", "--user", "-g", "--group", "-h", "--host"]);
-const envAssignment = /^[A-Za-z_][A-Za-z0-9_]*=/u;
-const variableName = /^[A-Za-z_][A-Za-z0-9_]*/u;
-const registryVariables: Record<string, Ecosystem> = {
-  NPM_CONFIG_REGISTRY: "npm",
-  YARN_REGISTRY: "npm",
-  YARN_NPM_REGISTRY_SERVER: "npm",
-  PIP_INDEX_URL: "pypi",
-  PIP_EXTRA_INDEX_URL: "pypi",
-  PIP_FIND_LINKS: "pypi",
-  UV_INDEX_URL: "pypi",
-  UV_EXTRA_INDEX_URL: "pypi",
-  UV_DEFAULT_INDEX: "pypi",
-  UV_INDEX: "pypi",
-  UV_FIND_LINKS: "pypi",
-  CARGO_REGISTRY_DEFAULT: "crates",
-  GOPROXY: "go",
-  GOPRIVATE: "go",
-  GONOPROXY: "go"
+const envAssignment = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/su;
+
+const publicRegistryHosts = new Set([
+  "registry.npmjs.org",
+  "registry.npmjs.com",
+  "registry.yarnpkg.com",
+  "pypi.org",
+  "pypi.python.org",
+  "files.pythonhosted.org",
+  "proxy.golang.org",
+  "goproxy.io",
+  "goproxy.cn",
+  "crates.io",
+  "index.crates.io",
+  "static.crates.io",
+  "rubygems.org",
+  "index.rubygems.org",
+  "api.nuget.org",
+  "nuget.org",
+  "www.nuget.org",
+  "packagist.org",
+  "repo.packagist.org"
+]);
+const publicRegistryNames = new Set(["crates-io", "nuget.org", "pypi", "direct", "off"]);
+
+const nonPublic = (value: string): boolean =>
+  value
+    .split(/[\s,|]+/u)
+    .filter((entry) => entry.length > 0)
+    .some((entry) => !isPublicRegistry(entry));
+const anyValue = (value: string): boolean => value.trim().length > 0;
+const registryVariables: Record<string, VariableRule> = {
+  NPM_CONFIG_REGISTRY: { ecosystem: "npm", overrides: nonPublic },
+  YARN_REGISTRY: { ecosystem: "npm", overrides: nonPublic },
+  YARN_NPM_REGISTRY_SERVER: { ecosystem: "npm", overrides: nonPublic },
+  PIP_INDEX_URL: { ecosystem: "pypi", overrides: nonPublic },
+  PIP_EXTRA_INDEX_URL: { ecosystem: "pypi", overrides: nonPublic },
+  PIP_FIND_LINKS: { ecosystem: "pypi", overrides: anyValue },
+  UV_INDEX_URL: { ecosystem: "pypi", overrides: nonPublic },
+  UV_EXTRA_INDEX_URL: { ecosystem: "pypi", overrides: nonPublic },
+  UV_DEFAULT_INDEX: { ecosystem: "pypi", overrides: nonPublic },
+  UV_INDEX: { ecosystem: "pypi", overrides: nonPublic },
+  UV_FIND_LINKS: { ecosystem: "pypi", overrides: anyValue },
+  CARGO_REGISTRY_DEFAULT: { ecosystem: "crates", overrides: nonPublic },
+  GOPROXY: { ecosystem: "go", overrides: nonPublic }
 };
+const goPrivateVariables = new Set(["GOPRIVATE", "GONOPROXY"]);
 
 const nodeFlags: Flags = {
   value: new Set([
@@ -261,48 +293,59 @@ export function extractInstallPackages(
 ): PackageCheckInput[] {
   const seen = new Set<string>();
   const packages: PackageCheckInput[] = [];
-  // Ecosystems pointed at an alternate registry for the rest of the line:
-  // by the hook's own environment, a standalone assignment, or an export.
-  const alternate = new Set<Ecosystem>();
+  const variables: Variables = new Map();
   for (const [name, value] of Object.entries(env)) {
-    const ecosystem = registryVariableEcosystem(name);
-    if (ecosystem !== undefined && value !== undefined && value.length > 0) {
-      alternate.add(ecosystem);
+    if (value !== undefined) {
+      setVariable(variables, name, value);
     }
   }
 
   for (const tokens of splitCommands(command)) {
-    const { tokens: commandTokens, assigned } = stripPrefixes(tokens);
-    const [program] = commandTokens;
+    const { tokens: commandTokens, assignments } = stripPrefixes(tokens);
+    const [program, ...rest] = commandTokens;
+    if (program === undefined) {
+      for (const [name, value] of assignments) {
+        variables.set(name, value);
+      }
+      continue;
+    }
     if (program === "export" || program === "declare" || program === "typeset") {
-      for (const token of commandTokens.slice(1)) {
-        const ecosystem = registryVariableEcosystem(variableName.exec(token)?.[0] ?? "");
-        if (ecosystem !== undefined) {
-          alternate.add(ecosystem);
+      for (const token of rest) {
+        const match = envAssignment.exec(token);
+        if (match?.[1] !== undefined && match[2] !== undefined) {
+          setVariable(variables, match[1], match[2]);
         }
       }
       continue;
     }
-    if (program === undefined) {
-      for (const ecosystem of assigned) {
-        alternate.add(ecosystem);
+    if (program === "unset") {
+      for (const token of rest) {
+        variables.delete(token.toUpperCase());
       }
       continue;
     }
 
     const extracted = extractFromCommand(commandTokens);
-    if (
-      extracted === undefined ||
-      alternate.has(extracted.ecosystem) ||
-      assigned.has(extracted.ecosystem)
-    ) {
+    if (extracted === undefined) {
       continue;
     }
+    const effective: Variables = new Map([...variables, ...assignments]);
+    if (usesAlternateRegistry(extracted.ecosystem, effective)) {
+      continue;
+    }
+    const goPrivatePatterns =
+      extracted.ecosystem === "go"
+        ? [...goPrivateVariables].flatMap((name) => splitGoPrivatePatternList(effective.get(name)))
+        : [];
 
     for (const raw of extracted.names) {
       const name = registryName(extracted.ecosystem, raw);
       const key = `${extracted.ecosystem}:${name ?? ""}`;
-      if (name === undefined || seen.has(key)) {
+      if (
+        name === undefined ||
+        seen.has(key) ||
+        goPrivatePatterns.some((pattern) => matchesGoPrivateModulePattern(name, pattern))
+      ) {
         continue;
       }
 
@@ -314,10 +357,38 @@ export function extractInstallPackages(
   return packages;
 }
 
+function setVariable(variables: Variables, name: string, value: string): void {
+  const upper = name.toUpperCase();
+  if (upper in registryVariables || goPrivateVariables.has(upper)) {
+    variables.set(upper, value);
+  }
+}
+
+function usesAlternateRegistry(ecosystem: Ecosystem, variables: Variables): boolean {
+  return Object.entries(registryVariables).some(([name, rule]) => {
+    const value = variables.get(name);
+    return rule.ecosystem === ecosystem && value !== undefined && rule.overrides(value);
+  });
+}
+
+function isPublicRegistry(value: string): boolean {
+  const trimmed = value.trim().toLowerCase();
+  if (publicRegistryNames.has(trimmed)) {
+    return true;
+  }
+  try {
+    return publicRegistryHosts.has(
+      new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`).hostname
+    );
+  } catch {
+    return false;
+  }
+}
+
 // Splits a shell command line into simple commands. Handles quotes, escapes,
 // `&& || ; |` and newline separators, subshells, `$(...)` and backtick
-// substitutions (including inside double quotes), comments, backslash-newline
-// continuations, heredoc bodies, and here-strings.
+// substitutions (including inside double quotes and unquoted heredoc bodies),
+// comments, backslash-newline continuations, heredoc bodies, and here-strings.
 function splitCommands(command: string): string[][] {
   const commands: string[][] = [];
   const frames: Frame[] = [];
@@ -431,7 +502,13 @@ function splitCommands(command: string): string[][] {
     } else if (char === "\n") {
       endCommand();
       if (heredocs.length > 0) {
-        index = skipHeredocBodies(command, index, heredocs.splice(0));
+        const bodies = skipHeredocBodies(command, index, heredocs.splice(0));
+        index = bodies.position;
+        for (const body of bodies.expanded) {
+          for (const source of substitutions(body)) {
+            commands.push(...splitCommands(source));
+          }
+        }
       }
     } else if (char === "&" || char === "|" || char === ";") {
       endCommand();
@@ -448,7 +525,8 @@ function splitCommands(command: string): string[][] {
 }
 
 // Parses `<<`, `<<-`, and the delimiter word starting at `start`; returns the
-// index of the last consumed character.
+// index of the last consumed character. A quoted or escaped delimiter means the
+// body is literal; otherwise the shell expands substitutions inside it.
 function readHeredocOperator(command: string, start: number, heredocs: Heredoc[]): number {
   let index = start + 2;
   const stripTabs = command[index] === "-";
@@ -463,23 +541,31 @@ function readHeredocOperator(command: string, start: number, heredocs: Heredoc[]
   if (open === "'" || open === '"') {
     const close = command.indexOf(open, index + 1);
     const end = close === -1 ? command.length : close;
-    heredocs.push({ delimiter: command.slice(index + 1, end), stripTabs });
+    heredocs.push({ delimiter: command.slice(index + 1, end), stripTabs, expands: false });
     return end;
   }
 
-  if (open === "\\") {
+  const escaped = open === "\\";
+  if (escaped) {
     index += 1;
   }
   const delimiter = /^[^\s;&|()<>`]*/u.exec(command.slice(index))?.[0] ?? "";
-  heredocs.push({ delimiter, stripTabs });
+  heredocs.push({ delimiter, stripTabs, expands: !escaped });
   return delimiter.length === 0 ? index - 1 : index + delimiter.length - 1;
 }
 
-// Consumes heredoc bodies following the newline at `newline`; returns the
-// index of the newline that ends the last delimiter line.
-function skipHeredocBodies(command: string, newline: number, heredocs: readonly Heredoc[]): number {
+// Consumes heredoc bodies following the newline at `newline`. Returns the
+// index of the newline that ends the last delimiter line and the bodies of
+// heredocs whose delimiter was unquoted.
+function skipHeredocBodies(
+  command: string,
+  newline: number,
+  heredocs: readonly Heredoc[]
+): { position: number; expanded: string[] } {
+  const expanded: string[] = [];
   let position = newline;
   for (const heredoc of heredocs) {
+    const lines: string[] = [];
     while (position < command.length) {
       const lineStart = position + 1;
       const lineEnd = command.indexOf("\n", lineStart);
@@ -488,9 +574,72 @@ function skipHeredocBodies(command: string, newline: number, heredocs: readonly 
       if ((heredoc.stripTabs ? line.replace(/^\t+/u, "") : line) === heredoc.delimiter) {
         break;
       }
+      lines.push(line);
+    }
+    if (heredoc.expands) {
+      expanded.push(lines.join("\n"));
     }
   }
-  return position;
+  return { position, expanded };
+}
+
+// Returns the source of every `$(...)` and backtick substitution in text the
+// shell would expand.
+function substitutions(text: string): string[] {
+  const sources: string[] = [];
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === "\\") {
+      index += 1;
+    } else if (char === "$" && text[index + 1] === "(") {
+      const end = closingParen(text, index + 1);
+      sources.push(text.slice(index + 2, end));
+      index = end;
+    } else if (char === "`") {
+      const end = closingBacktick(text, index + 1);
+      sources.push(text.slice(index + 1, end));
+      index = end;
+    }
+  }
+  return sources;
+}
+
+function closingParen(text: string, open: number): number {
+  let depth = 0;
+  let quote: Quote | undefined;
+  for (let index = open; index < text.length; index += 1) {
+    const char = text[index];
+    if (quote !== undefined) {
+      if (char === quote) {
+        quote = undefined;
+      } else if (char === "\\") {
+        index += 1;
+      }
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === "\\") {
+      index += 1;
+    } else if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+  return text.length;
+}
+
+function closingBacktick(text: string, start: number): number {
+  for (let index = start; index < text.length; index += 1) {
+    if (text[index] === "\\") {
+      index += 1;
+    } else if (text[index] === "`") {
+      return index;
+    }
+  }
+  return text.length;
 }
 
 function stripRedirections(tokens: readonly string[]): string[] {
@@ -511,21 +660,22 @@ function stripRedirections(tokens: readonly string[]): string[] {
 
 function stripPrefixes(tokens: readonly string[]): {
   tokens: string[];
-  assigned: Set<Ecosystem>;
+  assignments: Variables;
 } {
   const remaining = [...tokens];
-  const assigned = new Set<Ecosystem>();
-  const note = (assignment: string): void => {
-    const ecosystem = registryVariableEcosystem(assignment.split("=")[0] ?? "");
-    if (ecosystem !== undefined) {
-      assigned.add(ecosystem);
+  const assignments: Variables = new Map();
+  const note = (token: string): boolean => {
+    const match = envAssignment.exec(token);
+    if (match?.[1] === undefined || match[2] === undefined) {
+      return false;
     }
+    setVariable(assignments, match[1], match[2]);
+    return true;
   };
 
   while (remaining.length > 0) {
     const first = remaining[0] ?? "";
-    if (envAssignment.test(first)) {
-      note(first);
+    if (note(first)) {
       remaining.shift();
       continue;
     }
@@ -539,8 +689,7 @@ function stripPrefixes(tokens: readonly string[]): {
       const token = remaining[0] ?? "";
       if (first === "sudo" && sudoValueFlags.has(token)) {
         remaining.splice(0, 2);
-      } else if (first === "env" && envAssignment.test(token)) {
-        note(token);
+      } else if (first === "env" && note(token)) {
         remaining.shift();
       } else if (prefixesWithFlags.has(first) && token.startsWith("-") && token.length > 1) {
         remaining.shift();
@@ -550,12 +699,7 @@ function stripPrefixes(tokens: readonly string[]): {
     }
   }
 
-  return { tokens: remaining, assigned };
-}
-
-function registryVariableEcosystem(name: string): Ecosystem | undefined {
-  const upper = name.toUpperCase();
-  return upper.startsWith("CARGO_REGISTRIES_") ? "crates" : registryVariables[upper];
+  return { tokens: remaining, assignments };
 }
 
 function extractFromCommand(tokens: readonly string[]): Extracted | undefined {
@@ -694,6 +838,8 @@ function pipNames(names: readonly string[]): string[] {
   return result;
 }
 
+// Returns positional arguments, or undefined when a source flag points the
+// command somewhere other than a public registry.
 function positionalArguments(args: readonly string[], flags: Flags): string[] | undefined {
   const positionals: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
@@ -703,11 +849,14 @@ function positionalArguments(args: readonly string[], flags: Flags): string[] | 
       break;
     }
     if (token.startsWith("-") && token.length > 1) {
-      const flag = token.split("=")[0] ?? token;
+      const [flag = "", inline] = token.split(/=(.*)/su);
       if (flags.source.has(flag)) {
-        return undefined;
+        const value = inline ?? args[index + 1];
+        if (value === undefined || !isPublicRegistry(value)) {
+          return undefined;
+        }
       }
-      if (!token.includes("=") && flags.value.has(flag)) {
+      if (inline === undefined && (flags.value.has(flag) || flags.source.has(flag))) {
         index += 1;
       }
       continue;

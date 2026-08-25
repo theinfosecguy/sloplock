@@ -136,10 +136,33 @@ const cases: [string, PackageCheckInput[]][] = [
   ["NPM_CONFIG_REGISTRY=https://npm.example.com npm install private-pkg", []],
   ["PIP_INDEX_URL=https://pypi.example.com/simple pip install private-pkg", []],
   ["GOPROXY=https://proxy.example.com go get example.com/private/mod", []],
-  ["GOPRIVATE=example.com go get example.com/private/mod", []],
+  ["GOPROXY=https://proxy.example.com,direct go get example.com/private/mod", []],
   ["env UV_INDEX_URL=https://pypi.example.com/simple uv add private-pkg", []],
-  ["CARGO_REGISTRIES_INTERNAL_INDEX=https://x cargo add private-crate", []],
+  ["CARGO_REGISTRY_DEFAULT=internal cargo add private-crate", []],
   ["CI=1 npm install foo", [npm("foo")]],
+
+  // Public registries named explicitly are still public
+  ["npm install foo --registry https://registry.npmjs.org/", [npm("foo")]],
+  ["npm install --registry=https://registry.npmjs.org foo", [npm("foo")]],
+  ["pip install -i https://pypi.org/simple foo", [pypi("foo")]],
+  ["pip install --index-url https://pypi.org/simple --extra-index-url https://pypi.example.com foo", []],
+  ["gem install foo --source https://rubygems.org", [pkg("rubygems", "foo")]],
+  ["dotnet add package Foo.Bar --source https://api.nuget.org/v3/index.json", [pkg("nuget", "foo.bar")]],
+  ["dotnet add package Foo.Bar -s nuget.org", [pkg("nuget", "foo.bar")]],
+  ["cargo add serde --registry crates-io", [pkg("crates", "serde")]],
+  ["NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ npm install foo", [npm("foo")]],
+  ["PIP_INDEX_URL=https://pypi.org/simple pip install foo", [pypi("foo")]],
+  ["GOPROXY=https://proxy.golang.org,direct go get github.com/foo/bar", [pkg("go", "github.com/foo/bar")]],
+  ["GOPROXY=direct go get github.com/foo/bar", [pkg("go", "github.com/foo/bar")]],
+  ["CARGO_REGISTRY_DEFAULT=crates-io cargo add serde", [pkg("crates", "serde")]],
+  ["CARGO_REGISTRIES_INTERNAL_INDEX=https://git.example.com/index cargo add serde", [pkg("crates", "serde")]],
+
+  // GOPRIVATE and GONOPROXY apply per module path
+  ["GOPRIVATE=github.com/acme/* go get github.com/acme/private github.com/foo/bar", [pkg("go", "github.com/foo/bar")]],
+  ["GOPRIVATE=github.com/acme/* go get github.com/foo/bar", [pkg("go", "github.com/foo/bar")]],
+  ["GOPRIVATE=example.com go get example.com/private/mod", []],
+  ["GONOPROXY=example.com/* go get example.com/mod/pkg", []],
+  ["export GOPRIVATE=github.com/acme/*; go get github.com/acme/private", []],
 
   // Chains, prefixes, redirections, quoting
   ["cd app && npm install foo; pip install bar || true", [npm("foo"), pypi("bar")]],
@@ -170,8 +193,12 @@ const cases: [string, PackageCheckInput[]][] = [
   ["PIP_INDEX_URL=https://pypi.example.com/simple; pip install private-pkg", []],
   ["PIP_INDEX_URL=x pip install a; pip install b", [pypi("b")]],
   ["NPM_CONFIG_REGISTRY=https://npm.example.com\nexport NPM_CONFIG_REGISTRY\nnpm install private-pkg", []],
-  ["export GOPROXY=direct GOFLAGS=-mod=mod; go get example.com/private/mod", []],
-  ["declare -x CARGO_REGISTRIES_INTERNAL_INDEX=https://x; cargo add private-crate", []],
+  ["export GOPROXY=https://proxy.example.com GOFLAGS=-mod=mod; go get example.com/private/mod", []],
+  ["declare -x CARGO_REGISTRY_DEFAULT=internal; cargo add private-crate", []],
+  ["export PIP_INDEX_URL=https://pypi.example.com/simple; unset PIP_INDEX_URL; pip install foo", [pypi("foo")]],
+  ["export PIP_INDEX_URL=https://pypi.example.com/simple; PIP_INDEX_URL= pip install foo", [pypi("foo")]],
+  ["export PIP_INDEX_URL=https://pypi.example.com/simple; PIP_INDEX_URL=https://pypi.org/simple pip install foo", [pypi("foo")]],
+  ["export PIP_INDEX_URL=https://pypi.example.com/simple; PIP_INDEX_URL=https://pypi.org/simple pip install a; pip install b", [pypi("a")]],
 
   // Quoted command substitutions still execute
   ["echo \"$(npm install foo)\"", [npm("foo")]],
@@ -194,6 +221,19 @@ const cases: [string, PackageCheckInput[]][] = [
   ["tee script.sh <<'EOF' > /dev/null\nnpm install example-package\nEOF", []],
   ["grep install <<< \"npm install foo\"", []],
   ["cat <<EOF\nno delimiter line, body runs to the end\nnpm install example-package", []],
+
+  // Unquoted heredoc bodies expand substitutions, which do execute
+  ["cat <<EOF\n$(npm install foo)\nEOF", [npm("foo")]],
+  ["cat <<EOF\nresult: `pip install bar`\nEOF", [pypi("bar")]],
+  ["cat <<EOF\nnpm install literal\n$(npm install foo)\nEOF", [npm("foo")]],
+  ["cat <<-EOF\n\t$(npm install foo)\n\tEOF", [npm("foo")]],
+  ["cat <<EOF\n$(echo \"$(npm install foo)\")\nEOF", [npm("foo")]],
+  ["cat <<'EOF'\n$(npm install foo)\nEOF", []],
+  ["cat <<\"EOF\"\n$(npm install foo)\nEOF", []],
+  ["cat <<\\EOF\n$(npm install foo)\nEOF", []],
+  ["cat <<EOF\n\\$(npm install foo)\nEOF", []],
+  ["cat <<EOF\n$((1 + 2))\nEOF", []],
+  ["cat <<EOF\n$(npm install foo)\nEOF\ncat <<'RAW'\n$(npm install bar)\nRAW", [npm("foo")]],
 
   // Shell control flow, grouping, comments, continuations
   ["if test -f package.json; then npm install foo; fi", [npm("foo")]],
@@ -224,5 +264,17 @@ describe("extractInstallPackages", () => {
       pkg("crates", "c")
     ]);
     expect(extractInstallPackages("pip install a", { PIP_INDEX_URL: "" })).toEqual([pypi("a")]);
+    expect(extractInstallPackages("pip install a", { PIP_INDEX_URL: "https://pypi.org/simple" })).toEqual([
+      pypi("a")
+    ]);
+    expect(extractInstallPackages("cargo add serde", { CARGO_REGISTRIES_INTERNAL_INDEX: "https://x" })).toEqual([
+      pkg("crates", "serde")
+    ]);
+    expect(
+      extractInstallPackages("go get github.com/acme/private github.com/foo/bar", {
+        GOPRIVATE: "github.com/acme/*"
+      })
+    ).toEqual([pkg("go", "github.com/foo/bar")]);
+    expect(extractInstallPackages("unset PIP_INDEX_URL; pip install a", env)).toEqual([pypi("a")]);
   });
 });
