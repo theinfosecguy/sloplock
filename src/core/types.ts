@@ -136,3 +136,32 @@ export type ScanOptions = {
   registryClient?: RegistryClient;
   now?: Date;
 };
+
+export type PackageCheckInput = {
+  ecosystem: Ecosystem;
+  name: string;
+  sourceFile?: string;
+  sourceLine?: number;
+};
+
+export type PackageCheckFinding = Omit<Finding, "source"> & {
+  source?: Finding["source"];
+};
+
+export type CheckPackagesOptions = {
+  packages: readonly PackageCheckInput[];
+  rootDir?: string;
+  configPath?: string;
+  failOn?: Exclude<Severity, "low">;
+  registryConcurrency?: number;
+  registryClient?: RegistryClient;
+  now?: Date;
+};
+
+export type CheckPackagesResult = {
+  results: RegistryResult[];
+  findings: PackageCheckFinding[];
+  warnings: ConfigWarning[];
+  registryFailures: RegistryPackageFailure[];
+  failOn: Exclude<Severity, "low">;
+};
