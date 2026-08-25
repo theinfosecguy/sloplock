@@ -1,6 +1,6 @@
 name: SlopLock
 description: Block AI-hallucinated, nonexistent, and too-new dependencies in pull requests.
-author: SlopLock
+author: theinfosecguy
 inputs:
   path:
     description: Directory to scan.
