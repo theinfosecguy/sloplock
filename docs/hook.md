@@ -7,6 +7,8 @@ anything is downloaded or executed.
 
 ## Install
 
+Requires SlopLock 2.1.0 or newer.
+
 As a plugin, from inside Claude Code:
 
 ```text
@@ -72,15 +74,27 @@ registry request.
 | NuGet | `dotnet add package`, `dotnet package add` |
 
 Install commands are found anywhere in a command line, including after `cd`,
-`sudo`, `env`, or variable assignments, and in chains joined with `&&`, `||`,
-`;`, or `|`. Version specifiers are stripped. Local paths, URLs, git sources,
-tarballs, workspace links, and `--git`/`--path` style sources are skipped, as
-are `pip install -r` and `-e` targets.
+`sudo`, `env`, or variable assignments, inside `if`/`while`/`for` bodies,
+subshells, and command substitutions, and in chains joined with `&&`, `||`,
+`;`, or `|`. Comments are ignored. Version specifiers are stripped. Local
+paths, URLs, git sources, tarballs, workspace links, and `--git`/`--path` style
+sources are skipped, as are `pip install -r` and `-e` targets.
+
+A command that names an alternate registry is not checked at all, because the
+package may legitimately exist only there and a public-registry answer would be
+wrong in both directions. This covers `--registry`, `--index-url`, `-i`,
+`--extra-index-url`, `--find-links`, `--index`, `--source`, `-s`, `--local`, and
+environment variables such as `npm_config_registry`, `PIP_INDEX_URL`,
+`UV_INDEX_URL`, `CARGO_REGISTRIES_*`, `GOPROXY`, and `GOPRIVATE`.
 
 ## Limitations
 
 - Commands hidden inside `bash -c "..."`, scripts, Makefiles, or `npm run`
   scripts are not inspected.
+- Registries configured in `.npmrc`, `pip.conf`, `uv.toml`, `.cargo/config.toml`,
+  `composer.json`, or `NuGet.config` are not visible to the hook; the command is
+  checked against the public registry. Use `allow` entries in `sloplock.yml` for
+  private packages installed that way.
 - `go get` of a package path inside a module is reduced to the module root on
   well-known hosts such as `github.com` and `golang.org`; on other hosts the
   full path is checked and may not resolve.

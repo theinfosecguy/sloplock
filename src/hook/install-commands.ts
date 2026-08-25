@@ -4,169 +4,232 @@ import type { Ecosystem, PackageCheckInput } from "../core/types.js";
 
 type Extracted = { ecosystem: Ecosystem; names: readonly string[] };
 
-const commandPrefixes = new Set(["sudo", "env", "command", "exec", "nohup", "time"]);
+type Flags = {
+  // Flags that consume the following token.
+  value: ReadonlySet<string>;
+  // Flags that point the command at a non-public source; the command is skipped.
+  source: ReadonlySet<string>;
+};
+
+type PackageFlags = {
+  // Flags whose value replaces the positional package (`npx -p`, `uvx --from`).
+  replacing: ReadonlySet<string>;
+  // Flags whose value is installed in addition to the positional (`uvx --with`).
+  additional: ReadonlySet<string>;
+};
+
+const shellPrefixes = new Set([
+  "sudo",
+  "env",
+  "command",
+  "exec",
+  "nohup",
+  "time",
+  "if",
+  "then",
+  "else",
+  "elif",
+  "do",
+  "while",
+  "until",
+  "!",
+  "{"
+]);
+const prefixesWithFlags = new Set(["sudo", "env", "nohup", "time"]);
 const sudoValueFlags = new Set(["-u", "--user", "-g", "--group", "-h", "--host"]);
 const envAssignment = /^[A-Za-z_][A-Za-z0-9_]*=/u;
+const registryVariables = new Set([
+  "NPM_CONFIG_REGISTRY",
+  "YARN_REGISTRY",
+  "YARN_NPM_REGISTRY_SERVER",
+  "PIP_INDEX_URL",
+  "PIP_EXTRA_INDEX_URL",
+  "UV_INDEX_URL",
+  "UV_EXTRA_INDEX_URL",
+  "UV_DEFAULT_INDEX",
+  "UV_INDEX",
+  "CARGO_REGISTRY_DEFAULT",
+  "GOPROXY",
+  "GOPRIVATE",
+  "GONOPROXY"
+]);
 
-const nodeValueFlags = new Set([
-  "--registry",
-  "-w",
-  "--workspace",
-  "--prefix",
-  "-C",
-  "--cwd",
-  "--filter",
-  "--tag",
-  "--save-prefix",
-  "--loglevel",
-  "--userconfig",
-  "--cache"
-]);
-const npxValueFlags = new Set(["-c", "--call", "--shell", "--shell-auto-fallback"]);
-const npxPackageFlags = new Set(["-p", "--package"]);
-const pipValueFlags = new Set([
-  "-r",
-  "--requirement",
-  "-c",
-  "--constraint",
-  "-e",
-  "--editable",
-  "-i",
-  "--index-url",
-  "--extra-index-url",
-  "-f",
-  "--find-links",
-  "-t",
-  "--target",
-  "--platform",
-  "--python-version",
-  "--implementation",
-  "--abi",
-  "--root",
-  "--prefix",
-  "--src",
-  "-b",
-  "--build",
-  "--proxy",
-  "--timeout",
-  "--retries",
-  "--trusted-host",
-  "--cert",
-  "--client-cert",
-  "--cache-dir",
-  "--log",
-  "--config-settings",
-  "-C",
-  "--report",
-  "--progress-bar",
-  "--python",
-  "-p",
-  "--group",
-  "-G",
-  "--extra",
-  "-E",
-  "--extras",
-  "--index",
-  "--default-index",
-  "--package",
-  "--project",
-  "--directory",
-  "-P",
-  "--source",
-  "--rev",
-  "--tag",
-  "--branch",
-  "--pip-args",
-  "--spec"
-]);
-const pipSourceFlags = new Set(["--git", "--path", "--url"]);
-const uvxPackageFlags = new Set(["--from", "--with", "--spec"]);
-const cargoValueFlags = new Set([
-  "--features",
-  "-F",
-  "--rename",
-  "--branch",
-  "--tag",
-  "--rev",
-  "--registry",
-  "--index",
-  "--target",
-  "--target-dir",
-  "-p",
-  "--package",
-  "--manifest-path",
-  "-C",
-  "--version",
-  "--vers",
-  "--root",
-  "-j",
-  "--jobs",
-  "--config",
-  "-Z",
-  "--profile",
-  "--color"
-]);
-const cargoSourceFlags = new Set(["--git", "--path"]);
-const goValueFlags = new Set([
-  "-tags",
-  "-ldflags",
-  "-gcflags",
-  "-asmflags",
-  "-gccgoflags",
-  "-mod",
-  "-modfile",
-  "-overlay",
-  "-C",
-  "-o",
-  "-p",
-  "-toolexec",
-  "-buildmode",
-  "-compiler",
-  "-installsuffix",
-  "-pkgdir",
-  "-buildvcs",
-  "-covermode",
-  "-coverpkg"
-]);
-const gemValueFlags = new Set([
-  "-v",
-  "--version",
-  "-s",
-  "--source",
-  "-i",
-  "--install-dir",
-  "-n",
-  "--bindir",
-  "--platform",
-  "--http-proxy",
-  "--config-file",
-  "-g",
-  "--group",
-  "-r",
-  "--require",
-  "--branch",
-  "--ref",
-  "--glob"
-]);
-const gemSourceFlags = new Set(["--git", "--github", "--path"]);
-const composerValueFlags = new Set([
-  "-d",
-  "--working-dir",
-  "--with",
-  "--prefer-install",
-  "--audit-format",
-  "--apcu-autoloader-prefix"
-]);
-const dotnetValueFlags = new Set([
-  "-v",
-  "--version",
-  "-f",
-  "--framework",
-  "-s",
-  "--source",
-  "--package-directory",
-  "--project"
-]);
+const nodeFlags: Flags = {
+  value: new Set([
+    "-w",
+    "--workspace",
+    "--prefix",
+    "-C",
+    "--cwd",
+    "--filter",
+    "--tag",
+    "--save-prefix",
+    "--loglevel",
+    "--userconfig",
+    "--cache"
+  ]),
+  source: new Set(["--registry"])
+};
+const npxFlags: Flags = {
+  value: new Set(["-c", "--call", "--shell", "--shell-auto-fallback"]),
+  source: nodeFlags.source
+};
+const npxPackageFlags: PackageFlags = {
+  replacing: new Set(["-p", "--package"]),
+  additional: new Set()
+};
+const pipFlags: Flags = {
+  value: new Set([
+    "-r",
+    "--requirement",
+    "-c",
+    "--constraint",
+    "-e",
+    "--editable",
+    "-t",
+    "--target",
+    "--platform",
+    "--python-version",
+    "--implementation",
+    "--abi",
+    "--root",
+    "--prefix",
+    "--src",
+    "-b",
+    "--build",
+    "--proxy",
+    "--timeout",
+    "--retries",
+    "--trusted-host",
+    "--cert",
+    "--client-cert",
+    "--cache-dir",
+    "--log",
+    "--config-settings",
+    "-C",
+    "--report",
+    "--progress-bar",
+    "--python",
+    "-p",
+    "--group",
+    "-G",
+    "--extra",
+    "-E",
+    "--extras",
+    "--package",
+    "--project",
+    "--directory",
+    "-P",
+    "--rev",
+    "--tag",
+    "--branch",
+    "--pip-args"
+  ]),
+  source: new Set([
+    "--git",
+    "--path",
+    "--url",
+    "-i",
+    "--index-url",
+    "--extra-index-url",
+    "-f",
+    "--find-links",
+    "--no-index",
+    "--index",
+    "--default-index",
+    "--source"
+  ])
+};
+const uvxPackageFlags: PackageFlags = {
+  replacing: new Set(["--from", "--spec"]),
+  additional: new Set(["--with"])
+};
+const cargoFlags: Flags = {
+  value: new Set([
+    "--features",
+    "-F",
+    "--rename",
+    "--branch",
+    "--tag",
+    "--rev",
+    "--target",
+    "--target-dir",
+    "-p",
+    "--package",
+    "--manifest-path",
+    "-C",
+    "--version",
+    "--vers",
+    "--root",
+    "-j",
+    "--jobs",
+    "--config",
+    "-Z",
+    "--profile",
+    "--color"
+  ]),
+  source: new Set(["--git", "--path", "--registry", "--index"])
+};
+const goFlags: Flags = {
+  value: new Set([
+    "-tags",
+    "-ldflags",
+    "-gcflags",
+    "-asmflags",
+    "-gccgoflags",
+    "-mod",
+    "-modfile",
+    "-overlay",
+    "-C",
+    "-o",
+    "-p",
+    "-toolexec",
+    "-buildmode",
+    "-compiler",
+    "-installsuffix",
+    "-pkgdir",
+    "-buildvcs",
+    "-covermode",
+    "-coverpkg"
+  ]),
+  source: new Set()
+};
+const gemFlags: Flags = {
+  value: new Set([
+    "-v",
+    "--version",
+    "-i",
+    "--install-dir",
+    "-n",
+    "--bindir",
+    "--platform",
+    "--http-proxy",
+    "--config-file",
+    "-g",
+    "--group",
+    "-r",
+    "--require",
+    "--branch",
+    "--ref",
+    "--glob"
+  ]),
+  source: new Set(["--git", "--github", "--path", "-s", "--source", "--clear-sources", "-l", "--local"])
+};
+const composerFlags: Flags = {
+  value: new Set([
+    "-d",
+    "--working-dir",
+    "--with",
+    "--prefer-install",
+    "--audit-format",
+    "--apcu-autoloader-prefix"
+  ]),
+  source: new Set()
+};
+const dotnetFlags: Flags = {
+  value: new Set(["-v", "--version", "-f", "--framework", "--package-directory", "--project"]),
+  source: new Set(["-s", "--source"])
+};
 
 const goThreeElementHosts = new Set([
   "github.com",
@@ -188,7 +251,8 @@ export function extractInstallPackages(command: string): PackageCheckInput[] {
   const packages: PackageCheckInput[] = [];
 
   for (const tokens of splitCommands(command)) {
-    const extracted = extractFromCommand(stripPrefixes(tokens));
+    const { tokens: commandTokens, alternateSource } = stripPrefixes(tokens);
+    const extracted = alternateSource ? undefined : extractFromCommand(commandTokens);
     if (extracted === undefined) {
       continue;
     }
@@ -208,6 +272,9 @@ export function extractInstallPackages(command: string): PackageCheckInput[] {
   return packages;
 }
 
+// Splits a shell command line into simple commands on unquoted operators,
+// subshell parentheses, backticks, and newlines; drops comments; joins
+// backslash-newline continuations; strips quotes from tokens.
 function splitCommands(command: string): string[][] {
   const commands: string[][] = [];
   let tokens: string[] = [];
@@ -237,7 +304,9 @@ function splitCommands(command: string): string[][] {
     if (quote !== undefined) {
       if (char === quote) {
         quote = undefined;
-      } else if (char === "\\" && quote === '"' && next !== undefined) {
+      } else if (quote === '"' && char === "\\" && next === "\n") {
+        index += 1;
+      } else if (quote === '"' && char === "\\" && next !== undefined) {
         current += next;
         index += 1;
       } else {
@@ -246,14 +315,20 @@ function splitCommands(command: string): string[][] {
       continue;
     }
 
-    if (char === "'" || char === '"') {
+    if (char === "#" && !hasToken) {
+      while (index + 1 < command.length && command[index + 1] !== "\n") {
+        index += 1;
+      }
+    } else if (char === "'" || char === '"') {
       quote = char;
       hasToken = true;
+    } else if (char === "\\" && next === "\n") {
+      index += 1;
     } else if (char === "\\" && next !== undefined) {
       current += next;
       hasToken = true;
       index += 1;
-    } else if (char === "&" || char === "|" || char === ";" || char === "\n") {
+    } else if ("&|;\n()`".includes(char)) {
       endCommand();
     } else if (char === " " || char === "\t" || char === "\r") {
       endToken();
@@ -271,13 +346,11 @@ function stripRedirections(tokens: readonly string[]): string[] {
   const result: string[] = [];
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index] ?? "";
-    if (/^\d*[<>]{1,2}$/u.test(token) || /^&?>/u.test(token)) {
-      if (/^\d*[<>]{1,2}$/u.test(token) || token === "&>") {
-        index += 1;
-      }
+    if (/^\d*[<>]{1,2}$/u.test(token) || token === "&>") {
+      index += 1;
       continue;
     }
-    if (/^\d*[<>]/u.test(token)) {
+    if (/^\d*[<>]/u.test(token) || token.startsWith("&>")) {
       continue;
     }
     result.push(token);
@@ -285,17 +358,22 @@ function stripRedirections(tokens: readonly string[]): string[] {
   return result;
 }
 
-function stripPrefixes(tokens: readonly string[]): string[] {
+function stripPrefixes(tokens: readonly string[]): {
+  tokens: string[];
+  alternateSource: boolean;
+} {
   const remaining = [...tokens];
+  let alternateSource = false;
 
   while (remaining.length > 0) {
     const first = remaining[0] ?? "";
     if (envAssignment.test(first)) {
+      alternateSource = alternateSource || isRegistryVariable(first);
       remaining.shift();
       continue;
     }
 
-    if (!commandPrefixes.has(first)) {
+    if (!shellPrefixes.has(first)) {
       break;
     }
 
@@ -304,7 +382,10 @@ function stripPrefixes(tokens: readonly string[]): string[] {
       const token = remaining[0] ?? "";
       if (first === "sudo" && sudoValueFlags.has(token)) {
         remaining.splice(0, 2);
-      } else if (token.startsWith("-") || (first === "env" && envAssignment.test(token))) {
+      } else if (first === "env" && envAssignment.test(token)) {
+        alternateSource = alternateSource || isRegistryVariable(token);
+        remaining.shift();
+      } else if (prefixesWithFlags.has(first) && token.startsWith("-") && token.length > 1) {
         remaining.shift();
       } else {
         break;
@@ -312,66 +393,67 @@ function stripPrefixes(tokens: readonly string[]): string[] {
     }
   }
 
-  return remaining;
+  return { tokens: remaining, alternateSource };
+}
+
+function isRegistryVariable(assignment: string): boolean {
+  const name = (assignment.split("=")[0] ?? "").toUpperCase();
+  return registryVariables.has(name) || name.startsWith("CARGO_REGISTRIES_");
 }
 
 function extractFromCommand(tokens: readonly string[]): Extracted | undefined {
   const [program = "", ...args] = tokens;
   switch (path.posix.basename(program)) {
     case "npm":
-      return subcommand(args, nodeValueFlags, {
-        install: "npm",
-        i: "npm",
-        add: "npm"
-      });
+      return subcommand(args, nodeFlags, { install: "npm", i: "npm", add: "npm" });
     case "pnpm":
     case "yarn":
     case "bun":
       return (
-        subcommand(args, nodeValueFlags, { install: "npm", i: "npm", add: "npm" }) ??
-        firstPositional(args, nodeValueFlags, { dlx: "npm", x: "npm" })
+        subcommand(args, nodeFlags, { install: "npm", i: "npm", add: "npm" }) ??
+        runner(args, npxFlags, { dlx: "npm", x: "npm" }, npxPackageFlags)
       );
     case "npx":
     case "bunx":
-      return firstPositionalOf(args, npxValueFlags, "npm", npxPackageFlags);
+      return runnerPackages(args, npxFlags, "npm", npxPackageFlags);
     case "pip":
     case "pip3":
-      return subcommand(args, pipValueFlags, { install: "pypi" }, pipSourceFlags, pipNames);
+      return subcommand(args, pipFlags, { install: "pypi" }, pipNames);
     case "python":
     case "python3":
     case "py":
       return args[0] === "-m" && args[1] === "pip"
-        ? subcommand(args.slice(2), pipValueFlags, { install: "pypi" }, pipSourceFlags, pipNames)
+        ? subcommand(args.slice(2), pipFlags, { install: "pypi" }, pipNames)
         : undefined;
     case "uv":
       if (args[0] === "pip" || args[0] === "tool") {
         return (
-          subcommand(args.slice(1), pipValueFlags, { install: "pypi" }, pipSourceFlags, pipNames) ??
-          firstPositional(args.slice(1), pipValueFlags, { run: "pypi" }, uvxPackageFlags)
+          subcommand(args.slice(1), pipFlags, { install: "pypi" }, pipNames) ??
+          runner(args.slice(1), pipFlags, { run: "pypi" }, uvxPackageFlags)
         );
       }
-      return subcommand(args, pipValueFlags, { add: "pypi" }, pipSourceFlags, pipNames);
+      return subcommand(args, pipFlags, { add: "pypi" }, pipNames);
     case "uvx":
-      return firstPositionalOf(args, pipValueFlags, "pypi", uvxPackageFlags);
+      return runnerPackages(args, pipFlags, "pypi", uvxPackageFlags);
     case "pipx":
       return (
-        subcommand(args, pipValueFlags, { install: "pypi" }, pipSourceFlags, pipNames) ??
-        firstPositional(args, pipValueFlags, { run: "pypi" }, uvxPackageFlags)
+        subcommand(args, pipFlags, { install: "pypi" }, pipNames) ??
+        runner(args, pipFlags, { run: "pypi" }, uvxPackageFlags)
       );
     case "poetry":
     case "pdm":
-      return subcommand(args, pipValueFlags, { add: "pypi" }, pipSourceFlags, pipNames);
+      return subcommand(args, pipFlags, { add: "pypi" }, pipNames);
     case "cargo":
-      return subcommand(args, cargoValueFlags, { add: "crates", install: "crates" }, cargoSourceFlags);
+      return subcommand(args, cargoFlags, { add: "crates", install: "crates" });
     case "go":
-      return subcommand(args, goValueFlags, { get: "go", install: "go" });
+      return subcommand(args, goFlags, { get: "go", install: "go" });
     case "gem":
-      return subcommand(args, gemValueFlags, { install: "rubygems", i: "rubygems" });
+      return subcommand(args, gemFlags, { install: "rubygems", i: "rubygems" });
     case "bundle":
     case "bundler":
-      return subcommand(args, gemValueFlags, { add: "rubygems" }, gemSourceFlags);
+      return subcommand(args, gemFlags, { add: "rubygems" });
     case "composer":
-      return subcommand(args, composerValueFlags, { require: "packagist", req: "packagist", r: "packagist" });
+      return subcommand(args, composerFlags, { require: "packagist", req: "packagist", r: "packagist" });
     case "dotnet":
       return dotnetPackages(args);
     default:
@@ -381,46 +463,55 @@ function extractFromCommand(tokens: readonly string[]): Extracted | undefined {
 
 function subcommand(
   args: readonly string[],
-  valueFlags: ReadonlySet<string>,
+  flags: Flags,
   subcommands: Record<string, Ecosystem>,
-  sourceFlags: ReadonlySet<string> = new Set(),
   refine: (names: readonly string[]) => readonly string[] = (names) => names
 ): Extracted | undefined {
-  const positionals = positionalArguments(args, valueFlags, sourceFlags);
+  const positionals = positionalArguments(args, flags);
   const [first, ...names] = positionals ?? [];
   const ecosystem = first === undefined ? undefined : subcommands[first];
   return ecosystem === undefined ? undefined : { ecosystem, names: refine(names) };
 }
 
-function firstPositional(
+function runner(
   args: readonly string[],
-  valueFlags: ReadonlySet<string>,
+  flags: Flags,
   subcommands: Record<string, Ecosystem>,
-  packageFlags: ReadonlySet<string> = new Set()
+  packageFlags: PackageFlags
 ): Extracted | undefined {
   const [first, ...rest] = args;
   const ecosystem = first === undefined ? undefined : subcommands[first];
-  return ecosystem === undefined
-    ? undefined
-    : firstPositionalOf(rest, valueFlags, ecosystem, packageFlags);
+  return ecosystem === undefined ? undefined : runnerPackages(rest, flags, ecosystem, packageFlags);
 }
 
-function firstPositionalOf(
+function runnerPackages(
   args: readonly string[],
-  valueFlags: ReadonlySet<string>,
+  flags: Flags,
   ecosystem: Ecosystem,
-  packageFlags: ReadonlySet<string>
-): Extracted {
-  const flagged = flagValues(args, packageFlags);
-  if (flagged.length > 0) {
-    return { ecosystem, names: flagged };
+  packageFlags: PackageFlags
+): Extracted | undefined {
+  const positionals = positionalArguments(args, {
+    value: new Set([...flags.value, ...packageFlags.replacing, ...packageFlags.additional]),
+    source: flags.source
+  });
+  if (positionals === undefined) {
+    return undefined;
   }
-  const positionals = positionalArguments(args, new Set([...valueFlags, ...packageFlags]));
-  return { ecosystem, names: (positionals ?? []).slice(0, 1) };
+  const replacing = flagValues(args, packageFlags.replacing);
+  return {
+    ecosystem,
+    names: [
+      ...flagValues(args, packageFlags.additional),
+      ...(replacing.length > 0 ? replacing : positionals.slice(0, 1))
+    ]
+  };
 }
 
 function dotnetPackages(args: readonly string[]): Extracted | undefined {
-  const positionals = positionalArguments(args, dotnetValueFlags) ?? [];
+  const positionals = positionalArguments(args, dotnetFlags);
+  if (positionals === undefined) {
+    return undefined;
+  }
   const [first, second, third] = positionals;
   if (first === "add") {
     const index = positionals.indexOf("package");
@@ -446,11 +537,7 @@ function pipNames(names: readonly string[]): string[] {
   return result;
 }
 
-function positionalArguments(
-  args: readonly string[],
-  valueFlags: ReadonlySet<string>,
-  sourceFlags: ReadonlySet<string> = new Set()
-): string[] | undefined {
+function positionalArguments(args: readonly string[], flags: Flags): string[] | undefined {
   const positionals: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const token = args[index] ?? "";
@@ -460,10 +547,10 @@ function positionalArguments(
     }
     if (token.startsWith("-") && token.length > 1) {
       const flag = token.split("=")[0] ?? token;
-      if (sourceFlags.has(flag)) {
+      if (flags.source.has(flag)) {
         return undefined;
       }
-      if (!token.includes("=") && valueFlags.has(flag)) {
+      if (!token.includes("=") && flags.value.has(flag)) {
         index += 1;
       }
       continue;

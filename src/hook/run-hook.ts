@@ -63,7 +63,10 @@ export async function runHook(input: {
     return {
       exitCode: 0,
       stdout: `${JSON.stringify({
-        additionalContext: `SlopLock could not verify ${names.join(", ")} against the public registry: ${result.registryFailures[0]?.message ?? "registry check failed"}`
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse",
+          additionalContext: `SlopLock could not verify ${names.join(", ")} against the public registry: ${result.registryFailures[0]?.message ?? "registry check failed"}`
+        }
       })}\n`,
       stderr: ""
     };

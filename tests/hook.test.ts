@@ -183,10 +183,13 @@ allow:
     });
 
     expect(outcome.exitCode).toBe(0);
-    const output = JSON.parse(outcome.stdout) as { additionalContext?: string; hookSpecificOutput?: unknown };
-    expect(output.hookSpecificOutput).toBeUndefined();
-    expect(output.additionalContext).toContain("could not verify npm flaky-package");
-    expect(output.additionalContext).toContain("request timed out");
+    const output = JSON.parse(outcome.stdout) as {
+      hookSpecificOutput: { hookEventName: string; permissionDecision?: string; additionalContext?: string };
+    };
+    expect(output.hookSpecificOutput.hookEventName).toBe("PreToolUse");
+    expect(output.hookSpecificOutput.permissionDecision).toBeUndefined();
+    expect(output.hookSpecificOutput.additionalContext).toContain("could not verify npm flaky-package");
+    expect(output.hookSpecificOutput.additionalContext).toContain("request timed out");
   });
 
   it("skips names that are not valid registry names instead of failing", async () => {

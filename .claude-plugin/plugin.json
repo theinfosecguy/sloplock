@@ -1,6 +1,6 @@
 {
   "name": "sloplock",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Blocks npm, pip, uv, cargo, go, gem, composer, and dotnet installs of packages that do not exist or are too new.",
   "author": {
     "name": "theinfosecguy",
