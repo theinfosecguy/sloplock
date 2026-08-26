@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { RegistryFailureError, SlopLockError } from "../core/errors.js";
+import { stripVersionSpec } from "../core/packages.js";
 import { checkPackages, scan } from "../core/scan.js";
 import { isAtOrAboveSeverity } from "../core/severity.js";
 import type { CheckPackagesResult, ScanResult } from "../core/types.js";
@@ -16,7 +17,7 @@ async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
 
   if (args.help) {
-    process.stdout.write(helpText());
+    process.stdout.write(args.helpOutput ?? helpText());
     return;
   }
 
@@ -71,7 +72,10 @@ async function runCheck(args: CheckArgs): Promise<void> {
   let result: CheckPackagesResult;
   try {
     result = await checkPackages({
-      packages: args.names.map((name) => ({ ecosystem: args.ecosystem, name })),
+      packages: args.names.map((name) => ({
+        ecosystem: args.ecosystem,
+        name: stripVersionSpec(args.ecosystem, name)
+      })),
       ...(args.config === undefined ? {} : { configPath: args.config }),
       ...(args.failOn === undefined ? {} : { failOn: args.failOn })
     });

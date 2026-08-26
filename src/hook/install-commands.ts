@@ -1,6 +1,6 @@
 import path from "node:path";
 import { matchesGoPrivateModulePattern, splitGoPrivatePatternList } from "../core/go.js";
-import { normalizePackageName } from "../core/packages.js";
+import { normalizePackageName, stripVersionSpec } from "../core/packages.js";
 import type { Ecosystem, PackageCheckInput } from "../core/types.js";
 
 type Extracted = { ecosystem: Ecosystem; names: readonly string[] };
@@ -891,7 +891,7 @@ function registryName(ecosystem: Ecosystem, raw: string): string | undefined {
     return undefined;
   }
 
-  const name = stripVersion(ecosystem, spec);
+  const name = stripVersionSpec(ecosystem, spec);
   if (ecosystem === "npm" && name.includes("/") && !name.startsWith("@")) {
     return undefined;
   }
@@ -900,26 +900,6 @@ function registryName(ecosystem: Ecosystem, raw: string): string | undefined {
   }
 
   return normalizePackageName(ecosystem, ecosystem === "go" ? goModuleGuess(name) : name);
-}
-
-function stripVersion(ecosystem: Ecosystem, spec: string): string {
-  switch (ecosystem) {
-    case "npm": {
-      const at = spec.indexOf("@", spec.startsWith("@") ? 1 : 0);
-      return at === -1 ? spec : spec.slice(0, at);
-    }
-    case "pypi":
-      return spec.split(/[[=<>!~;@]/u)[0] ?? spec;
-    case "crates":
-    case "go":
-      return spec.split("@")[0] ?? spec;
-    case "rubygems":
-    case "packagist":
-      return spec.split(/[:=]/u)[0] ?? spec;
-    case "maven":
-    case "nuget":
-      return spec;
-  }
 }
 
 // ponytail: `go get` accepts package paths, but the module proxy only answers

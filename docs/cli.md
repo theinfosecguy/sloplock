@@ -48,7 +48,9 @@ Options:
 - `sloplock check <ecosystem> <name...>`: check package names against their
   public registry without a checkout. Accepts `--format text|json`,
   `--fail-on`, `--config`, and `--fail-closed`, and uses the same exit codes as
-  a scan. `sloplock.yml` in the current directory applies.
+  a scan. `sloplock.yml` in the current directory applies. A trailing version
+  specifier (`express@4`, `requests==2.32.0`, `serde@1`, `vendor/pkg:^1.0`,
+  `com.acme:lib:1.0`) is ignored. `sloplock check --help` lists the options.
 
   ```bash
   npx --yes sloplock@latest check npm express fastapi-auth-helper

@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { UsageError } from "../src/core/errors.js";
-import { helpText, parseCliArgs } from "../src/cli/args.js";
+import { type CliArgs, helpText, parseCliArgs } from "../src/cli/args.js";
+
+function defaultCliArgs(overrides: Partial<CliArgs>): CliArgs {
+  return {
+    path: ".",
+    format: "text",
+    changedOnly: false,
+    failClosed: false,
+    hook: false,
+    help: false,
+    version: false,
+    ...overrides
+  };
+}
 
 describe("parseCliArgs", () => {
   it("parses supported CLI flags", () => {
@@ -77,6 +90,21 @@ describe("parseCliArgs", () => {
     expect(() => parseCliArgs(["check", "npm"])).toThrow(UsageError);
     expect(() => parseCliArgs(["check", "npm", "foo", "--format", "markdown"])).toThrow(UsageError);
     expect(helpText()).toMatch(/^\s+check \[options\] <ecosystem> <names\.\.\.>/mu);
+  });
+
+  it("prints subcommand help for check --help and hook --help", () => {
+    const check = parseCliArgs(["check", "--help"]);
+    expect(check.help).toBe(true);
+    expect(check.helpOutput).toMatch(/^Usage: sloplock check \[options\] <ecosystem> <names\.\.\.>/u);
+    expect(check.helpOutput).toContain("--format <format>");
+    expect(check.helpOutput).toContain("--fail-closed");
+
+    const hook = parseCliArgs(["hook", "-h"]);
+    expect(hook.help).toBe(true);
+    expect(hook.helpOutput).toMatch(/^Usage: sloplock hook/u);
+
+    expect(parseCliArgs(["--help"])).toEqual(defaultCliArgs({ help: true }));
+    expect(parseCliArgs([".", "-h"]).helpOutput).toBeUndefined();
   });
 
   it("rejects unsupported ecosystems", () => {

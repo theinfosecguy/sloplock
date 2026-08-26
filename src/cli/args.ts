@@ -30,8 +30,11 @@ export type CliArgs = {
   hook: boolean;
   check?: CheckArgs;
   help: boolean;
+  helpOutput?: string;
   version: boolean;
 };
+
+const subcommands = new Set(["check", "hook"]);
 
 type ProgramOptions = {
   format: OutputFormat;
@@ -44,12 +47,14 @@ type ProgramOptions = {
 };
 
 export function parseCliArgs(argv: readonly string[]): CliArgs {
-  if (hasFlag(argv, "--help", "-h")) {
-    return defaultArgs({ help: true });
-  }
+  if (!subcommands.has(argv[0] ?? "")) {
+    if (hasFlag(argv, "--help", "-h")) {
+      return defaultArgs({ help: true });
+    }
 
-  if (hasFlag(argv, "--version", "-v")) {
-    return defaultArgs({ version: true });
+    if (hasFlag(argv, "--version", "-v")) {
+      return defaultArgs({ version: true });
+    }
   }
 
   const state: { hook: boolean; check?: CheckArgs } = { hook: false };
@@ -62,10 +67,14 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     }
   });
   let errorOutput = "";
+  let helpOutput = "";
 
   for (const command of [program, ...program.commands]) {
     command.exitOverride();
     command.configureOutput({
+      writeOut: (message) => {
+        helpOutput += message;
+      },
       writeErr: (message) => {
         errorOutput += message;
       }
@@ -76,6 +85,10 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     program.parse([...argv], { from: "user" });
   } catch (error) {
     if (error instanceof CommanderError) {
+      if (error.code === "commander.helpDisplayed") {
+        return defaultArgs({ help: true, helpOutput });
+      }
+
       const message = errorOutput.trim() || error.message;
       throw new UsageError(message);
     }

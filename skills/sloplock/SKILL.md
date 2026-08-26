@@ -31,7 +31,10 @@ npx -y sloplock@latest check <ecosystem> <name> [<name>...]
 ```
 
 `<ecosystem>` is one of `npm`, `pypi`, `crates`, `go`, `rubygems`,
-`packagist`, `nuget`, or `maven`. Names may include a version; it is ignored.
+`packagist`, `nuget`, or `maven`. A trailing version specifier in the form the
+ecosystem's own tooling uses is ignored: `express@4`, `requests==2.32.0`,
+`serde@1`, `github.com/x/y@v1.2.0`, `rake:13`, `vendor/pkg:^1.0`,
+`Foo.Bar@1.0`, `com.acme:lib:1.0`. Maven coordinates are `groupId:artifactId`.
 
 ```bash
 npx -y sloplock@latest check npm express fastapi-auth-helper
