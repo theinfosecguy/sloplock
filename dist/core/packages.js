@@ -26,6 +26,29 @@ export function normalizePackageName(ecosystem, packageName) {
             return normalizeRubygemsPackageName(packageName);
     }
 }
+// Drops a trailing version specifier in the form each ecosystem's tooling
+// accepts on the command line: `express@4`, `requests==2.32.0`, `serde@1`,
+// `github.com/x/y@v1.2.0`, `vendor/pkg:^1.0`, `rake:13`, `Foo.Bar@1.0`, and
+// `group:artifact:1.0`.
+export function stripVersionSpec(ecosystem, spec) {
+    switch (ecosystem) {
+        case "npm": {
+            const at = spec.indexOf("@", spec.startsWith("@") ? 1 : 0);
+            return at === -1 ? spec : spec.slice(0, at);
+        }
+        case "pypi":
+            return spec.split(/[[=<>!~;@]/u)[0] ?? spec;
+        case "crates":
+        case "go":
+        case "nuget":
+            return spec.split("@")[0] ?? spec;
+        case "rubygems":
+        case "packagist":
+            return spec.split(/[:=]/u)[0] ?? spec;
+        case "maven":
+            return spec.split(":").slice(0, 2).join(":");
+    }
+}
 export function registryDisplayName(ecosystem) {
     switch (ecosystem) {
         case "crates":

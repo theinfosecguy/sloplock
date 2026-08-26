@@ -37490,7 +37490,7 @@ function nugetPatternMatches(pattern, packageName) {
 }
 
 // src/core/version.ts
-var sloplockVersion = "2.1.0";
+var sloplockVersion = "2.2.0";
 var sloplockUserAgent = `sloplock/${sloplockVersion}`;
 var sloplockRepositoryUserAgent = `${sloplockUserAgent} (https://github.com/theinfosecguy/sloplock)`;
 
