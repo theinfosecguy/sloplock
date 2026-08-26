@@ -92,6 +92,6 @@ every dependency file in the directory.
 - If the project uses a private registry (`.npmrc`, `pip.conf`, a Cargo
   registry, an internal NuGet feed), a `not found` result may mean the package
   is private. Ask the user rather than assuming either way.
-- In Claude Code the SlopLock plugin enforces these checks automatically on
-  every install command. This skill is the manual equivalent for agents and
+- Where the SlopLock hook plugin is installed, these checks run automatically
+  on every install command. This skill is the manual equivalent for agents and
   workflows without the hook.

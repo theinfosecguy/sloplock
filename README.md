@@ -68,7 +68,7 @@ Exit code `1` means a finding at or above the fail threshold; `--format json` gi
 npx skills add theinfosecguy/sloplock
 ```
 
-That installs [`skills/sloplock/SKILL.md`](skills/sloplock/SKILL.md) into Claude Code, Cursor, Codex, Copilot, Windsurf, and other agents: when to check, how to run `sloplock check`, and what to do with each result. Or add this to `CLAUDE.md`, `AGENTS.md`, or your editor rules:
+That installs [`skills/sloplock/SKILL.md`](skills/sloplock/SKILL.md) into every agent the `skills` CLI supports: when to check, how to run `sloplock check`, and what to do with each result. Or add this to your agent instructions file or editor rules:
 
 ```markdown
 Before installing or adding a dependency, run
