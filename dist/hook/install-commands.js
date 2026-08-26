@@ -1,6 +1,6 @@
 import path from "node:path";
 import { matchesGoPrivateModulePattern, splitGoPrivatePatternList } from "../core/go.js";
-import { normalizePackageName } from "../core/packages.js";
+import { normalizePackageName, stripVersionSpec } from "../core/packages.js";
 const shellPrefixes = new Set([
     "sudo",
     "env",
@@ -818,7 +818,7 @@ function registryName(ecosystem, raw) {
     if (looksNonRegistry(spec)) {
         return undefined;
     }
-    const name = stripVersion(ecosystem, spec);
+    const name = stripVersionSpec(ecosystem, spec);
     if (ecosystem === "npm" && name.includes("/") && !name.startsWith("@")) {
         return undefined;
     }
@@ -826,25 +826,6 @@ function registryName(ecosystem, raw) {
         return undefined;
     }
     return normalizePackageName(ecosystem, ecosystem === "go" ? goModuleGuess(name) : name);
-}
-function stripVersion(ecosystem, spec) {
-    switch (ecosystem) {
-        case "npm": {
-            const at = spec.indexOf("@", spec.startsWith("@") ? 1 : 0);
-            return at === -1 ? spec : spec.slice(0, at);
-        }
-        case "pypi":
-            return spec.split(/[[=<>!~;@]/u)[0] ?? spec;
-        case "crates":
-        case "go":
-            return spec.split("@")[0] ?? spec;
-        case "rubygems":
-        case "packagist":
-            return spec.split(/[:=]/u)[0] ?? spec;
-        case "maven":
-        case "nuget":
-            return spec;
-    }
 }
 // ponytail: `go get` accepts package paths, but the module proxy only answers
 // for module paths. Reducing to the conventional module root on well-known

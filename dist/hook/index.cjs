@@ -9474,6 +9474,25 @@ function normalizePackageName(ecosystem, packageName) {
       return normalizeRubygemsPackageName(packageName);
   }
 }
+function stripVersionSpec(ecosystem, spec) {
+  switch (ecosystem) {
+    case "npm": {
+      const at = spec.indexOf("@", spec.startsWith("@") ? 1 : 0);
+      return at === -1 ? spec : spec.slice(0, at);
+    }
+    case "pypi":
+      return spec.split(/[[=<>!~;@]/u)[0] ?? spec;
+    case "crates":
+    case "go":
+    case "nuget":
+      return spec.split("@")[0] ?? spec;
+    case "rubygems":
+    case "packagist":
+      return spec.split(/[:=]/u)[0] ?? spec;
+    case "maven":
+      return spec.split(":").slice(0, 2).join(":");
+  }
+}
 function registryDisplayName(ecosystem) {
   switch (ecosystem) {
     case "crates":
@@ -9832,7 +9851,7 @@ var import_node_util = require("node:util");
 var execFileAsync = (0, import_node_util.promisify)(import_node_child_process.execFile);
 
 // src/core/version.ts
-var sloplockVersion = "2.1.0";
+var sloplockVersion = "2.2.0";
 var sloplockUserAgent = `sloplock/${sloplockVersion}`;
 var sloplockRepositoryUserAgent = `${sloplockUserAgent} (https://github.com/theinfosecguy/sloplock)`;
 
@@ -12646,7 +12665,7 @@ function registryName(ecosystem, raw) {
   if (looksNonRegistry(spec)) {
     return void 0;
   }
-  const name = stripVersion(ecosystem, spec);
+  const name = stripVersionSpec(ecosystem, spec);
   if (ecosystem === "npm" && name.includes("/") && !name.startsWith("@")) {
     return void 0;
   }
@@ -12654,25 +12673,6 @@ function registryName(ecosystem, raw) {
     return void 0;
   }
   return normalizePackageName(ecosystem, ecosystem === "go" ? goModuleGuess(name) : name);
-}
-function stripVersion(ecosystem, spec) {
-  switch (ecosystem) {
-    case "npm": {
-      const at = spec.indexOf("@", spec.startsWith("@") ? 1 : 0);
-      return at === -1 ? spec : spec.slice(0, at);
-    }
-    case "pypi":
-      return spec.split(/[[=<>!~;@]/u)[0] ?? spec;
-    case "crates":
-    case "go":
-      return spec.split("@")[0] ?? spec;
-    case "rubygems":
-    case "packagist":
-      return spec.split(/[:=]/u)[0] ?? spec;
-    case "maven":
-    case "nuget":
-      return spec;
-  }
 }
 function goModuleGuess(modulePath) {
   const elements = modulePath.split("/");
