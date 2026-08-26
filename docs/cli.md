@@ -45,6 +45,16 @@ Options:
 
 ## Commands
 
+- `sloplock check <ecosystem> <name...>`: check package names against their
+  public registry without a checkout. Accepts `--format text|json`,
+  `--fail-on`, `--config`, and `--fail-closed`, and uses the same exit codes as
+  a scan. `sloplock.yml` in the current directory applies.
+
+  ```bash
+  npx --yes sloplock@latest check npm express fastapi-auth-helper
+  npx --yes sloplock@latest check pypi requests --format json
+  ```
+
 - `sloplock hook`: run as a Claude Code `PreToolUse` hook. Reads the hook event
   on stdin and blocks package installs that fail the checks. See
   [`hook.md`](hook.md).

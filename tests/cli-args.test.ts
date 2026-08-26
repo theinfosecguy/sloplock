@@ -45,6 +45,40 @@ describe("parseCliArgs", () => {
     expect(helpText()).toMatch(/^\s+hook\s+run as a Claude Code PreToolUse hook/mu);
   });
 
+  it("parses the check subcommand", () => {
+    expect(parseCliArgs(["check", "npm", "express", "left-pad"]).check).toEqual({
+      ecosystem: "npm",
+      names: ["express", "left-pad"],
+      format: "text",
+      failClosed: false
+    });
+    expect(
+      parseCliArgs([
+        "check",
+        "pypi",
+        "requests",
+        "--format",
+        "json",
+        "--fail-on",
+        "medium",
+        "--config",
+        "custom.yml",
+        "--fail-closed"
+      ]).check
+    ).toEqual({
+      ecosystem: "pypi",
+      names: ["requests"],
+      format: "json",
+      failOn: "medium",
+      config: "custom.yml",
+      failClosed: true
+    });
+    expect(() => parseCliArgs(["check", "gradle", "foo"])).toThrow(UsageError);
+    expect(() => parseCliArgs(["check", "npm"])).toThrow(UsageError);
+    expect(() => parseCliArgs(["check", "npm", "foo", "--format", "markdown"])).toThrow(UsageError);
+    expect(helpText()).toMatch(/^\s+check \[options\] <ecosystem> <names\.\.\.>/mu);
+  });
+
   it("rejects unsupported ecosystems", () => {
     expect(() => parseCliArgs(["--ecosystem", "gradle"])).toThrow(UsageError);
   });

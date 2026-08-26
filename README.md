@@ -55,16 +55,25 @@ The default workflow scans only dependency names the pull request introduces, ch
 
 ### Locally And In Your Agent's Loop
 
+Check names before installing them, or scan a checkout:
+
 ```bash
+npx sloplock@latest check npm express fastapi-auth-helper
 npx sloplock@latest .
 ```
 
-Exit code `1` means a finding at or above the fail threshold; `--format json` gives a machine-readable report. To make an agent check before it commits, add this to `CLAUDE.md`, `AGENTS.md`, or your editor rules:
+Exit code `1` means a finding at or above the fail threshold; `--format json` gives a machine-readable report. To teach any coding agent to run these checks itself, install the SlopLock skill:
+
+```bash
+npx skills add theinfosecguy/sloplock
+```
+
+That installs [`skills/sloplock/SKILL.md`](skills/sloplock/SKILL.md) into Claude Code, Cursor, Codex, Copilot, Windsurf, and other agents: when to check, how to run `sloplock check`, and what to do with each result. Or add this to `CLAUDE.md`, `AGENTS.md`, or your editor rules:
 
 ```markdown
-Before committing a change that adds or renames a dependency, run
-`npx sloplock@latest . --changed-only` and fix every finding. Never add
-an allow entry for a package you did not verify by hand.
+Before installing or adding a dependency, run
+`npx sloplock@latest check <ecosystem> <name>` and do not proceed on a
+finding. Never add an allow entry for a package you did not verify by hand.
 ```
 
 The full option list is in [`docs/cli.md`](docs/cli.md).

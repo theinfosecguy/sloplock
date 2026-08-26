@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 import { RegistryFailureError, SlopLockError } from "../core/errors.js";
-import { scan } from "../core/scan.js";
-import type { ScanResult } from "../core/types.js";
+import { checkPackages, scan } from "../core/scan.js";
+import { isAtOrAboveSeverity } from "../core/severity.js";
+import type { CheckPackagesResult, ScanResult } from "../core/types.js";
 import { sloplockVersion } from "../core/version.js";
 import { hookMain } from "../hook/main.js";
+import { renderCheckJson, renderCheckText } from "../reporting/check.js";
 import { renderJson, renderJsonError } from "../reporting/json.js";
 import { renderMarkdown } from "../reporting/markdown.js";
 import { hasFailingFindings } from "../reporting/summary.js";
 import { renderText } from "../reporting/text.js";
-import { helpText, parseCliArgs, type OutputFormat } from "./args.js";
+import { type CheckArgs, helpText, parseCliArgs, type OutputFormat } from "./args.js";
 
 async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
@@ -25,6 +27,11 @@ async function main(): Promise<void> {
 
   if (args.hook) {
     await hookMain();
+    return;
+  }
+
+  if (args.check !== undefined) {
+    await runCheck(args.check);
     return;
   }
 
@@ -56,6 +63,31 @@ async function main(): Promise<void> {
   }
 
   if (hasFailingFindings(result, result.failOn)) {
+    process.exitCode = 1;
+  }
+}
+
+async function runCheck(args: CheckArgs): Promise<void> {
+  let result: CheckPackagesResult;
+  try {
+    result = await checkPackages({
+      packages: args.names.map((name) => ({ ecosystem: args.ecosystem, name })),
+      ...(args.config === undefined ? {} : { configPath: args.config }),
+      ...(args.failOn === undefined ? {} : { failOn: args.failOn })
+    });
+  } catch (error) {
+    writeError(args.format, error);
+    return;
+  }
+
+  const output = args.format === "json" ? renderCheckJson(result) : renderCheckText(result);
+  process.stdout.write(output.endsWith("\n") ? output : `${output}\n`);
+
+  if (args.failClosed && result.registryFailures.length > 0) {
+    throw new RegistryFailureError("Registry checks failed and --fail-closed is enabled.");
+  }
+
+  if (result.findings.some((finding) => isAtOrAboveSeverity(finding.severity, result.failOn))) {
     process.exitCode = 1;
   }
 }

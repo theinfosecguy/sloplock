@@ -9,6 +9,15 @@ import { sloplockVersion } from "../core/version.js";
 
 export type OutputFormat = "text" | "json" | "markdown";
 
+export type CheckArgs = {
+  ecosystem: Ecosystem;
+  names: string[];
+  format: "text" | "json";
+  failOn?: Exclude<Severity, "low">;
+  config?: string;
+  failClosed: boolean;
+};
+
 export type CliArgs = {
   path: string;
   format: OutputFormat;
@@ -19,6 +28,7 @@ export type CliArgs = {
   config?: string;
   failClosed: boolean;
   hook: boolean;
+  check?: CheckArgs;
   help: boolean;
   version: boolean;
 };
@@ -42,9 +52,14 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     return defaultArgs({ version: true });
   }
 
-  const state = { hook: false };
-  const program = buildProgram(() => {
-    state.hook = true;
+  const state: { hook: boolean; check?: CheckArgs } = { hook: false };
+  const program = buildProgram({
+    onHook: () => {
+      state.hook = true;
+    },
+    onCheck: (check) => {
+      state.check = check;
+    }
   });
   let errorOutput = "";
 
@@ -72,6 +87,10 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
     return defaultArgs({ hook: true });
   }
 
+  if (state.check !== undefined) {
+    return defaultArgs({ check: state.check });
+  }
+
   const options = program.opts();
   const pathArg = program.args[0] ?? ".";
 
@@ -91,16 +110,20 @@ export function parseCliArgs(argv: readonly string[]): CliArgs {
 }
 
 export function helpText(): string {
-  return buildProgram(() => undefined).helpInformation();
+  return buildProgram({ onHook: () => undefined, onCheck: () => undefined }).helpInformation();
 }
 
-function buildProgram(onHook: () => void): Command<[string], ProgramOptions> {
+function buildProgram(handlers: {
+  onHook: () => void;
+  onCheck: (check: CheckArgs) => void;
+}): Command<[string], ProgramOptions> {
   const program = new Command()
     .name("sloplock")
     .description(
       "Block nonexistent and too-new package dependencies before they enter your repo."
     )
     .argument("[path]", "directory to scan", ".")
+    .enablePositionalOptions()
     .allowExcessArguments(false)
     .showHelpAfterError(false)
     .helpOption("-h, --help", "display help")
@@ -135,12 +158,48 @@ function buildProgram(onHook: () => void): Command<[string], ProgramOptions> {
     .action(() => undefined);
 
   program
+    .command("check")
+    .description("check package names against their public registry")
+    .argument(
+      "<ecosystem>",
+      "crates, go, maven, npm, nuget, packagist, pypi, or rubygems",
+      parseEcosystem
+    )
+    .argument("<names...>", "package names to check")
+    .option("--format <format>", "output format: text or json", parseCheckFormat, "text")
+    .option(
+      "--fail-on <severity>",
+      "minimum severity that fails: medium or high",
+      parseFailOn
+    )
+    .option("--config <path>", "config file. Default: sloplock.yml")
+    .option("--fail-closed", "exit 3 on registry/network failures", false)
+    .action((ecosystem, names, options) => {
+      handlers.onCheck({
+        ecosystem,
+        names,
+        format: options.format,
+        ...(options.failOn === undefined ? {} : { failOn: options.failOn }),
+        ...(options.config === undefined ? {} : { config: options.config }),
+        failClosed: options.failClosed
+      });
+    });
+
+  program
     .command("hook")
     .description("run as a Claude Code PreToolUse hook: reads the hook event on stdin")
     .allowExcessArguments(false)
-    .action(onHook);
+    .action(handlers.onHook);
 
   return program;
+}
+
+function parseCheckFormat(value: string): "text" | "json" {
+  if (value === "text" || value === "json") {
+    return value;
+  }
+
+  throw new InvalidArgumentError("must be text or json.");
 }
 
 function parseFormat(value: string): OutputFormat {

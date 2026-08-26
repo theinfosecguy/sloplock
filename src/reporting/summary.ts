@@ -7,7 +7,7 @@ export type ReportSummary = {
 };
 
 export function summarizeFindings(
-  findings: readonly Finding[]
+  findings: readonly Pick<Finding, "severity">[]
 ): ReportSummary {
   const highest = highestSeverity(findings.map((finding) => finding.severity));
 
