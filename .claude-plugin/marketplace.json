@@ -9,7 +9,7 @@
       "name": "sloplock",
       "source": "./",
       "description": "Checks package-install commands against public registries before they run.",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "strict": true
     }
   ]
