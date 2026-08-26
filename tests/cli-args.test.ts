@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { UsageError } from "../src/core/errors.js";
-import { helpText, parseCliArgs } from "../src/cli/args.js";
+import { type CliArgs, helpText, parseCliArgs } from "../src/cli/args.js";
+
+function defaultCliArgs(overrides: Partial<CliArgs>): CliArgs {
+  return {
+    path: ".",
+    format: "text",
+    changedOnly: false,
+    failClosed: false,
+    hook: false,
+    help: false,
+    version: false,
+    ...overrides
+  };
+}
 
 describe("parseCliArgs", () => {
   it("parses supported CLI flags", () => {
@@ -43,6 +56,55 @@ describe("parseCliArgs", () => {
 
   it("lists the hook subcommand in help", () => {
     expect(helpText()).toMatch(/^\s+hook\s+run as a Claude Code PreToolUse hook/mu);
+  });
+
+  it("parses the check subcommand", () => {
+    expect(parseCliArgs(["check", "npm", "express", "left-pad"]).check).toEqual({
+      ecosystem: "npm",
+      names: ["express", "left-pad"],
+      format: "text",
+      failClosed: false
+    });
+    expect(
+      parseCliArgs([
+        "check",
+        "pypi",
+        "requests",
+        "--format",
+        "json",
+        "--fail-on",
+        "medium",
+        "--config",
+        "custom.yml",
+        "--fail-closed"
+      ]).check
+    ).toEqual({
+      ecosystem: "pypi",
+      names: ["requests"],
+      format: "json",
+      failOn: "medium",
+      config: "custom.yml",
+      failClosed: true
+    });
+    expect(() => parseCliArgs(["check", "gradle", "foo"])).toThrow(UsageError);
+    expect(() => parseCliArgs(["check", "npm"])).toThrow(UsageError);
+    expect(() => parseCliArgs(["check", "npm", "foo", "--format", "markdown"])).toThrow(UsageError);
+    expect(helpText()).toMatch(/^\s+check \[options\] <ecosystem> <names\.\.\.>/mu);
+  });
+
+  it("prints subcommand help for check --help and hook --help", () => {
+    const check = parseCliArgs(["check", "--help"]);
+    expect(check.help).toBe(true);
+    expect(check.helpOutput).toMatch(/^Usage: sloplock check \[options\] <ecosystem> <names\.\.\.>/u);
+    expect(check.helpOutput).toContain("--format <format>");
+    expect(check.helpOutput).toContain("--fail-closed");
+
+    const hook = parseCliArgs(["hook", "-h"]);
+    expect(hook.help).toBe(true);
+    expect(hook.helpOutput).toMatch(/^Usage: sloplock hook/u);
+
+    expect(parseCliArgs(["--help"])).toEqual(defaultCliArgs({ help: true }));
+    expect(parseCliArgs([".", "-h"]).helpOutput).toBeUndefined();
   });
 
   it("rejects unsupported ecosystems", () => {

@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   mkdtempSync,
   readFileSync,
@@ -66,6 +66,18 @@ try {
 
   if (report?.summary?.findings !== 0) {
     throw new Error(`Expected 0 findings, got ${scanOutput}`);
+  }
+
+  const check = spawnSync(
+    "npx",
+    ["sloplock", "check", "npm", "sloplock-smoke-nonexistent-package-4f9a1c", "--format", "json"],
+    { cwd: tempDir, encoding: "utf8" }
+  );
+  const checkReport = JSON.parse(check.stdout);
+  if (check.status !== 1 || checkReport?.summary?.findings !== 1) {
+    throw new Error(
+      `Expected check to exit 1 with one finding, got exit ${check.status}: ${check.stdout}`
+    );
   }
 
   const quietHook = hook("npm test");
